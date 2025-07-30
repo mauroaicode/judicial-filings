@@ -3,16 +3,18 @@
 namespace Core\BoundedContext\Admin\User\Infrastructure\Persistence\Eloquent;
 
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\{
     Model,
     Factories\HasFactory
 };
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-class UserModel extends Model
+class UserModel extends Model implements Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, Notifiable, HasApiTokens, HasRoles;
     protected $table = 'users';
 
     protected $keyType = 'string';
@@ -35,6 +37,7 @@ class UserModel extends Model
         'picture',
         'email',
         'password',
+        'email_verified_at',
     ];
 
     protected $guarded = ['id'];
@@ -67,5 +70,61 @@ class UserModel extends Model
     protected static function newFactory(): UserFactory
     {
         return UserFactory::new();
+    }
+
+    /**
+     * Get the name of the unique identifier for the user.
+     */
+    public function getAuthIdentifierName(): string
+    {
+        return 'id';
+    }
+
+    /**
+     * Get the unique identifier for the user.
+     */
+    public function getAuthIdentifier(): mixed
+    {
+        return $this->getAttribute($this->getAuthIdentifierName());
+    }
+
+    /**
+     * Get the password for the user.
+     */
+    public function getAuthPassword(): string
+    {
+        return $this->password;
+    }
+
+    /**
+     * Get the column name for the password.
+     */
+    public function getAuthPasswordName(): string
+    {
+        return 'password';
+    }
+
+    /**
+     * Get the token value for the "remember me" session.
+     */
+    public function getRememberToken(): string
+    {
+        return $this->getAttribute($this->getRememberTokenName());
+    }
+
+    /**
+     * Set the token value for the "remember me" session.
+     */
+    public function setRememberToken($value): void
+    {
+        $this->setAttribute($this->getRememberTokenName(), $value);
+    }
+
+    /**
+     * Get the column name for the "remember me" token.
+     */
+    public function getRememberTokenName(): string
+    {
+        return 'remember_token';
     }
 }
