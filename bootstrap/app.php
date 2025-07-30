@@ -14,5 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpException $e, $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                    'code' => $e->getStatusCode(),
+                ], $e->getStatusCode());
+            }
+        });
     })->create();
