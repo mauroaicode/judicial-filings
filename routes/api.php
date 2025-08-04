@@ -15,4 +15,5 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('admin')->group(function () {
     require __DIR__ . '/../src/BoundedContext/Admin/Auth/Infrastructure/Routes/api.php';
-}); 
+    require __DIR__ . '/../src/BoundedContext/Admin/AppUser/Infrastructure/Routes/api.php';
+});
