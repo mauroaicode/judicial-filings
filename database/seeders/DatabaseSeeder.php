@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             RoleModelTableSeed::class,
             UserModelTableSeed::class,
             OrganizationSeeder::class,
+            ProcessSeeder::class,
+            ProcessActionSeeder::class,
         ]);
     }
 }

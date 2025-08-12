@@ -6,7 +6,7 @@ namespace Core\BoundedContext\Admin\AppUser\Application\Actions;
 
 use Core\BoundedContext\Admin\AppUser\Application\Data\UpdateAppUserData;
 use Core\Shared\Domain\Repositories\AppUserRepositoryInterface;
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Symfony\Component\HttpFoundation\Response;
 
 readonly class UpdateAppUserUseCase

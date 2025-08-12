@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Core\BoundedContext\Admin\AppUser\Infrastructure\Repositories;
 
 use Core\Shared\Domain\Repositories\AppUserRepositoryInterface;
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Hash;
 

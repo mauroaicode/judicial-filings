@@ -6,7 +6,7 @@ namespace Core\BoundedContext\Admin\AppUser\Infrastructure\Controllers;
 
 use Core\BoundedContext\Admin\AppUser\Application\Actions\ListAppUserUseCase;
 use Core\BoundedContext\Admin\AppUser\Application\Resources\AppUserResource;
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Illuminate\Http\JsonResponse;
 
 readonly class ListAppUsersController

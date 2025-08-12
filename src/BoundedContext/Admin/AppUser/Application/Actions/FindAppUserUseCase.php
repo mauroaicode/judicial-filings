@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Core\BoundedContext\Admin\AppUser\Application\Actions;
 
 use Core\Shared\Domain\Repositories\AppUserRepositoryInterface;
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Symfony\Component\HttpFoundation\Response;
 
 readonly class FindAppUserUseCase
