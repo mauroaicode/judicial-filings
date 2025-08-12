@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
 use Core\BoundedContext\Admin\Role\Infrastructure\Persistence\Eloquent\RoleModel;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 

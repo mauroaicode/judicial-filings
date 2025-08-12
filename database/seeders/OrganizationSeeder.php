@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\Organization;
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
 use Core\BoundedContext\Admin\Role\Infrastructure\Persistence\Eloquent\RoleModel;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -100,10 +100,8 @@ class OrganizationSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
 
-            // Attach user to organization as owner
             $organization->appUsers()->attach($owner->id, ['is_owner' => true]);
 
-            // Assign role to owner
             $owner->roles()->attach($role->id);
         }
 

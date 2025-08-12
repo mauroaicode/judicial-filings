@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Core\BoundedContext\Admin\AppUser\Application\Resources;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppCustomer;
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Spatie\LaravelData\Resource;
 
 class AppUserResource extends Resource

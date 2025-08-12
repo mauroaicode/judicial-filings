@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Core\Shared\Domain\Repositories;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\AppUser;
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Illuminate\Database\Eloquent\Collection;
 
 interface AppUserRepositoryInterface
@@ -43,4 +43,4 @@ interface AppUserRepositoryInterface
      * Delete user
      */
     public function delete(string $id): bool;
-} 
+}

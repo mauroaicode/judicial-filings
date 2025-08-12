@@ -2,20 +2,32 @@
 
 declare(strict_types=1);
 
-namespace Core\Shared\Infrastructure\Persistence\Eloquent;
+namespace Core\Shared\Infrastructure\Persistence\Eloquent\Models;
 
-use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Database\Eloquent\{
-    Model,
-    Factories\HasFactory,
-    Relations\BelongsToMany
-};
+use Core\Shared\Infrastructure\Traits\Uuid;
 use Database\Factories\AppUserFactory;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\{Factories\Factory, Factories\HasFactory, Model, Relations\BelongsToMany};
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
-use Illuminate\Notifications\Notifiable;
-use Core\Shared\Infrastructure\Traits\Uuid;
 
+/**
+ * @property-read string $id
+ * @property-read string $name
+ * @property-read string $last_name
+ * @property-read string $slug
+ * @property-read string $email
+ * @property-read string $password
+ * @property-read string|null $profile_image
+ * @property-read Carbon|null $email_verified_at
+ * @property-read string|null $remember_token
+ * @property-read Carbon $created_at
+ * @property-read Carbon $updated_at
+ * @property-read Organization $organizations
+ * @property-read Organization $ownedOrganizations
+ */
 class AppUser extends Model implements Authenticatable
 {
     use HasFactory, Notifiable, HasApiTokens, HasRoles, Uuid;
@@ -23,7 +35,7 @@ class AppUser extends Model implements Authenticatable
     /**
      * Create a new factory instance for the model.
      */
-    protected static function newFactory()
+    protected static function newFactory(): Factory|AppUserFactory
     {
         return AppUserFactory::new();
     }
