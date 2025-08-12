@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('processes', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->bigInteger('process_id')->unique()->comment('ID interno de la API');
-            $table->decimal('process_number', 23, 0)->unique()->comment('Número de radicado visible al usuario');
+            $table->decimal('process_number', 23, 0)->comment('Número de radicado visible al usuario');
             $table->string('court')->comment('Despacho');
             $table->string('department')->comment('Departamento');
             $table->string('process_type')->comment('Tipo de proceso');
@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('location')->nullable()->comment('Ubicación');
             $table->text('filing_content')->nullable()->comment('Contenido de radicación');
             $table->boolean('is_private')->default(false)->comment('Indica si el proceso es privado');
+            $table->boolean('has_multiple_instances')->default(false)->comment('Indica si el proceso tiene múltiples instancias');
             $table->timestamp('last_api_update')->nullable()->comment('Última actualización desde la API');
             $table->timestamps();
         });

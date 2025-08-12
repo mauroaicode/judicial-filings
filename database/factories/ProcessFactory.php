@@ -60,6 +60,7 @@ class ProcessFactory extends Factory
             'location' => $this->faker->optional(0.6)->city(),
             'filing_content' => $this->faker->optional(0.7)->paragraphs(3, true),
             'is_private' => $this->faker->boolean(20), // 20% probabilidad de ser privado
+            'has_multiple_instances' => $this->faker->boolean(15), // 15% probabilidad de tener múltiples instancias
             'last_api_update' => $this->faker->optional(0.8)->dateTimeBetween('-1 month', 'now'),
         ];
     }

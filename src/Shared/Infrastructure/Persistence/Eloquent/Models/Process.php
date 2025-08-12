@@ -27,10 +27,12 @@ use Illuminate\Support\Carbon;
  * @property-read string|null $location
  * @property-read string|null $filing_content
  * @property-read bool $is_private
+ * @property-read bool $has_multiple_instances
  * @property-read Carbon|null $last_api_update
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read ProcessAction $actions
+ * @property-read ProcessSubject $subjects
  * @property-read Organization $organizations
  */
 class Process extends Model
@@ -55,6 +57,7 @@ class Process extends Model
         'location',
         'filing_content',
         'is_private',
+        'has_multiple_instances',
         'last_api_update',
     ];
 
@@ -63,6 +66,7 @@ class Process extends Model
         'process_date' => 'date',
         'last_activity_date' => 'date',
         'is_private' => 'boolean',
+        'has_multiple_instances' => 'boolean',
         'last_api_update' => 'datetime',
     ];
 
@@ -72,6 +76,14 @@ class Process extends Model
     public function actions(): HasMany
     {
         return $this->hasMany(ProcessAction::class);
+    }
+
+    /**
+     * Get the subjects for the process.
+     */
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(ProcessSubject::class);
     }
 
     /**
