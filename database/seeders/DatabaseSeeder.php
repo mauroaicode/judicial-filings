@@ -19,6 +19,8 @@ class DatabaseSeeder extends Seeder
             OrganizationSeeder::class,
             ProcessSeeder::class,
             ProcessActionSeeder::class,
+            ProcessSubjectSeeder::class,
+            MultipleInstanceProcessSeeder::class,
         ]);
     }
 }
