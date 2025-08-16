@@ -32,6 +32,9 @@ class OrganizationFactory extends Factory
             'name' => $type === 'natural'
                 ? $this->faker->name()
                 : $this->faker->company(),
+            'slug' => function (array $attributes) {
+                return Str::slug($attributes['name']);
+            },
             'type' => $type,
             'identification' => $type === 'natural'
                 ? $this->faker->numerify('########-#')

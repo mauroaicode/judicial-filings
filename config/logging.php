@@ -46,7 +46,7 @@ return [
     | of powerful log handlers and formatters that you're free to use.
     |
     | Available drivers: "single", "daily", "slack", "syslog",
-    |                    "errorlog", "monolog", "custom", "stack"
+    | "errorlog", "monolog", "custom", "stack"
     |
     */
 
@@ -123,10 +123,17 @@ return [
             'handler' => NullHandler::class,
         ],
 
+        'judicial_process_sync_job' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/judicial.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
 
     ],
-
 ];
