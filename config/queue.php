@@ -109,4 +109,26 @@ return [
         'table' => 'failed_jobs',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Custom Queue Names
+    |--------------------------------------------------------------------------
+    |
+    | Define custom queue names for specific job types to better organize
+    | and prioritize job processing.
+    |
+    */
+
+    'queues' => [
+        'default',
+        'process-sync' => [
+            'channel' => 'database',
+            'queue' => 'process-sync',
+        ],
+        'process-chunk' => [
+            'channel' => 'database',
+            'queue' => 'process-chunk',
+        ],
+    ],
+
 ];

@@ -62,13 +62,18 @@ class Process extends Model
     ];
 
     protected $casts = [
-        'process_number' => 'decimal:0',
+        'process_number' => 'string',
         'process_date' => 'date',
         'last_activity_date' => 'date',
         'is_private' => 'boolean',
         'has_multiple_instances' => 'boolean',
         'last_api_update' => 'datetime',
     ];
+
+    protected static function newFactory(): ProcessFactory
+    {
+        return ProcessFactory::new();
+    }
 
     /**
      * Get the actions for the process.
@@ -93,10 +98,5 @@ class Process extends Model
     {
         return $this->belongsToMany(Organization::class, 'organization_processes')
             ->withTimestamps();
-    }
-
-    protected static function newFactory(): ProcessFactory
-    {
-        return ProcessFactory::new();
     }
 }

@@ -86,6 +86,7 @@ class OrganizationSeeder extends Seeder
 
             $organization = Organization::create([
                 'id' => Str::uuid(),
+                'slug' => Str::slug($orgData['name']),
                 ...$orgData,
             ]);
 
