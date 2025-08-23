@@ -124,11 +124,17 @@ return [
         'process-sync' => [
             'channel' => 'database',
             'queue' => 'process-sync',
+
         ],
         'process-chunk' => [
             'channel' => 'database',
             'queue' => 'process-chunk',
         ],
+        'notifications' => [
+            'channel' => 'database',
+            'queue' => 'notifications',
+            'delay_for_organization' => 10,
+        ]
     ],
 
 ];

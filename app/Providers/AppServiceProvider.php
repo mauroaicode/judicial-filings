@@ -5,7 +5,11 @@ namespace App\Providers;
 use Core\BoundedContext\Admin\AppUser\Infrastructure\Repositories\AppUserRepository;
 use Core\BoundedContext\Admin\User\Domain\Repositories\UserRepositoryInterface;
 use Core\BoundedContext\Admin\User\Infrastructure\Persistence\Repositories\UserRepository;
+use Core\BoundedContext\Customer\Process\Domain\Repositories\OrganizationNotificationRepositoryInterface;
+use Core\BoundedContext\Customer\Process\Domain\Repositories\OrganizationNotificationChannelRepositoryInterface;
 use Core\BoundedContext\Customer\Process\Domain\Repositories\ProcessRepositoryInterface;
+use Core\BoundedContext\Customer\Process\Infrastructure\Repositories\OrganizationNotificationRepository;
+use Core\BoundedContext\Customer\Process\Infrastructure\Repositories\OrganizationNotificationChannelRepository;
 use Core\BoundedContext\Customer\Process\Infrastructure\Repositories\ProcessRepository;
 use Core\Shared\Domain\Repositories\AppUserRepositoryInterface;
 use Core\Shared\Domain\Repositories\OrganizationRepositoryInterface;
@@ -23,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AppUserRepositoryInterface::class, AppUserRepository::class);
         $this->app->bind(ProcessRepositoryInterface::class, ProcessRepository::class);
         $this->app->bind(OrganizationRepositoryInterface::class, OrganizationRepository::class);
+        $this->app->bind(OrganizationNotificationRepositoryInterface::class, OrganizationNotificationRepository::class);
+        $this->app->bind(OrganizationNotificationChannelRepositoryInterface::class, OrganizationNotificationChannelRepository::class);
     }
 
     /**

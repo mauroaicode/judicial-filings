@@ -2,12 +2,13 @@
 
 namespace App\Console\Commands;
 
-use Core\Shared\Infrastructure\Jobs\ProcessSyncJob;
 use Illuminate\Console\Command;
+use Core\Shared\Infrastructure\Jobs\ProcessSyncJob;
+
 
 class SyncOrganizationFilingsCommand extends Command
 {
-    protected $signature = 'organization:sync-filings
+    protected $signature = 'organization:sync-process
                             {--organization= : Slug de la organización específica a procesar}
                             {--filing= : Número de radicado específico a procesar}';
 
@@ -21,15 +22,16 @@ class SyncOrganizationFilingsCommand extends Command
         if ($organizationSlug && $filingNumber) {
             $this->error('Error: Solo puedes especificar una organización O un número de radicado, no ambos.');
             $this->error('Uso:');
-            $this->error('  php artisan organization:sync-filings --organization=slug-org');
-            $this->error('  php artisan organization:sync-filings --filing=numero-radicado');
-            $this->error('  php artisan organization:sync-filings (procesa todos los radicados)');
+            $this->error('  php artisan organization:sync-process --organization=slug-org');
+            $this->error('  php artisan organization:sync-process --filing=numero-radicado');
+            $this->error('  php artisan organization:sync-process (procesa todos los radicados)');
             return;
         }
 
         ProcessSyncJob::dispatch($organizationSlug, $filingNumber);
 
-        $this->info('Job de sincronización judicial despachado en la cola "judicial-sync".');
-        $this->info('Proceso completado.');
+        $queueSyncProcess = config('queue.queues.process-sync.queue');
+
+        $this->info("Job de sincronización judicial despachado en la cola {$queueSyncProcess}'.");
     }
 }

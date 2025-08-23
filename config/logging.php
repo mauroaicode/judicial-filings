@@ -123,9 +123,16 @@ return [
             'handler' => NullHandler::class,
         ],
 
-        'judicial_process_sync_job' => [
+        'judicial' => [
             'driver' => 'daily',
             'path' => storage_path('logs/judicial.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+        'notifications' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/notifications.log'),
             'level' => env('LOG_LEVEL', 'info'),
             'days' => 30,
             'replace_placeholders' => true,
@@ -134,6 +141,19 @@ return [
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
-
+        'judicial_process_sync_job' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/judicial.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+        'judicial_process_chunk_job' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/judicial.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
     ],
 ];

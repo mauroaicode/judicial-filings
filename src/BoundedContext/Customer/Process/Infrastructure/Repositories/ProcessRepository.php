@@ -8,6 +8,7 @@ use Core\BoundedContext\Customer\Process\Domain\Repositories\ProcessRepositoryIn
 use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
+use Illuminate\Support\Facades\Log;
 
 readonly class ProcessRepository implements ProcessRepositoryInterface
 {
@@ -32,11 +33,14 @@ readonly class ProcessRepository implements ProcessRepositoryInterface
             ->first();
     }
 
-    public function findByProcessNumber(string $processNumber): ?Process
+    /**
+     * Busca procesos por número de radicado
+     */
+    public function findByProcessNumber(string $processNumber): Collection
     {
         return $this->process::query()
             ->where('process_number', $processNumber)
-            ->first();
+            ->get();
     }
 
     public function findByOrganization(string $organizationId): Collection
@@ -121,10 +125,6 @@ readonly class ProcessRepository implements ProcessRepositoryInterface
     {
         $process = $this->process::query()->find($processId);
 
-        if (!$process) {
-            return;
-        }
-
         $existingOrganizations = $process->organizations()->pluck('organizations.id')->toArray();
 
         $newOrganizationIds = array_diff($organizationIds, $existingOrganizations);
@@ -138,7 +138,11 @@ readonly class ProcessRepository implements ProcessRepositoryInterface
                 ];
             }
 
+
             $process->organizations()->attach($pivotData);
+
+        } else {
+            Log::channel('judicial_process_chunk_job')->info("ℹ️ No hay nuevas organizaciones para asignar al proceso {$processId}");
         }
     }
 
