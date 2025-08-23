@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Core\Shared\Infrastructure\Traits\Uuid;
+use Core\Shared\Infrastructure\Traits\Notifiable;
 use Illuminate\Support\Carbon;
 
 /**
@@ -31,7 +32,7 @@ use Illuminate\Support\Carbon;
  */
 class ProcessAction extends Model
 {
-    use HasFactory, Uuid;
+    use HasFactory, Uuid, Notifiable;
 
     protected $table = 'process_actions';
     protected $keyType = 'string';
@@ -61,32 +62,6 @@ class ProcessAction extends Model
     public function process(): BelongsTo
     {
         return $this->belongsTo(Process::class);
-    }
-
-    /**
-     * Get the organizations that have access to this action.
-     */
-    public function organizations(): BelongsToMany
-    {
-        return $this->belongsToMany(Organization::class, 'organization_process_action')
-            ->withPivot(['is_viewed', 'is_notified', 'viewed_at', 'notified_at'])
-            ->withTimestamps();
-    }
-
-    /**
-     * Get organizations that have viewed this action.
-     */
-    public function viewedByOrganizations()
-    {
-        return $this->organizations()->wherePivot('is_viewed', true);
-    }
-
-    /**
-     * Get organizations that have been notified about this action.
-     */
-    public function notifiedOrganizations()
-    {
-        return $this->organizations()->wherePivot('is_notified', true);
     }
 
     protected static function newFactory(): ProcessActionFactory

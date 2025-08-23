@@ -26,9 +26,9 @@ interface ProcessRepositoryInterface
     public function findByProcessId(int $processId): ?Process;
 
     /**
-     * Find a process by process number
+     * Busca procesos por número de radicado
      */
-    public function findByProcessNumber(string $processNumber): ?Process;
+    public function findByProcessNumber(string $processNumber): Collection;
 
     /**
      * Exists a process with the given process number

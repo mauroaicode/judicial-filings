@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
 use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
 use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
 use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessAction;
@@ -61,7 +62,7 @@ class MultipleInstanceProcessSeeder extends Seeder
 
         // Obtener organizaciones para asignar
         $organizations = Organization::take(3)->get();
-        
+
         // Asignar procesos a organizaciones
         foreach ([$mainProcess, $secondInstance] as $process) {
             foreach ($organizations as $organization) {
@@ -76,7 +77,7 @@ class MultipleInstanceProcessSeeder extends Seeder
 
         // Crear sujetos procesales para el proceso principal
         $this->createProcessSubjects($mainProcess, 'main');
-        
+
         // Crear sujetos procesales para la segunda instancia
         $this->createProcessSubjects($secondInstance, 'second');
 
@@ -188,7 +189,11 @@ class MultipleInstanceProcessSeeder extends Seeder
             // Asignar actuación a organizaciones
             $organizations = Organization::take(2)->get();
             foreach ($organizations as $organization) {
-                $processAction->organizations()->attach($organization->id, [
+                OrganizationNotification::create([
+                    'organization_id' => $organization->id,
+                    'notifiable_id' => $processAction->id,
+                    'notifiable_type' => ProcessAction::class,
+                    'notification_type' => 'new_action',
                     'is_viewed' => fake()->boolean(80),
                     'is_notified' => fake()->boolean(60),
                     'viewed_at' => fake()->optional(0.8)->dateTimeBetween('-1 month', 'now'),

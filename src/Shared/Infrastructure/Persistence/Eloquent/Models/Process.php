@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Core\Shared\Infrastructure\Traits\Uuid;
+use Core\Shared\Infrastructure\Traits\Notifiable;
 use Illuminate\Support\Carbon;
 
 /**
@@ -37,7 +38,7 @@ use Illuminate\Support\Carbon;
  */
 class Process extends Model
 {
-    use HasFactory, Uuid;
+    use HasFactory, Uuid, Notifiable;
 
     protected $table = 'processes';
     protected $keyType = 'string';

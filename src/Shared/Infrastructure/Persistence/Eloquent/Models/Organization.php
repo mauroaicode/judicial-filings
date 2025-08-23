@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Organization Model
@@ -124,5 +125,29 @@ class Organization extends Model
     public function notifiedProcessActions()
     {
         return $this->processActions()->wherePivot('is_notified', true);
+    }
+
+    /**
+     * Get the notification channels for this organization.
+     */
+    public function notificationChannels(): HasMany
+    {
+        return $this->hasMany(\Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotificationChannel::class);
+    }
+
+    /**
+     * Get the active notification channels for this organization.
+     */
+    public function activeNotificationChannels()
+    {
+        return $this->notificationChannels()->where('is_active', true);
+    }
+
+    /**
+     * Get the notification channels by type for this organization.
+     */
+    public function notificationChannelsByType(string $type)
+    {
+        return $this->notificationChannels()->where('channel_type', $type);
     }
 }
