@@ -109,8 +109,6 @@ class JudicialProcessChunkService
         }
     }
 
-
-
     /**
      * Procesa un proceso individual
      */

@@ -40,7 +40,6 @@ readonly class JudicialProcessSyncService
 
             Log::channel('judicial_process_sync_job')->info("Total de radicados a procesar: {$filingNumbers->count()}");
 
-
             $filingNumbers->chunk(100)->each(function ($chunk, $index) {
                 $chunkArray = $chunk->toArray();
                 Log::channel('judicial_process_sync_job')->info("Despachando lote " . ($index + 1) . " con " . count($chunkArray) . " radicados");

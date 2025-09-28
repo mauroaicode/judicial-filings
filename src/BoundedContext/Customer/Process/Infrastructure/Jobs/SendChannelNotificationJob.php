@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Core\BoundedContext\Customer\Process\Infrastructure\Jobs;
 
+use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotificationChannel;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -11,10 +12,12 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use Core\BoundedContext\Customer\Process\Domain\Notification\NotificationChannelInterface;
 use Core\BoundedContext\Customer\Process\Infrastructure\Notifications\Data\NotificationData;
 use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
+use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\HistoryOrganizationChannelNotification;
 
 /**
  * Job for sending notifications through a specific channel to a specific recipient
@@ -52,6 +55,9 @@ class SendChannelNotificationJob implements ShouldQueue
      */
     public function handle(): void
     {
+        // Crear registro de historial ANTES de intentar enviar
+        $historyRecord = $this->createHistoryRecord();
+
         try {
             Log::channel('notifications')->info('Iniciando envío de notificación por canal individual', [
                 'type' => $this->notificationType,
@@ -98,6 +104,9 @@ class SendChannelNotificationJob implements ShouldQueue
                     'process_id' => $notificationData->getProcessId(),
                 ]);
 
+                // Actualizar historial como exitoso
+                $this->updateHistoryRecordAsSuccess($historyRecord);
+
                 $this->markAsNotified();
 
             } else {
@@ -125,6 +134,9 @@ class SendChannelNotificationJob implements ShouldQueue
             }
 
         } catch (Exception $e) {
+
+            $this->updateHistoryRecordAsFailed($historyRecord, $e->getMessage());
+
             // Log principal del error con todos los detalles
             Log::channel('notifications')->error('Error crítico en SendChannelNotificationJob: ' . $e->getMessage(), [
                 'type' => $this->notificationType,
@@ -177,30 +189,110 @@ class SendChannelNotificationJob implements ShouldQueue
     }
 
     /**
+     * Create history record for this notification attempt
+     */
+    private function createHistoryRecord(): HistoryOrganizationChannelNotification
+    {
+        // Obtener el ID del canal de notificación
+        $channelId = $this->getChannelId();
+
+        $historyRecord = new HistoryOrganizationChannelNotification();
+        $historyRecord->id = Str::uuid()->toString();
+        $historyRecord->organization_notification_channel_id = $channelId;
+        $historyRecord->notifiable_id = $this->processData['id'];
+        $historyRecord->notifiable_type = 'Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process';
+        $historyRecord->notification_type = $this->notificationType;
+        $historyRecord->is_notified = false;
+        $historyRecord->notified_at = null;
+
+        $historyRecord->save();
+
+        Log::channel('notifications')->info('Registro de historial creado', [
+            'history_id' => $historyRecord->id,
+            'channel_id' => $channelId,
+            'process_id' => $this->processData['id'],
+            'notification_type' => $this->notificationType
+        ]);
+
+        return $historyRecord;
+    }
+
+    /**
+     * Update history record as successful
+     */
+    private function updateHistoryRecordAsSuccess(HistoryOrganizationChannelNotification $historyRecord): void
+    {
+        $historyRecord->is_notified = true;
+        $historyRecord->notified_at = now();
+        $historyRecord->save();
+
+        Log::channel('notifications')->info('Historial actualizado como exitoso', [
+            'history_id' => $historyRecord->id,
+            'process_id' => $this->processData['id']
+        ]);
+    }
+
+    /**
+     * Update history record as failed
+     */
+    private function updateHistoryRecordAsFailed(HistoryOrganizationChannelNotification $historyRecord, string $errorMessage): void
+    {
+        $historyRecord->is_notified = false;
+        $historyRecord->notified_at = null;
+        $historyRecord->save();
+
+        Log::channel('notifications')->error('Historial actualizado como fallido', [
+            'history_id' => $historyRecord->id,
+            'process_id' => $this->processData['id'],
+            'error_message' => $errorMessage
+        ]);
+    }
+
+    /**
+     * Get the channel ID for the current notification
+     */
+    private function getChannelId(): string
+    {
+        // Buscar el canal por el valor del canal (email, etc.)
+        $channel = OrganizationNotificationChannel::query()
+            ->where('channel_value', $this->channelValue)
+            ->where('organization_id', $this->organizationData['id'])
+            ->first();
+
+        return $channel ? $channel->id : Str::uuid()->toString();
+    }
+
+    /**
      * Mark the notification as successfully sent
      */
     private function markAsNotified(): void
     {
         try {
-            // Crear o actualizar registro en OrganizationNotification
-            $notification = new OrganizationNotification();
-            $notification->organization_id = $this->organizationData['id'];
-            $notification->notifiable_id = $this->processData['id'];
-            $notification->notifiable_type = 'Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process';
-            $notification->notification_type = $this->notificationType;
-            $notification->is_viewed = false;
-            $notification->is_notified = true;
-            $notification->notified_at = now();
+            // Actualizar registro existente en OrganizationNotification
+            $updated = OrganizationNotification::query()
+                ->where('organization_id', $this->organizationData['id'])
+                ->where('notifiable_id', $this->processData['id'])
+                ->where('notifiable_type', 'Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process')
+                ->where('notification_type', $this->notificationType)
+                ->update([
+                    'is_notified' => true,
+                    'notified_at' => now()
+                ]);
 
-            // Usar save() en lugar de updateOrCreate para claves primarias compuestas
-            $notification->save();
-
-            Log::channel('notifications')->info('Notificación marcada como enviada exitosamente en la base de datos', [
-                'channel_value' => $this->channelValue,
-                'priority' => $this->priority,
-                'organization_id' => $this->organizationData['id'],
-                'process_id' => $this->processData['id'],
-            ]);
+            if ($updated) {
+                Log::channel('notifications')->info('Notificación marcada como enviada exitosamente en la base de datos', [
+                    'channel_value' => $this->channelValue,
+                    'priority' => $this->priority,
+                    'organization_id' => $this->organizationData['id'],
+                    'process_id' => $this->processData['id'],
+                ]);
+            } else {
+                Log::channel('notifications')->warning('No se pudo actualizar el registro de notificación', [
+                    'channel_value' => $this->channelValue,
+                    'organization_id' => $this->organizationData['id'],
+                    'process_id' => $this->processData['id'],
+                ]);
+            }
         } catch (Exception $e) {
             Log::channel('notifications')->warning('No se pudo marcar como notificado en la base de datos: ' . $e->getMessage(), [
                 'channel_value' => $this->channelValue,

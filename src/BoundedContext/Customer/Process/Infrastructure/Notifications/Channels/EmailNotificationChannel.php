@@ -28,7 +28,7 @@ readonly class EmailNotificationChannel implements NotificationChannelInterface
     {
         // Obtener el email específico del NotificationData
         $specificEmail = $data->getSpecificEmail();
-        
+
         if (!$specificEmail) {
             Log::channel('notifications')->warning('No se encontró email específico para enviar notificación', [
                 'type' => $data->getType(),
@@ -40,7 +40,7 @@ readonly class EmailNotificationChannel implements NotificationChannelInterface
         // Obtener información de la organización
         $firstOrganization = $data->getOrganizations()[0] ?? null;
         $organizationId = null;
-        
+
         if ($firstOrganization) {
             $organizationId = is_array($firstOrganization) ? $firstOrganization['id'] : $firstOrganization->id;
         }

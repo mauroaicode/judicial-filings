@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Core\BoundedContext\Customer\Process\Application\Services;
 
+use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
 use Core\BoundedContext\Customer\Process\Application\Actions\{
     CreateOrUpdateProcessUseCase,
     HandleMultipleInstancesNotificationUseCase
@@ -47,6 +48,9 @@ readonly class MultipleInstancesHandlerService
             Log::channel('judicial_process_chunk_job')->info("No hay organizaciones interesadas para el radicado {$filingNumber}");
             return;
         }
+
+        // Siempre crear OrganizationNotification con is_notified = 0 para permitir reintentos
+        $this->createOrganizationNotificationRecord($filingNumber, $interestedOrganizations);
 
         $existingNotification = $this->organizationNotificationRepository->hasAlreadyNotifiedMultipleInstances(
             $filingNumber,
@@ -108,12 +112,11 @@ readonly class MultipleInstancesHandlerService
 
             $this->processRepository->assignOrganizationsToProcess($firstProcess->id, $organizationIds);
 
-            Log::channel('judicial_process_chunk_job')->info("✅ Proceso {$firstProcess->process_id} asignado exitosamente a " . count($organizationIds) . " organizaciones");
+            Log::channel('judicial_process_chunk_job')->info("Proceso {$firstProcess->process_id} asignado exitosamente a " . count($organizationIds) . " organizaciones");
         } else {
-            Log::channel('judicial_process_chunk_job')->warning("⚠️ No se pudieron crear procesos para el radicado {$filingNumber}");
+            Log::channel('judicial_process_chunk_job')->warning("No se pudieron crear procesos para el radicado {$filingNumber}");
         }
 
-        // Marcar el radicado como que tiene múltiples instancias
         $this->processRepository->updateProcessesByProcessNumber($filingNumber, ['has_multiple_instances' => true]);
     }
 
@@ -136,6 +139,44 @@ readonly class MultipleInstancesHandlerService
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
+            ]);
+        }
+    }
+
+    /**
+     * Create OrganizationNotification record with is_notified = 0 to allow retries
+     */
+    private function createOrganizationNotificationRecord(string $filingNumber, Collection $interestedOrganizations): void
+    {
+        try {
+            $firstProcess = $this->processRepository->findByProcessNumber($filingNumber)->first();
+
+            if ($firstProcess) {
+                foreach ($interestedOrganizations as $organization) {
+                    // Crear registro de notificación con is_notified = 0
+                    $notification = new OrganizationNotification();
+                    $notification->organization_id = $organization->id;
+                    $notification->notifiable_id = $firstProcess->id;
+                    $notification->notifiable_type = 'Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process';
+                    $notification->notification_type = NotificationType::MULTIPLE_INSTANCE->value;
+                    $notification->is_viewed = false;
+                    $notification->is_notified = false; // Importante: false para permitir reintentos
+                    $notification->notified_at = null;
+
+                    $notification->save();
+
+                    Log::channel('judicial_process_chunk_job')->info("📝 Registro de OrganizationNotification creado con is_notified = 0", [
+                        'organization_id' => $organization->id,
+                        'process_id' => $firstProcess->id,
+                        'filing_number' => $filingNumber,
+                        'notification_type' => NotificationType::MULTIPLE_INSTANCE->value
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::channel('judicial_process_chunk_job')->error("Error creando registro de OrganizationNotification: " . $e->getMessage(), [
+                'filing_number' => $filingNumber,
+                'error' => $e->getMessage()
             ]);
         }
     }
