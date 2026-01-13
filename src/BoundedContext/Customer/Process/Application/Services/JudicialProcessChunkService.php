@@ -10,6 +10,7 @@ use Core\Shared\Infrastructure\Services\JudicialBranchConsultService;
 use Core\BoundedContext\Customer\Process\Application\Traits\ProcessCompleteDataTrait;
 use Core\BoundedContext\Customer\Process\Domain\Repositories\ProcessRepositoryInterface;
 use Core\BoundedContext\Customer\Process\Application\Actions\CreateOrUpdateProcessUseCase;
+use Core\Shared\Infrastructure\Jobs\ProcessActionSyncJob;
 
 
 class JudicialProcessChunkService
@@ -28,11 +29,8 @@ class JudicialProcessChunkService
      */
     public function handle(array $filingNumbers): void
     {
-        $chunkSize = count($filingNumbers);
-
-        foreach ($filingNumbers as $index => $filingNumber) {
+        foreach ($filingNumbers as $filingNumber) {
             try {
-                Log::channel('judicial_process_chunk_job')->info("Procesando radicado " . ($index + 1) . "/{$chunkSize}: {$filingNumber}");
 
                 $this->syncProcessWithAPI($filingNumber);
 
@@ -54,7 +52,6 @@ class JudicialProcessChunkService
     private function syncProcessWithAPI(string $filingNumber): void
     {
         try {
-            Log::channel('judicial_process_chunk_job')->info("Sincronizando radicado con la API DE LA RAMA JUDICIAL: {$filingNumber}");
 
             $responseApiResponse = $this->judicialService->fetchProcesses($filingNumber);
 
@@ -74,28 +71,23 @@ class JudicialProcessChunkService
 
             if ($hasMultipleInstances) {
 
-                Log::channel('judicial_process_chunk_job')->warning("Radicado {$filingNumber} tiene múltiples instancias");
                 $interestedOrganizations = $this->processRepository->getOrganizationsByProcessNumber($filingNumber);
 
-
                 $this->multipleInstancesHandlerService->handle($filingNumber, $processes, $interestedOrganizations);
-            }
 
-            // 2. Procesar cada proceso con su detalle
-            foreach ($processes as $processBasic) {
+            } else {
 
-                $unifiedProcess = $this->getCompleteProcessData($processBasic, $filingNumber, $this->judicialService);
+                foreach ($processes as $processBasic) {
 
-                if ($unifiedProcess) {
+                    $unifiedProcess = $this->getCompleteProcessData($processBasic, $filingNumber, $this->judicialService);
 
-                    if (!$hasMultipleInstances) {
-                        Log::channel('judicial_process_chunk_job')->info("Radicado {$filingNumber} es proceso único");
+                    if ($unifiedProcess) {
+                        $this->processIndividualProcess($unifiedProcess);
                     }
-                    $this->processIndividualProcess($unifiedProcess);
                 }
             }
 
-            // 3. Sincronizar actuaciones para cada proceso
+
             $this->syncProcessActions($processes);
 
         } catch (Exception $e) {
@@ -119,29 +111,24 @@ class JudicialProcessChunkService
 
 
     /**
-     * Sincroniza las actuaciones de los procesos
+     * Sincroniza las actuaciones de los procesos en chunks para evitar sobrecarga
      */
     private function syncProcessActions(array $processes): void
     {
-        foreach ($processes as $proceso) {
-            try {
-                $actionsResponse = $this->judicialService->fetchActionByProcess($proceso['idProceso']);
-
-                if ($actionsResponse->isSuccessful && !empty($actionsResponse->data)) {
-                    Log::channel('judicial_process_chunk_job')->info("Sincronizando actuaciones para proceso {$proceso['idProceso']}");
-
-                    // TODO: Implementar sincronización de actuaciones
-                    // ProcessActionSyncJob::dispatch($proceso['idProceso'], $actionsResponse->data);
-                }
-            } catch (Exception $e) {
-                Log::channel('judicial_process_chunk_job')->error("Error sincronizando actuaciones para proceso {$proceso['idProceso']}: " . $e->getMessage(), [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString(),
-                    'process_id' => $proceso['idProceso'],
-                    'process_number' => $proceso['llaveProceso'] ?? 'N/A',
-                ]);
-            }
+        if (empty($processes)) {
+            return;
         }
+
+        $chunkSize = 5;
+        $chunks = array_chunk($processes, $chunkSize);
+
+        foreach ($chunks as $index => $chunk) {
+
+            $delay = $index * 5;
+
+            ProcessActionSyncJob::dispatch($chunk)->delay(now()->addSeconds($delay));
+        }
+
+        Log::channel('judicial_process_chunk_job')->info("Dispatched " . count($chunks) . " chunks of process actions with delays");
     }
 }

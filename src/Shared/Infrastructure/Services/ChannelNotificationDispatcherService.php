@@ -50,14 +50,8 @@ readonly class ChannelNotificationDispatcherService
         foreach (NotificationChannelType::getActiveChannels() as $channelType) {
             $activeChannels = $this->repository->getActiveChannelsByType($organization, $channelType);
 
-            Log::channel('notifications')->info('Procesando tipo de canal', [
-                'channel_type' => $channelType->value,
-                'active_channels_count' => $activeChannels->count(),
-                'organization_id' => $organization->id,
-            ]);
-
             if ($activeChannels->isEmpty()) {
-                Log::channel('notifications')->info('No hay canales activos para este tipo', [
+                Log::channel('notifications')->warning('No hay canales activos para este tipo', [
                     'channel_type' => $channelType->value,
                     'organization_id' => $organization->id,
                 ]);
@@ -65,12 +59,6 @@ readonly class ChannelNotificationDispatcherService
             }
 
             $totalChannels += $activeChannels->count();
-
-            Log::channel('notifications')->info('Despachando jobs para canales activos', [
-                'channel_type' => $channelType->value,
-                'channels_count' => $activeChannels->count(),
-                'organization_id' => $organization->id,
-            ]);
 
             $channelJobs = $this->dispatchJobsForChannelType(
                 $notificationType,
@@ -113,15 +101,11 @@ readonly class ChannelNotificationDispatcherService
         $dispatchedJobs = [];
 
         foreach ($activeChannels as $channel) {
-            $delaySeconds = $baseDelaySeconds + ($channel->priority - 1) * 2; // 2 segundos entre emails
+            // Increase delay for email channels to respect rate limits
+            $isEmailChannel = $channel->channel_type === 'email';
+            $baseDelay = $isEmailChannel ? $baseDelaySeconds * 3 : $baseDelaySeconds; // Triple delay for emails
+            $delaySeconds = $baseDelay + ($channel->priority - 1) * ($isEmailChannel ? 5 : 2); // 5 seconds between emails
 
-            Log::channel('notifications')->info('Despachando job individual', [
-                'channel_type' => $channelType->value,
-                'channel_value' => $channel->channel_value,
-                'priority' => $channel->priority,
-                'delay_seconds' => $delaySeconds,
-                'organization_id' => $organizationData['id'],
-            ]);
 
             SendChannelNotificationJob::dispatch(
                 $notificationType,
@@ -183,11 +167,6 @@ readonly class ChannelNotificationDispatcherService
         $allDispatchedJobs = [];
         $totalOrganizations = count($organizationsData);
 
-        Log::channel('notifications')->info('Despachando notificaciones para múltiples organizaciones', [
-            'notification_type' => $notificationType,
-            'total_organizations' => $totalOrganizations,
-            'base_delay_seconds' => $baseDelaySeconds,
-        ]);
 
         foreach ($organizationsData as $index => $organizationData) {
             $organizationDelay = $baseDelaySeconds + ($index * config('queue.queues.notifications.delay_for_organization'));

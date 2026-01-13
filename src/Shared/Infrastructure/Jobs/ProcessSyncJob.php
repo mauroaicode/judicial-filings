@@ -35,10 +35,6 @@ class ProcessSyncJob implements ShouldQueue
     public function handle(JudicialProcessSyncService $judicialProcessSyncService): void
     {
         try {
-            Log::channel('judicial_process_sync_job')->info('Iniciando sincronización de procesos judiciales...', [
-                'organization_slug' => $this->organizationSlug,
-                'filing_number' => $this->filingNumber,
-            ]);
 
             $judicialProcessSyncService->syncJudicialProcesses(
                 $this->organizationSlug,

@@ -138,12 +138,41 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'notifications-email' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/notifications-email.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+        'notifications-whatsapp' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/notifications-whatsapp.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+        'notifications-sms' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/notifications-sms.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+        'notifications-internal' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/notifications-internal.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'emergency' => [
             'path' => storage_path('logs/laravel.log'),
         ],
         'judicial_process_sync_job' => [
             'driver' => 'daily',
-            'path' => storage_path('logs/judicial.log'),
+            'path' => storage_path('logs/judicial-process.log'),
             'level' => env('LOG_LEVEL', 'info'),
             'days' => 30,
             'replace_placeholders' => true,

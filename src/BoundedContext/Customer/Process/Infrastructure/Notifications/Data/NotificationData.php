@@ -33,6 +33,12 @@ readonly class NotificationData
      */
     public function getProcess(): Process
     {
+        // Si ya es un objeto Process, devolverlo directamente
+        if ($this->process instanceof Process) {
+            return $this->process;
+        }
+        
+        // Si es un array, crear un nuevo objeto Process
         return new Process($this->process);
     }
 

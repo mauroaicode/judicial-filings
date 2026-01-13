@@ -65,4 +65,39 @@ interface OrganizationNotificationRepositoryInterface
      * Mark organizations as notified by process number
      */
     public function markOrganizationsAsNotifiedByProcessNumber(string $processNumber, string $notificationType, array $organizationIds): void;
+
+    /**
+     * Get organizations not notified by process ID
+     */
+    public function getOrganizationsNotNotifiedByProcessId(string $processId, string $notificationType, array $organizationIds): array;
+
+    /**
+     * Create notification records for multiple organizations with is_notified = false
+     * This allows for retry mechanisms in case of failures
+     */
+    public function createNotificationRecordsForOrganizations(
+        string $notifiableId,
+        string $notifiableType,
+        string $notificationType,
+        array $organizationIds
+    ): void;
+
+    /**
+     * Create notification records for organizations interested in a specific process number
+     */
+    public function createNotificationRecordsForProcessNumber(
+        string $processNumber,
+        string $notificationType,
+        array $organizationIds
+    ): void;
+
+    /**
+     * Get existing process IDs for a given process number
+     */
+    public function getExistingProcessIds(string $processNumber): array;
+
+    /**
+     * Get organizations that haven't been notified about multiple instances for a specific process number
+     */
+    public function getOrganizationsNotNotifiedMultipleInstances(string $processNumber, string $notificationType, array $organizationIds): array;
 }

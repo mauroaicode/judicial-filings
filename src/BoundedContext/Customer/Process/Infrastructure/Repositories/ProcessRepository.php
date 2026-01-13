@@ -125,6 +125,11 @@ readonly class ProcessRepository implements ProcessRepositoryInterface
     {
         $process = $this->process::query()->find($processId);
 
+        if (!$process) {
+            Log::channel('judicial_process_chunk_job')->error("Proceso {$processId} no encontrado para asignar organizaciones");
+            return;
+        }
+
         $existingOrganizations = $process->organizations()->pluck('organizations.id')->toArray();
 
         $newOrganizationIds = array_diff($organizationIds, $existingOrganizations);
@@ -138,11 +143,20 @@ readonly class ProcessRepository implements ProcessRepositoryInterface
                 ];
             }
 
-
             $process->organizations()->attach($pivotData);
 
+            Log::channel('judicial_process_chunk_job')->info("✅ Asignadas " . count($newOrganizationIds) . " nuevas organizaciones al proceso {$processId}", [
+                'process_id' => $processId,
+                'new_organization_ids' => $newOrganizationIds,
+                'total_organizations_requested' => count($organizationIds),
+                'existing_organizations' => count($existingOrganizations)
+            ]);
         } else {
-            Log::channel('judicial_process_chunk_job')->info("ℹ️ No hay nuevas organizaciones para asignar al proceso {$processId}");
+            Log::channel('judicial_process_chunk_job')->info("ℹ️ Todas las organizaciones ya están asignadas al proceso {$processId}", [
+                'process_id' => $processId,
+                'total_organizations_requested' => count($organizationIds),
+                'existing_organizations' => count($existingOrganizations)
+            ]);
         }
     }
 

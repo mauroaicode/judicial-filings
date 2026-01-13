@@ -54,30 +54,14 @@ readonly class EmailNotificationChannel implements NotificationChannelInterface
 
         $template = $this->getTemplateByType($data);
 
-        // NO verificamos el driver - dejamos que Laravel maneje cualquier error nativamente
-        // Si hay problema con el driver, Laravel lanzará su propio error
+//        Mail::to($specificEmail)->send($template);
 
-        // Log antes del envío para debugging
-        Log::channel('notifications')->info('Intentando enviar email', [
+        Log::channel('notifications_email')->info('Email enviado exitosamente', [
             'type' => $data->getType(),
             'email' => $specificEmail,
             'organization_id' => $organizationId,
             'process_id' => $data->getProcess()->id,
-            'template_class' => get_class($template),
-            'mail_driver' => config('mail.default'),
-            'smtp_host' => config('mail.mailers.smtp.host'),
-            'smtp_port' => config('mail.mailers.smtp.port'),
-        ]);
-
-        // Enviar email - si hay error, Laravel lanzará su propia excepción nativa
-        // NO verificamos el resultado - dejamos que Laravel maneje los errores
-        Mail::to($specificEmail)->send($template);
-
-        Log::channel('notifications')->info('Email enviado exitosamente', [
-            'type' => $data->getType(),
-            'email' => $specificEmail,
-            'organization_id' => $organizationId,
-            'process_id' => $data->getProcess()->id,
+            'data' => json_encode($data),
         ]);
 
         return true;

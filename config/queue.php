@@ -121,19 +121,64 @@ return [
 
     'queues' => [
         'default',
+        // Queue responsible for initiating the judicial process sync workflow
+        // after command execution. Internally starts the flow to obtain filing
+        // numbers, process them, AI verification, and all subsequent steps.
         'process-sync' => [
             'channel' => 'database',
             'queue' => 'process-sync',
-
         ],
+        // Job queue for processing filing numbers in chunks and verifying
+        // them against the judicial branch API
         'process-chunk' => [
             'channel' => 'database',
-            'queue' => 'process-chunk',
+            'queue' => 'process-chunk'
         ],
+        'process-action-sync' => [
+            'channel' => 'database',
+            'queue' => 'process-action-sync',
+        ],
+        // Notification channels - each with its own queue for better management
         'notifications' => [
             'channel' => 'database',
             'queue' => 'notifications',
-            'delay_for_organization' => 10,
+            'delay_for_organization' => 30,
+        ],
+        // Email notifications queue
+        'notifications-email' => [
+            'channel' => 'database',
+            'queue' => 'notifications-email',
+            'delay_for_organization' => 60, // 60 segundos para evitar rate limiting de email
+            'max_attempts' => 5,
+            'retry_after' => 300, // 5 minutos
+            'timeout' => 120, // 2 minutos timeout
+        ],
+        // WhatsApp notifications queue
+        'notifications-whatsapp' => [
+            'channel' => 'database',
+            'queue' => 'notifications-whatsapp',
+            'delay_for_organization' => 30, // 30 segundos para WhatsApp
+            'max_attempts' => 3,
+            'retry_after' => 180, // 3 minutos
+            'timeout' => 60, // 1 minuto timeout
+        ],
+        // SMS notifications queue
+        'notifications-sms' => [
+            'channel' => 'database',
+            'queue' => 'notifications-sms',
+            'delay_for_organization' => 45, // 45 segundos para SMS
+            'max_attempts' => 3,
+            'retry_after' => 180, // 3 minutos
+            'timeout' => 60, // 1 minuto timeout
+        ],
+        // Internal notifications queue (dashboard, mobile app)
+        'notifications-internal' => [
+            'channel' => 'database',
+            'queue' => 'notifications-internal',
+            'delay_for_organization' => 10, // 10 segundos para notificaciones internas
+            'max_attempts' => 2,
+            'retry_after' => 60, // 1 minuto
+            'timeout' => 30, // 30 segundos timeout
         ]
     ],
 

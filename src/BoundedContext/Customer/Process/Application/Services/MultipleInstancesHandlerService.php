@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Core\BoundedContext\Customer\Process\Application\Services;
 
-use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
 use Core\BoundedContext\Customer\Process\Application\Actions\{
-    CreateOrUpdateProcessUseCase,
-    HandleMultipleInstancesNotificationUseCase
+    CreateOrUpdateProcessUseCase
 };
 use Core\BoundedContext\Customer\Process\Domain\Repositories\{
     ProcessRepositoryInterface,
@@ -16,7 +14,11 @@ use Core\BoundedContext\Customer\Process\Domain\Repositories\{
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Core\Shared\Domain\Enums\NotificationType;
-use Core\Shared\Infrastructure\Services\JudicialBranchConsultService;
+use Core\Shared\Infrastructure\Services\{
+    JudicialBranchConsultService,
+    ChannelNotificationDispatcherService
+};
+use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
 use Core\BoundedContext\Customer\Process\Application\Traits\ProcessCompleteDataTrait;
 
 readonly class MultipleInstancesHandlerService
@@ -24,75 +26,88 @@ readonly class MultipleInstancesHandlerService
     use ProcessCompleteDataTrait;
 
     public function __construct(
-        private ProcessRepositoryInterface $processRepository,
-        private JudicialBranchConsultService $judicialService,
-        private CreateOrUpdateProcessUseCase $createOrUpdateProcessUseCase,
+        private ProcessRepositoryInterface                  $processRepository,
+        private JudicialBranchConsultService                $judicialService,
+        private CreateOrUpdateProcessUseCase                $createOrUpdateProcessUseCase,
         private OrganizationNotificationRepositoryInterface $organizationNotificationRepository,
-        private HandleMultipleInstancesNotificationUseCase $handleMultipleInstancesNotificationUseCase,
+        private ChannelNotificationDispatcherService        $channelDispatcher,
 
-    ) {}
+    ){
+    }
 
     /**
-     * Maneja la lógica principal para procesos con múltiples instancias
+     * Handles the main logic for processes with multiple instances
+     *
+     * @param string $filingNumber The filing number to process
+     * @param array $processes Array of processes from the judicial API
+     * @param Collection $interestedOrganizations Organizations interested in this filing
      */
     public function handle(string $filingNumber, array $processes, Collection $interestedOrganizations): void
     {
-        Log::channel('judicial_process_chunk_job')->info("🚀 INICIANDO MANEJO DE MÚLTIPLES INSTANCIAS para radicado {$filingNumber}", [
-            'filing_number' => $filingNumber,
-            'processes_count' => count($processes),
-            'organizations_count' => $interestedOrganizations->count(),
-            'organization_ids' => $interestedOrganizations->pluck('id')->toArray()
-        ]);
-
         if ($interestedOrganizations->isEmpty()) {
             Log::channel('judicial_process_chunk_job')->info("No hay organizaciones interesadas para el radicado {$filingNumber}");
             return;
         }
 
-        // Siempre crear OrganizationNotification con is_notified = 0 para permitir reintentos
-        $this->createOrganizationNotificationRecord($filingNumber, $interestedOrganizations);
+        $organizationIds = $interestedOrganizations->pluck('id')->toArray();
 
-        $existingNotification = $this->organizationNotificationRepository->hasAlreadyNotifiedMultipleInstances(
+
+        $organizationsToNotify = $this->organizationNotificationRepository->getOrganizationsNotNotifiedMultipleInstances(
             $filingNumber,
-            NotificationType::MULTIPLE_INSTANCE->value
+            NotificationType::MULTIPLE_INSTANCE->value,
+            $organizationIds
         );
 
-        if (!$existingNotification) {
-            Log::channel('judicial_process_chunk_job')->info("PRIMERA DETECCIÓN: Notificando múltiples instancias para radicado {$filingNumber} a " . $interestedOrganizations->count() . " organizaciones");
-
-            $this->processMultipleInstances($filingNumber, $processes, $interestedOrganizations);
-            $this->handleMultipleInstancesNotification($filingNumber, $interestedOrganizations);
+        if (empty($organizationsToNotify)) {
+            $this->checkForNewInstancesAndNotify($filingNumber, $processes, $interestedOrganizations, $organizationsToNotify);
         } else {
-            $this->checkForNewInstances($filingNumber, $processes, $interestedOrganizations);
+            $organizationsToNotifyCollection = $interestedOrganizations->whereIn('id', $organizationsToNotify);
+            $this->processAndNotifyMultipleInstances($filingNumber, $processes, $organizationsToNotifyCollection);
         }
     }
 
     /**
-     * Verifica si hay nuevas instancias y envía notificación si es necesario
+     * Checks for new instances and sends notifications if necessary
+     *
+     * @param string $filingNumber The filing number to check
+     * @param array $processes Array of processes from the judicial API
+     * @param Collection $interestedOrganizations Organizations interested in this filing
+     * @param array $organizationsToNotify Organizations that haven't been notified yet
      */
-    private function checkForNewInstances(string $filingNumber, array $processes, Collection $interestedOrganizations): void
+    private function checkForNewInstancesAndNotify(string $filingNumber, array $processes, Collection $interestedOrganizations, array $organizationsToNotify): void
     {
-        $existingProcessIds = $this->processRepository->findByProcessNumber($filingNumber)->pluck('process_id')->toArray();
+        $existingProcessIds = $this->organizationNotificationRepository->getExistingProcessIds($filingNumber);
         $newApiProcessIds = collect($processes)->pluck('idProceso')->toArray();
 
         $newInstances = array_diff($newApiProcessIds, $existingProcessIds);
 
         if (!empty($newInstances)) {
-            Log::channel('judicial_process_chunk_job')->warning("NUEVAS INSTANCIAS DETECTADAS para el radicado {$filingNumber}: " . implode(', ', $newInstances));
-            Log::channel('judicial_process_chunk_job')->info("Enviando nueva notificación por nuevas instancias detectadas");
-
-            $this->processMultipleInstances($filingNumber, $processes, $interestedOrganizations);
-            $this->handleMultipleInstancesNotification($filingNumber, $interestedOrganizations);
-        } else {
-            Log::channel('judicial_process_chunk_job')->info("Radicado {$filingNumber}: Ya se notificó sobre múltiples instancias. No hay nuevas instancias. No se envía nueva notificación.");
+            if (!empty($organizationsToNotify)) {
+                $organizationsToNotifyCollection = $interestedOrganizations->whereIn('id', $organizationsToNotify);
+                $this->processAndNotifyMultipleInstances($filingNumber, $processes, $organizationsToNotifyCollection);
+            }
         }
     }
 
     /**
-     * Procesa las múltiples instancias del radicado
+     * Processes multiple instances and sends notifications to interested organizations
+     *
+     * @param string $filingNumber The filing number to process
+     * @param array $processes Array of processes from the judicial API
+     * @param Collection $interestedOrganizations Organizations to notify
      */
-    private function processMultipleInstances(string $filingNumber, array $processes, Collection $interestedOrganizations): void
+    private function processAndNotifyMultipleInstances(string $filingNumber, array $processes, Collection $interestedOrganizations): void
     {
+        $organizationIds = $interestedOrganizations->pluck('id')->toArray();
+        $organizationsData = $interestedOrganizations->map(function ($org) {
+            return [
+                'id' => $org->id,
+                'name' => $org->name,
+                'slug' => $org->slug,
+                'type' => $org->type,
+            ];
+        })->toArray();
+
         $createdProcesses = [];
 
         foreach ($processes as $processBasic) {
@@ -101,41 +116,64 @@ readonly class MultipleInstancesHandlerService
             if ($unifiedProcess) {
                 $process = $this->createOrUpdateProcessUseCase->__invoke($unifiedProcess);
                 $createdProcesses[] = $process;
+
+                $this->processRepository->assignOrganizationsToProcess($process->id, $organizationIds);
             }
-        }
-
-        if (!empty($createdProcesses)) {
-            $firstProcess = $createdProcesses[0];
-            $organizationIds = $interestedOrganizations->pluck('id')->toArray();
-
-            Log::channel('judicial_process_chunk_job')->info("Asignando " . count($organizationIds) . " organizaciones al proceso {$firstProcess->process_id}");
-
-            $this->processRepository->assignOrganizationsToProcess($firstProcess->id, $organizationIds);
-
-            Log::channel('judicial_process_chunk_job')->info("Proceso {$firstProcess->process_id} asignado exitosamente a " . count($organizationIds) . " organizaciones");
-        } else {
-            Log::channel('judicial_process_chunk_job')->warning("No se pudieron crear procesos para el radicado {$filingNumber}");
         }
 
         $this->processRepository->updateProcessesByProcessNumber($filingNumber, ['has_multiple_instances' => true]);
+
+        if (!empty($createdProcesses)) {
+            $this->dispatchMultipleInstancesNotification($organizationsData,$filingNumber);
+        }
     }
 
+
     /**
-     * Maneja la notificación de múltiples instancias
+     * Dispatches multiple instances notifications using channel-specific jobs
+     *
+     * @param array $organizationsData Organizations data to notify
+     * @param string $filingNumber The filing number for the notification
      */
-    private function handleMultipleInstancesNotification(string $filingNumber, Collection $interestedOrganizations): void
+    private function dispatchMultipleInstancesNotification(array $organizationsData, string $filingNumber): void
     {
         try {
-            Log::channel('judicial_process_chunk_job')->info("Enviando notificación de múltiples instancias para radicado {$filingNumber}");
-
+            // Get the first process to use as reference for process data
             $firstProcess = $this->processRepository->findByProcessNumber($filingNumber)->first();
 
-            if ($firstProcess) {
-                $this->handleMultipleInstancesNotificationUseCase->__invoke($firstProcess, $interestedOrganizations, $filingNumber);
+            if (!$firstProcess) {
+                Log::channel('judicial_process_chunk_job')->error("No process found for filing number {$filingNumber}");
+                return;
             }
 
+            $processData = [
+                'id' => $firstProcess->id,
+                'process_number' => $firstProcess->process_number,
+                'court' => $firstProcess->court,
+                'department' => $firstProcess->department,
+                'process_type' => $firstProcess->process_type,
+                'process_class' => $firstProcess->process_class,
+            ];
+
+            $additionalData = [
+                'filing_number' => $filingNumber,
+                'detected_at' => now()->format('d/m/Y H:i:s'),
+            ];
+
+            // Create notification records before dispatching
+            $this->createNotificationRecords($filingNumber, $organizationsData, $firstProcess);
+
+            $this->channelDispatcher->dispatchNotificationsForMultipleOrganizations(
+                NotificationType::MULTIPLE_INSTANCE->value,
+                $processData,
+                $organizationsData,
+                $additionalData,
+                4 // Base delay of 4 seconds
+            );
+
+
         } catch (\Exception $e) {
-            Log::channel('judicial_process_chunk_job')->error("Error manejando notificación de múltiples instancias para radicado {$filingNumber}: " . $e->getMessage(), [
+            Log::channel('judicial_process_chunk_job')->error("Error dispatching channel notifications for filing {$filingNumber}: " . $e->getMessage(), [
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
@@ -144,41 +182,35 @@ readonly class MultipleInstancesHandlerService
     }
 
     /**
-     * Create OrganizationNotification record with is_notified = 0 to allow retries
+     * Creates notification records for organizations before dispatching notifications
+     *
+     * @param string $filingNumber The filing number
+     * @param array $organizationsData Organizations to create notifications for
+     * @param object $process The process object for reference
      */
-    private function createOrganizationNotificationRecord(string $filingNumber, Collection $interestedOrganizations): void
+    private function createNotificationRecords(string $filingNumber, array $organizationsData, $process): void
     {
         try {
-            $firstProcess = $this->processRepository->findByProcessNumber($filingNumber)->first();
+            $organizationIds = array_column($organizationsData, 'id');
+            
+            $this->organizationNotificationRepository->createNotificationRecordsForOrganizations(
+                $process->id,
+                Process::class,
+                NotificationType::MULTIPLE_INSTANCE->value,
+                $organizationIds
+            );
 
-            if ($firstProcess) {
-                foreach ($interestedOrganizations as $organization) {
-                    // Crear registro de notificación con is_notified = 0
-                    $notification = new OrganizationNotification();
-                    $notification->organization_id = $organization->id;
-                    $notification->notifiable_id = $firstProcess->id;
-                    $notification->notifiable_type = 'Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process';
-                    $notification->notification_type = NotificationType::MULTIPLE_INSTANCE->value;
-                    $notification->is_viewed = false;
-                    $notification->is_notified = false; // Importante: false para permitir reintentos
-                    $notification->notified_at = null;
+            Log::channel('judicial_process_chunk_job')->info("Notification records created for filing {$filingNumber}", [
+                'organizations_count' => count($organizationIds),
+                'filing_number' => $filingNumber,
+                'notification_type' => NotificationType::MULTIPLE_INSTANCE->value
+            ]);
 
-                    $notification->save();
-
-                    Log::channel('judicial_process_chunk_job')->info("📝 Registro de OrganizationNotification creado con is_notified = 0", [
-                        'organization_id' => $organization->id,
-                        'process_id' => $firstProcess->id,
-                        'filing_number' => $filingNumber,
-                        'notification_type' => NotificationType::MULTIPLE_INSTANCE->value
-                    ]);
-                }
-            }
         } catch (\Exception $e) {
-            Log::channel('judicial_process_chunk_job')->error("Error creando registro de OrganizationNotification: " . $e->getMessage(), [
+            Log::channel('judicial_process_chunk_job')->error("Error creating notification records for filing {$filingNumber}: " . $e->getMessage(), [
                 'filing_number' => $filingNumber,
                 'error' => $e->getMessage()
             ]);
         }
     }
-
 }
