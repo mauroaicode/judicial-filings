@@ -3,7 +3,6 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -26,18 +25,18 @@ return new class extends Migration
         Schema::table('organization_notifications', function (Blueprint $table) {
             $table->primary([
                 'organization_id',
-                'notifiable_id', 
+                'notifiable_id',
                 'notifiable_type',
-                'notification_type'
+                'notification_type',
             ], 'organization_notifications_primary');
         });
 
         // Restaurar la restricción de clave foránea
         Schema::table('organization_notifications', function (Blueprint $table) {
             $table->foreign('organization_id')
-                  ->references('id')
-                  ->on('organizations')
-                  ->onDelete('cascade');
+                ->references('id')
+                ->on('organizations')
+                ->onDelete('cascade');
         });
     }
 
@@ -61,16 +60,16 @@ return new class extends Migration
             $table->primary([
                 'organization_id',
                 'notifiable_id',
-                'notifiable_type'
+                'notifiable_type',
             ]);
         });
 
         // Restaurar la restricción de clave foránea
         Schema::table('organization_notifications', function (Blueprint $table) {
             $table->foreign('organization_id')
-                  ->references('id')
-                  ->on('organizations')
-                  ->onDelete('cascade');
+                ->references('id')
+                ->on('organizations')
+                ->onDelete('cascade');
         });
     }
 };

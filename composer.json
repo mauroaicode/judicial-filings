@@ -15,17 +15,24 @@
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
+        "barryvdh/laravel-ide-helper": "^3.0",
+        "driftingly/rector-laravel": "^2.0",
+        "larastan/larastan": "^3.2",
         "laravel/pail": "^1.1",
         "laravel/pint": "^1.13",
         "laravel/sail": "^1.26",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.1",
-        "phpunit/phpunit": "^11.0.1"
+        "pestphp/pest": "*",
+        "phpunit/phpunit": "^11.0.1",
+        "pestphp/pest-plugin-laravel": "*",
+        "pestphp/pest-plugin-type-coverage": "^3.5",
+        "rector/rector": "^2.0"
     },
     "autoload": {
         "psr-4": {
             "App\\": "app/",
-            "Core\\": "src/",
+            "Src\\": "src/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
         }
@@ -54,7 +61,19 @@
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fb7185,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"php artisan pail --timeout=0\" \"npm run dev\" --names=server,queue,logs,vite"
-        ]
+        ],
+        "larastan": "vendor/bin/phpstan analyse --configuration=phpstan.neon --memory-limit=1G",
+        "rector": "vendor/bin/rector process src --config rector.php",
+        "pre-pr": [
+            "@composer larastan",
+            "@composer rector",
+            "@composer pint",
+            "@composer pest-tests"
+        ],
+        "pint": "vendor/bin/pint",
+        "pest-tests-coverage": "vendor/bin/pest",
+        "pest-tests-type-coverage": "vendor/bin/pest",
+        "pest-tests": "vendor/bin/pest"
     },
     "extra": {
         "laravel": {

@@ -1,9 +1,9 @@
 <?php
 
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
-use Core\BoundedContext\Admin\User\Infrastructure\Persistence\Eloquent\UserModel;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+use Src\Domain\User\Models\User;
 
 return new class extends Migration
 {
@@ -23,9 +23,9 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->enum('state', [
-                UserModel::ACTIVE,
-                UserModel::INACTIVE])
-                ->default(UserModel::ACTIVE);
+                User::ACTIVE,
+                User::INACTIVE])
+                ->default(User::ACTIVE);
             $table->rememberToken();
             $table->timestamps();
         });

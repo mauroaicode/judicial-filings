@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessSubject;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessSubject;
 
 /**
  * @extends Factory<ProcessSubject>
@@ -14,7 +14,7 @@ class ProcessSubjectFactory extends Factory
     /**
      * The name of the factory's corresponding model.
      *
-     * @var string
+     * @var class-string<ProcessSubject>
      */
     protected $model = ProcessSubject::class;
 
@@ -33,7 +33,7 @@ class ProcessSubjectFactory extends Factory
             'subject_type' => fake()->randomElement($subjectTypes),
             'is_cited' => fake()->boolean(20), // 20% chance of being cited
             'identification' => fake()->optional(0.7)->numerify('##########'), // 70% chance of having ID
-            'name_or_business_name' => fake()->company() . ' - ' . fake()->companySuffix(),
+            'name_or_business_name' => fake()->company().' - '.fake()->companySuffix(),
         ];
     }
 
@@ -65,7 +65,7 @@ class ProcessSubjectFactory extends Factory
     public function naturalPerson(): static
     {
         return $this->state(fn (array $attributes) => [
-            'name_or_business_name' => fake()->name() . ' ' . fake()->lastName(),
+            'name_or_business_name' => fake()->name().' '.fake()->lastName(),
             'identification' => fake()->numerify('##########'),
         ]);
     }
@@ -76,7 +76,7 @@ class ProcessSubjectFactory extends Factory
     public function juridicalPerson(): static
     {
         return $this->state(fn (array $attributes) => [
-            'name_or_business_name' => fake()->company() . ' - ' . fake()->companySuffix(),
+            'name_or_business_name' => fake()->company().' - '.fake()->companySuffix(),
             'identification' => fake()->numerify('##########'),
         ]);
     }

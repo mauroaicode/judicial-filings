@@ -7,4 +7,4 @@ return [
     'created_successfully' => 'App customer created successfully.',
     'updated_successfully' => 'App customer updated successfully.',
     'deleted_successfully' => 'App customer deleted successfully.',
-]; 
+];

@@ -2,16 +2,16 @@
 
 namespace Database\Factories;
 
-use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Core\BoundedContext\Admin\User\Infrastructure\Persistence\Eloquent\UserModel;
+use Illuminate\Support\Str;
+use Src\Domain\User\Models\User;
 
 /**
- * @extends Factory<UserModel>
+ * @extends Factory<User>
  */
 class UserFactory extends Factory
 {
-    protected $model = UserModel::class;
+    protected $model = User::class;
 
     /**
      * The current password being used by the factory.
@@ -35,7 +35,7 @@ class UserFactory extends Factory
             'phone' => $this->faker->phoneNumber,
             'address' => $this->faker->address,
             'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
-            'slug' => Str::slug(strtolower($name) . '-' . strtolower($lastName) . Str::random(5), '-'),
+            'slug' => Str::slug(strtolower($name).'-'.strtolower($lastName).Str::random(5), '-'),
         ];
     }
 

@@ -30,9 +30,9 @@ return new class extends Migration
 
             // Clave foránea (nombre corto para evitar error de longitud)
             $table->foreign('organization_notification_channel_id', 'fk_history_org_channel_id')
-                  ->references('id')
-                  ->on('organization_notification_channels')
-                  ->onDelete('cascade');
+                ->references('id')
+                ->on('organization_notification_channels')
+                ->onDelete('cascade');
         });
     }
 

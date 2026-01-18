@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Src\Domain\AppUser\Models\AppUser;
 
 /**
  * @extends Factory<AppUser>
@@ -14,7 +14,7 @@ class AppUserFactory extends Factory
     /**
      * The name of the factory's corresponding model.
      *
-     * @var string
+     * @var class-string<AppUser>
      */
     protected $model = AppUser::class;
 
@@ -27,7 +27,7 @@ class AppUserFactory extends Factory
     {
         $firstName = $this->faker->firstName();
         $lastName = $this->faker->lastName();
-        $fullName = $firstName . ' ' . $lastName;
+        $fullName = $firstName.' '.$lastName;
 
         return [
             'id' => Str::uuid(),

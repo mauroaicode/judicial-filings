@@ -7,4 +7,6 @@ return [
     'email_not_verified' => 'Tu dirección de correo electrónico no está verificada.',
     'login_successful' => 'Inicio de sesión exitoso.',
     'logout_successful' => 'Cierre de sesión exitoso.',
-]; 
+    'need_password_setup' => 'Necesitas configurar una contraseña para iniciar sesión.',
+    'unauthorized' => 'No autorizado. Por favor, inicia sesión.',
+];

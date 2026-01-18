@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use Core\BoundedContext\Admin\Role\Infrastructure\Persistence\Eloquent\RoleModel;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
+use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Role\Models\Role;
 
 class AppUserSeeder extends Seeder
 {
@@ -44,7 +44,7 @@ class AppUserSeeder extends Seeder
             ],
         ];
 
-        $role = RoleModel::query()->where('guard_name', 'customer')->firstOrFail();
+        $role = Role::query()->where('guard_name', 'app_user')->firstOrFail();
 
         foreach ($customers as $customerData) {
             $customer = AppUser::create([

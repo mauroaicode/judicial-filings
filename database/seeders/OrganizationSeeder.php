@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use Core\BoundedContext\Admin\Role\Infrastructure\Persistence\Eloquent\RoleModel;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\AppUser;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
+use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Role\Models\Role;
 
 class OrganizationSeeder extends Seeder
 {
@@ -15,7 +15,7 @@ class OrganizationSeeder extends Seeder
      */
     public function run(): void
     {
-        $role = RoleModel::query()->where('guard_name', 'customer')->firstOrFail();
+        $role = Role::query()->where('guard_name', 'app_user')->firstOrFail();
 
         $organizations = [
             [
@@ -31,7 +31,7 @@ class OrganizationSeeder extends Seeder
                     'last_name' => 'Pérez',
                     'email' => 'juan.perez@example.com',
                     'password' => bcrypt('password1234'),
-                ]
+                ],
             ],
             [
                 'name' => 'Empresa ABC Ltda.',
@@ -46,7 +46,7 @@ class OrganizationSeeder extends Seeder
                     'last_name' => 'García',
                     'email' => 'maria.garcia@example.com',
                     'password' => bcrypt('password1234'),
-                ]
+                ],
             ],
             [
                 'name' => 'Carlos López',
@@ -61,7 +61,7 @@ class OrganizationSeeder extends Seeder
                     'last_name' => 'López',
                     'email' => 'carlos.lopez@example.com',
                     'password' => bcrypt('password1234'),
-                ]
+                ],
             ],
             [
                 'name' => 'Consultora XYZ SpA',
@@ -76,7 +76,7 @@ class OrganizationSeeder extends Seeder
                     'last_name' => 'Martínez',
                     'email' => 'ana.martinez@example.com',
                     'password' => bcrypt('password1234'),
-                ]
+                ],
             ],
         ];
 
@@ -94,7 +94,7 @@ class OrganizationSeeder extends Seeder
                 'id' => Str::uuid(),
                 'name' => $ownerData['name'],
                 'last_name' => $ownerData['last_name'],
-                'slug' => Str::slug($ownerData['name'] . ' ' . $ownerData['last_name']),
+                'slug' => Str::slug($ownerData['name'].' '.$ownerData['last_name']),
                 'email' => $ownerData['email'],
                 'password' => $ownerData['password'],
                 'profile_image' => null,

@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Src\Domain\Organization\Models\Organization;
 
 /**
  * @extends Factory<Organization>
@@ -14,7 +14,7 @@ class OrganizationFactory extends Factory
     /**
      * The name of the factory's corresponding model.
      *
-     * @var string
+     * @var class-string<Organization>
      */
     protected $model = Organization::class;
 

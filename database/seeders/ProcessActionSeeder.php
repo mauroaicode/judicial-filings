@@ -2,12 +2,11 @@
 
 namespace Database\Seeders;
 
-use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessAction;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
+use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
 
 class ProcessActionSeeder extends Seeder
 {
@@ -19,7 +18,7 @@ class ProcessActionSeeder extends Seeder
         // Obtener el proceso existente
         $process = Process::first();
 
-        if (!$process) {
+        if (! $process) {
             $this->command->info('No se encontró ningún proceso. Creando uno...');
             $process = Process::factory()->create();
         }
@@ -82,19 +81,19 @@ class ProcessActionSeeder extends Seeder
             ]);
 
             // Asignar la actuación a las primeras 3 organizaciones usando el nuevo sistema
-            $organizations = Organization::take(3)->get();
-            foreach ($organizations as $organization) {
-                OrganizationNotification::create([
-                    'organization_id' => $organization->id,
-                    'notifiable_id' => $action->id,
-                    'notifiable_type' => ProcessAction::class,
-                    'notification_type' => 'new_action',
-                    'is_viewed' => fake()->boolean(70), // 70% probabilidad de estar vista
-                    'is_notified' => fake()->boolean(80), // 80% probabilidad de estar notificada
-                    'viewed_at' => fake()->optional(0.7)->dateTimeBetween('-1 month', 'now'),
-                    'notified_at' => fake()->optional(0.8)->dateTimeBetween('-1 month', 'now'),
-                ]);
-            }
+            //            $organizations = Organization::take(3)->get();
+            //            foreach ($organizations as $organization) {
+            //                OrganizationNotification::create([
+            //                    'organization_id' => $organization->id,
+            //                    'notifiable_id' => $action->id,
+            //                    'notifiable_type' => ProcessAction::class,
+            //                    'notification_type' => 'new_action',
+            //                    'is_viewed' => fake()->boolean(70), // 70% probabilidad de estar vista
+            //                    'is_notified' => fake()->boolean(80), // 80% probabilidad de estar notificada
+            //                    'viewed_at' => fake()->optional(0.7)->dateTimeBetween('-1 month', 'now'),
+            //                    'notified_at' => fake()->optional(0.8)->dateTimeBetween('-1 month', 'now'),
+            //                ]);
+            //            }
         }
 
         // Crear algunas actuaciones adicionales usando el factory
@@ -104,19 +103,19 @@ class ProcessActionSeeder extends Seeder
 
         foreach ($factoryActions as $action) {
             // Asignar a organizaciones aleatorias
-            $organizations = Organization::inRandomOrder()->take(rand(1, 3))->get();
-            foreach ($organizations as $organization) {
-                OrganizationNotification::create([
-                    'organization_id' => $organization->id,
-                    'notifiable_id' => $action->id,
-                    'notifiable_type' => ProcessAction::class,
-                    'notification_type' => 'new_action',
-                    'is_viewed' => fake()->boolean(60),
-                    'is_notified' => fake()->boolean(90),
-                    'viewed_at' => fake()->optional(0.6)->dateTimeBetween('-1 month', 'now'),
-                    'notified_at' => fake()->optional(0.9)->dateTimeBetween('-1 month', 'now'),
-                ]);
-            }
+            $organizations = Organization::inRandomOrder()->take(random_int(1, 3))->get();
+            //            foreach ($organizations as $organization) {
+            //                OrganizationNotification::create([
+            //                    'organization_id' => $organization->id,
+            //                    'notifiable_id' => $action->id,
+            //                    'notifiable_type' => ProcessAction::class,
+            //                    'notification_type' => 'new_action',
+            //                    'is_viewed' => fake()->boolean(60),
+            //                    'is_notified' => fake()->boolean(90),
+            //                    'viewed_at' => fake()->optional(0.6)->dateTimeBetween('-1 month', 'now'),
+            //                    'notified_at' => fake()->optional(0.9)->dateTimeBetween('-1 month', 'now'),
+            //                ]);
+            //            }
         }
 
         $this->command->info('Actuaciones creadas y asignadas a organizaciones exitosamente usando el nuevo sistema de notificaciones.');
