@@ -7,4 +7,6 @@ return [
     'email_not_verified' => 'Your email address is not verified.',
     'login_successful' => 'Login successful.',
     'logout_successful' => 'Logout successful.',
-]; 
+    'need_password_setup' => 'You need to set up a password to login.',
+    'unauthorized' => 'Unauthorized. Please login.',
+];

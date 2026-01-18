@@ -132,7 +132,7 @@ return [
         // them against the judicial branch API
         'process-chunk' => [
             'channel' => 'database',
-            'queue' => 'process-chunk'
+            'queue' => 'process-chunk',
         ],
         'process-action-sync' => [
             'channel' => 'database',
@@ -179,7 +179,7 @@ return [
             'max_attempts' => 2,
             'retry_after' => 60, // 1 minuto
             'timeout' => 30, // 30 segundos timeout
-        ]
+        ],
     ],
 
 ];

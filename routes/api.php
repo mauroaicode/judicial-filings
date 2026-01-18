@@ -2,18 +2,14 @@
 
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
-*/
+Route::prefix('app-user')->middleware('api')->group(function () {
+    $appUserRoutesPath = __DIR__.'/api/app_user';
 
-Route::prefix('admin')->group(function () {
-    require __DIR__ . '/../src/BoundedContext/Admin/Auth/Infrastructure/Routes/api.php';
-    require __DIR__ . '/../src/BoundedContext/Admin/AppUser/Infrastructure/Routes/api.php';
+    if (is_dir($appUserRoutesPath)) {
+        $files = glob($appUserRoutesPath.'/*.php');
+
+        foreach ($files as $file) {
+            require $file;
+        }
+    }
 });

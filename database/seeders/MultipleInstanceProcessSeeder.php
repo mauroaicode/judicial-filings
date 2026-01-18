@@ -2,12 +2,16 @@
 
 namespace Database\Seeders;
 
-use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessAction;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessSubject;
+// use Core\BoundedContext\Customer\Process\Infrastructure\Persistence\Eloquent\Models\OrganizationNotification;
+// use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
+// use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
+// use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessAction;
+// use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessSubject;
 use Illuminate\Database\Seeder;
+use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
+use Src\Domain\Process\Models\ProcessSubject;
 
 class MultipleInstanceProcessSeeder extends Seeder
 {
@@ -186,20 +190,20 @@ class MultipleInstanceProcessSeeder extends Seeder
                 'registration_date' => $action['registration_date'],
             ]);
 
-            // Asignar actuación a organizaciones
-            $organizations = Organization::take(2)->get();
-            foreach ($organizations as $organization) {
-                OrganizationNotification::create([
-                    'organization_id' => $organization->id,
-                    'notifiable_id' => $processAction->id,
-                    'notifiable_type' => ProcessAction::class,
-                    'notification_type' => 'new_action',
-                    'is_viewed' => fake()->boolean(80),
-                    'is_notified' => fake()->boolean(60),
-                    'viewed_at' => fake()->optional(0.8)->dateTimeBetween('-1 month', 'now'),
-                    'notified_at' => fake()->optional(0.6)->dateTimeBetween('-1 month', 'now'),
-                ]);
-            }
+            //            // Asignar actuación a organizaciones
+            //            $organizations = Organization::take(2)->get();
+            //            foreach ($organizations as $organization) {
+            //                OrganizationNotification::create([
+            //                    'organization_id' => $organization->id,
+            //                    'notifiable_id' => $processAction->id,
+            //                    'notifiable_type' => ProcessAction::class,
+            //                    'notification_type' => 'new_action',
+            //                    'is_viewed' => fake()->boolean(80),
+            //                    'is_notified' => fake()->boolean(60),
+            //                    'viewed_at' => fake()->optional(0.8)->dateTimeBetween('-1 month', 'now'),
+            //                    'notified_at' => fake()->optional(0.6)->dateTimeBetween('-1 month', 'now'),
+            //                ]);
+            //            }
         }
 
         echo "Actuaciones creadas para instancia {$instance}\n";

@@ -2,14 +2,14 @@
 
 namespace Database\Seeders;
 
-use Core\BoundedContext\Customer\Process\Domain\Repositories\ProcessRepositoryInterface;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Organization;
 use Illuminate\Database\Seeder;
+use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\Process;
 
 class ProcessSeeder extends Seeder
 {
     public function __construct(
-        private readonly ProcessRepositoryInterface $processRepository
+
     ) {}
 
     /**
@@ -17,7 +17,7 @@ class ProcessSeeder extends Seeder
      */
     public function run(): void
     {
-        $process = $this->processRepository->create([
+        $process = Process::create([
             'process_id' => 1811038834,
             'process_number' => '76001333301720180029100',
             'court' => 'JUZGADO 017 ADMINISTRATIVO DE CALI',
@@ -53,8 +53,8 @@ class ProcessSeeder extends Seeder
         }
 
         foreach ($organizations as $organization) {
-            $this->processRepository->attachOrganization($process->id, $organization->id, [
-                'interest_date' => now()->subDays(rand(1, 30)),
+            $process->organizations()->attach($organization->id, [
+                'interest_date' => now()->subDays(random_int(1, 30)),
                 'is_active' => true,
             ]);
         }

@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Src\Domain\Process\Models\Process;
 
 /**
  * @extends Factory<Process>
@@ -84,4 +84,4 @@ class ProcessFactory extends Factory
             'is_private' => false,
         ]);
     }
-} 
+}

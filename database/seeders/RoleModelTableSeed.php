@@ -3,19 +3,19 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Core\BoundedContext\Admin\Role\Infrastructure\Persistence\Eloquent\RoleModel;
+use Src\Domain\Role\Models\Role;
 
 class RoleModelTableSeed extends Seeder
 {
     public function run()
     {
-        RoleModel::create([
-            'name' => 'Administrador',
+        Role::create([
+            'name' => 'admin',
             'guard_name' => 'admin',
         ]);
-        RoleModel::create([
-            'name' => 'Administrador',
-            'guard_name' => 'customer',
+        Role::create([
+            'name' => 'admin',
+            'guard_name' => 'app_user',
         ]);
     }
 }

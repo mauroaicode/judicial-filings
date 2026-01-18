@@ -7,4 +7,4 @@ return [
     'created_successfully' => 'Cliente de aplicación creado exitosamente.',
     'updated_successfully' => 'Cliente de aplicación actualizado exitosamente.',
     'deleted_successfully' => 'Cliente de aplicación eliminado exitosamente.',
-]; 
+];

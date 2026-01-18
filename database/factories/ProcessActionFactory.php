@@ -2,10 +2,10 @@
 
 namespace Database\Factories;
 
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessAction;
-use Core\Shared\Infrastructure\Persistence\Eloquent\Models\Process;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
 
 /**
  * @extends Factory<ProcessAction>
@@ -17,7 +17,7 @@ class ProcessActionFactory extends Factory
     public function definition(): array
     {
         $actionDate = $this->faker->dateTimeBetween('-1 year', 'now');
-        
+
         return [
             'id' => Str::uuid(),
             'process_id' => Process::factory(),
@@ -33,7 +33,7 @@ class ProcessActionFactory extends Factory
                 'Recurso de apelación',
                 'Medida cautelar',
                 'Pruebas',
-                'Allegados'
+                'Allegados',
             ]),
             'annotation' => $this->faker->optional(0.8)->paragraph(),
             'start_date' => $this->faker->optional(0.3)->dateTimeBetween('-1 year', $actionDate),
@@ -59,10 +59,10 @@ class ProcessActionFactory extends Factory
     {
         $startDate = $this->faker->dateTimeBetween('-1 year', 'now');
         $endDate = $this->faker->dateTimeBetween($startDate, 'now');
-        
+
         return $this->state(fn (array $attributes) => [
             'start_date' => $startDate,
             'end_date' => $endDate,
         ]);
     }
-} 
+}

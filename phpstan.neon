@@ -1,0 +1,32 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+
+    paths:
+        - app
+        - src
+        - database/migrations
+        - database/seeders
+        - database/factories
+
+    # Rule level: https://phpstan.org/user-guide/rule-levels
+    level: 5
+
+    ignoreErrors:
+        # Eloquent relationship generic type issues (known Laravel/Eloquent limitations)
+        -
+            message: '~Type string in generic type Illuminate\\Database\\Eloquent\\Relations\\BelongsToMany.* is not subtype of template type TPivotModel~'
+        -
+            message: '~Method .* should return .* but returns Illuminate\\Database\\Eloquent\\Relations\\BelongsToMany.*~'
+
+        # QueryBuilder return type issues ($this vs static)
+        -
+            message: '~Method .*QueryBuilder::.* should return \$this\(.*QueryBuilder\) but returns static\(.*QueryBuilder\)~'
+
+        # Eloquent model property access (pivot)
+        -
+            message: '~Access to an undefined property .*::\$pivot\.~'
+
+    excludePaths:
+        - tests
