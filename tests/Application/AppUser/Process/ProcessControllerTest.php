@@ -154,17 +154,36 @@ it('registers a new process successfully', function (): void {
         config('judicial-branch.api_url').'/Proceso/Actuaciones/1834511724*' => Http::response([
             'actuaciones' => [
                 [
-                    'idRegistroActuacion' => 123456,
+                    'idRegActuacion' => 123456,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
-                    'fechaInicio' => null,
-                    'fechaFin' => null,
+                    'fechaInicial' => null,
+                    'fechaFinal' => null,
                     'fechaRegistro' => '2025-01-01',
                 ],
             ],
             'paginacion' => [
                 'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url').'/Proceso/Sujetos/1834511724*' => Http::response([
+            'sujetos' => [
+                [
+                    'idRegSujeto' => 14585521,
+                    'tipoSujeto' => 'Demandante',
+                    'esEmplazado' => false,
+                    'identificacion' => null,
+                    'nombreRazonSocial' => 'JUAN GABRIEL VILLALOBOS GIRALDO',
+                    'cant' => 2,
+                ],
+            ],
+            'paginacion' => [
+                'cantidadRegistros' => 1,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
             ],
         ], 200),
     ]);
@@ -181,7 +200,6 @@ it('registers a new process successfully', function (): void {
             'id',
             'process_number',
             'court',
-            'department',
         ],
     ]);
 
@@ -202,12 +220,63 @@ it('registers a new process successfully', function (): void {
 });
 
 it('attaches existing process to organization if process already exists globally', function (): void {
-    // Use a different process_id to avoid conflicts
-    $existingProcessId = 9999999999;
-    $existingProcess = Process::factory()->create([
-        'process_number' => '76001333301320170009301',
-        'process_id' => $existingProcessId,
-    ]);
+    // Use unique process_number and process_id to avoid conflicts with other tests
+    // Generate a truly unique 23-digit process number
+    do {
+        $timestamp = (int) (microtime(true) * 1000); // milliseconds since epoch
+        $random = random_int(100000, 999999);
+        $uniqueProcessNumber = str_pad((string) ($timestamp + $random), 23, '0', STR_PAD_LEFT);
+
+        // Ensure it's exactly 23 digits
+        if (strlen($uniqueProcessNumber) > 23) {
+            $uniqueProcessNumber = substr($uniqueProcessNumber, -23);
+        }
+
+        // Check if this number is already used by this organization
+        $existsForOrg = Process::query()
+            ->whereProcessNumber($uniqueProcessNumber)
+            ->whereHas('organizations', function ($query): void {
+                $query->where('organizations.id', $this->organization->id);
+            })
+            ->exists();
+    } while ($existsForOrg);
+
+    $existingProcessId = random_int(9000000000, 9999999999);
+
+    // First, ensure no process with this number is attached to this organization
+    Process::query()
+        ->whereProcessNumber($uniqueProcessNumber)
+        ->whereHas('organizations', function ($query): void {
+            $query->where('organizations.id', $this->organization->id);
+        })
+        ->get()
+        ->each(function ($process): void {
+            $process->organizations()->detach($this->organization->id);
+        });
+
+    // Get or create the global process
+    $existingProcess = Process::query()
+        ->whereProcessNumber($uniqueProcessNumber)
+        ->first();
+
+    if (! $existingProcess) {
+        $existingProcess = Process::factory()->create([
+            'process_number' => $uniqueProcessNumber,
+            'process_id' => $existingProcessId,
+        ]);
+    } else {
+        // Update process_id if it doesn't match
+        if ($existingProcess->process_id !== $existingProcessId) {
+            $existingProcess->update(['process_id' => $existingProcessId]);
+        }
+    }
+
+    // Ensure the process is not already attached to this organization
+    $existingProcess->organizations()->detach($this->organization->id);
+    $existingProcess->refresh();
+
+    // Double-check that the process is not attached
+    expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
 
     Http::fake([
         config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion*' => Http::response([
@@ -220,11 +289,41 @@ it('attaches existing process to organization if process already exists globally
                 'cantidadPaginas' => 1,
             ],
         ], 200),
+        config('judicial-branch.api_url')."/Proceso/Detalle/{$existingProcessId}" => Http::response([
+            'idProceso' => $existingProcessId,
+            'despacho' => 'JUZGADO 035 CIVIL MUNICIPAL DE BOGOTÁ',
+            'departamento' => 'BOGOTÁ',
+            'tipoProceso' => 'Ordinario',
+            'claseProceso' => 'ACCION DE REPARACION DIRECTA',
+            'subclaseProceso' => 'Sin Subclase de Proceso',
+            'sujetosProcesales' => 'Test litigants',
+            'fechaProceso' => '2016-09-14',
+            'fechaUltimaActuacion' => '2025-08-05',
+            'ubicacion' => 'Despacho',
+            'contenidoRadicacion' => 'Test content',
+            'esPrivado' => false,
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Actuaciones/{$existingProcessId}*" => Http::response([
+            'actuaciones' => [],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Sujetos/{$existingProcessId}*" => Http::response([
+            'sujetos' => [],
+            'paginacion' => [
+                'cantidadRegistros' => 0,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
+            ],
+        ], 200),
     ]);
 
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
-            'process_number' => '76001333301320170009301',
+            'process_number' => $uniqueProcessNumber,
         ]);
 
     $response->assertStatus(201);

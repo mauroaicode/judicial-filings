@@ -16,6 +16,7 @@ use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\Process;
+use Throwable;
 
 readonly class ProcessController
 {
@@ -44,7 +45,14 @@ readonly class ProcessController
         $paginatedProcesses = $this->processFinderService->handle($filters, $organization->id, $perPage);
 
         /** @var \Illuminate\Pagination\LengthAwarePaginator $paginatedProcesses */
-        $transformedItems = $paginatedProcesses->getCollection()->map(fn (Process $process): array => ProcessIndexResource::fromModel($process, $organization->id)->toArray());
+        $currentPage = $paginatedProcesses->currentPage();
+        $startIndex = (($currentPage - 1) * $perPage) + 1;
+
+        $transformedItems = $paginatedProcesses->getCollection()->map(function (Process $process, int $key) use ($organization, $startIndex): array {
+            $index = $startIndex + $key;
+
+            return ProcessIndexResource::fromModel($process, $organization->id, $index)->toArray();
+        });
 
         $paginatedProcesses->setCollection($transformedItems);
 
@@ -55,6 +63,7 @@ readonly class ProcessController
      * Register a new process.
      *
      * @throws Exception
+     * @throws Throwable
      */
     public function store(RegisterProcessData $data): JsonResponse
     {
@@ -86,7 +95,6 @@ readonly class ProcessController
                 'id' => $firstProcess->id,
                 'process_number' => $firstProcess->process_number,
                 'court' => $firstProcess->court,
-                'department' => $firstProcess->department,
             ] : null,
         ], 201);
     }

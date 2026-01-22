@@ -284,17 +284,36 @@ it('registers a new process successfully', function (): void {
         config('judicial-branch.api_url').'/Proceso/Actuaciones/1834511724*' => Http::response([
             'actuaciones' => [
                 [
-                    'idRegistroActuacion' => 123456,
+                    'idRegActuacion' => 123456,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
-                    'fechaInicio' => null,
-                    'fechaFin' => null,
+                    'fechaInicial' => null,
+                    'fechaFinal' => null,
                     'fechaRegistro' => '2025-01-01',
                 ],
             ],
             'paginacion' => [
                 'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url').'/Proceso/Sujetos/1834511724*' => Http::response([
+            'sujetos' => [
+                [
+                    'idRegSujeto' => 14585521,
+                    'tipoSujeto' => 'Demandante',
+                    'esEmplazado' => false,
+                    'identificacion' => null,
+                    'nombreRazonSocial' => 'JUAN GABRIEL VILLALOBOS GIRALDO',
+                    'cant' => 2,
+                ],
+            ],
+            'paginacion' => [
+                'cantidadRegistros' => 1,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
             ],
         ], 200),
     ]);
@@ -315,7 +334,6 @@ it('registers a new process successfully', function (): void {
             'id',
             'process_number',
             'court',
-            'department',
         ],
     ]);
 
@@ -448,6 +466,26 @@ it('registers multiple instances successfully', function (): void {
                 'cantidadPaginas' => 1,
             ],
         ], 200),
+        config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId1}*" => Http::response([
+            'sujetos' => [],
+            'paginacion' => [
+                'cantidadRegistros' => 0,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId2}*" => Http::response([
+            'sujetos' => [],
+            'paginacion' => [
+                'cantidadRegistros' => 0,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
+            ],
+        ], 200),
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -510,6 +548,16 @@ it('registers multiple instances with some private processes', function (): void
             'actuaciones' => [],
             'paginacion' => [
                 'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId1}*" => Http::response([
+            'sujetos' => [],
+            'paginacion' => [
+                'cantidadRegistros' => 0,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
             ],
         ], 200),
     ]);
@@ -578,6 +626,16 @@ it('registers multiple instances with multiple private processes', function (): 
             'actuaciones' => [],
             'paginacion' => [
                 'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId1}*" => Http::response([
+            'sujetos' => [],
+            'paginacion' => [
+                'cantidadRegistros' => 0,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
             ],
         ], 200),
     ]);

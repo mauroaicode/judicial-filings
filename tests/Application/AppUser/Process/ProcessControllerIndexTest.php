@@ -115,9 +115,9 @@ it('filters processes by process_number', function (): void {
     expect($response->json('data.0.process_number'))->toBe('76001333301320170009301');
 });
 
-it('filters processes by is_private', function (): void {
-    $process1 = Process::factory()->create(['is_private' => true]);
-    $process2 = Process::factory()->create(['is_private' => false]);
+it('filters processes by court', function (): void {
+    $process1 = Process::factory()->create(['court' => 'JUZGADO 017 ADMINISTRATIVO']);
+    $process2 = Process::factory()->create(['court' => 'JUZGADO 006 CIVIL']);
 
     $process1->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
@@ -129,11 +129,212 @@ it('filters processes by is_private', function (): void {
     ]);
 
     $response = $this->actingAs($this->appUser)
-        ->getJson('/api/app-user/processes?is_private=true');
+        ->getJson('/api/app-user/processes?court=017');
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data.0.is_private'))->toBeTrue();
+    expect($response->json('data.0.court'))->toContain('017');
+});
+
+it('filters processes by process_class', function (): void {
+    $process1 = Process::factory()->create(['process_class' => 'ACCION DE REPARACION DIRECTA']);
+    $process2 = Process::factory()->create(['process_class' => 'ACCION DE TUTELA']);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?process_class=REPARACION');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.process_class'))->toContain('Reparacion');
+});
+
+it('filters processes by plaintiff', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    $process1->subjects()->create([
+        'subject_registration_id' => 12345678,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'JUAN PEREZ GARCIA',
+        'identification' => '1234567890',
+        'is_cited' => false,
+    ]);
+
+    $process2->subjects()->create([
+        'subject_registration_id' => 87654321,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'MARIA LOPEZ RODRIGUEZ',
+        'identification' => '0987654321',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?plaintiff=JUAN');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by plaintiff using identification', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    $process1->subjects()->create([
+        'subject_registration_id' => 12345678,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'JUAN PEREZ GARCIA',
+        'identification' => '1234567890',
+        'is_cited' => false,
+    ]);
+
+    $process2->subjects()->create([
+        'subject_registration_id' => 87654321,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'MARIA LOPEZ RODRIGUEZ',
+        'identification' => '0987654321',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?plaintiff=1234567890');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by defendant', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    $process1->subjects()->create([
+        'subject_registration_id' => 11111111,
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA ABC S.A.S.',
+        'identification' => '9001234567',
+        'is_cited' => false,
+    ]);
+
+    $process2->subjects()->create([
+        'subject_registration_id' => 22222222,
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA XYZ LTDA.',
+        'identification' => '9007654321',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?defendant=ABC');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by defendant using identification', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    $process1->subjects()->create([
+        'subject_registration_id' => 11111111,
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA ABC S.A.S.',
+        'identification' => '9001234567',
+        'is_cited' => false,
+    ]);
+
+    $process2->subjects()->create([
+        'subject_registration_id' => 22222222,
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA XYZ LTDA.',
+        'identification' => '9007654321',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?defendant=9001234567');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by last_api_update date range', function (): void {
+    $process1 = Process::factory()->create([
+        'last_api_update' => '2024-01-10 10:00:00',
+    ]);
+    $process2 = Process::factory()->create([
+        'last_api_update' => '2024-01-20 10:00:00',
+    ]);
+    $process3 = Process::factory()->create([
+        'last_api_update' => '2024-02-01 10:00:00',
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process3->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?last_api_update_from=2024-01-15&last_api_update_to=2024-01-25');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process2->id);
 });
 
 it('filters processes by status', function (): void {
@@ -304,6 +505,42 @@ it('returns paginated results', function (): void {
     expect($response->json('last_page'))->toBe(3);
 });
 
+it('includes index field that continues across pages', function (): void {
+    // Create 25 processes
+    $processes = Process::factory()->count(25)->create();
+
+    foreach ($processes as $process) {
+        $process->organizations()->attach($this->organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+        ]);
+    }
+
+    // First page (per_page=10)
+    $responsePage1 = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?per_page=10&page=1');
+
+    $responsePage1->assertStatus(200);
+    expect($responsePage1->json('data.0.index'))->toBe(1);
+    expect($responsePage1->json('data.9.index'))->toBe(10);
+
+    // Second page
+    $responsePage2 = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?per_page=10&page=2');
+
+    $responsePage2->assertStatus(200);
+    expect($responsePage2->json('data.0.index'))->toBe(11);
+    expect($responsePage2->json('data.9.index'))->toBe(20);
+
+    // Third page
+    $responsePage3 = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?per_page=10&page=3');
+
+    $responsePage3->assertStatus(200);
+    expect($responsePage3->json('data.0.index'))->toBe(21);
+    expect($responsePage3->json('data.4.index'))->toBe(25);
+});
+
 it('returns correct resource structure', function (): void {
     $process = Process::factory()->create([
         'process_number' => '76001333301320170009301',
@@ -327,26 +564,47 @@ it('returns correct resource structure', function (): void {
     $response->assertJsonStructure([
         'data' => [
             '*' => [
+                'index',
                 'id',
                 'process_number',
                 'court',
-                'department',
-                'process_type',
                 'process_class',
                 'subclass_process',
                 'process_date',
                 'last_activity_date',
-                'location',
                 'is_private',
                 'has_multiple_instances',
                 'status_label',
                 'created_at',
+                'plaintiff',
+                'defendant',
             ],
         ],
         'current_page',
         'per_page',
         'total',
     ]);
+});
+
+it('converts court and process_class to title case', function (): void {
+    $process = Process::factory()->create([
+        'court' => 'JUZGADO 017 ADMINISTRATIVO DE CALI',
+        'process_class' => 'ACCION DE REPARACION DIRECTA',
+        'subclass_process' => 'SIN SUBCLASE DE PROCESO',
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes');
+
+    $response->assertStatus(200);
+    expect($response->json('data.0.court'))->toBe('Juzgado 017 Administrativo de Cali');
+    expect($response->json('data.0.process_class'))->toBe('Accion de Reparacion Directa');
+    expect($response->json('data.0.subclass_process'))->toBe('Sin Subclase de Proceso');
 });
 
 it('returns error when user has no organization', function (): void {
