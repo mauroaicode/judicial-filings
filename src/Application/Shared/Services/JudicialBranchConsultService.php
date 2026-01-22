@@ -152,4 +152,58 @@ class JudicialBranchConsultService
 
         return (object) ['isSuccessful' => $isSuccessful, 'data' => $data];
     }
+
+    /**
+     * Fetches all subjects for a specific process, handling pagination.
+     *
+     * @param  int  $processId  Unique ID of the process.
+     * @return object Response with status and all subjects data.
+     */
+    public function fetchSubjectsByProcess(int $processId): object
+    {
+        $data = [];
+        $isSuccessful = true;
+
+        try {
+            $baseUrl = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
+            $allSubjects = [];
+            $currentPage = 1;
+            $totalPages = 1;
+
+            do {
+                $params = [
+                    'pagina' => $currentPage,
+                ];
+
+                $endpoint = "{$baseUrl}?".http_build_query($params);
+
+                $response = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                ])->get($endpoint)->json();
+
+                if (isset($response['sujetos'])) {
+                    $allSubjects = array_merge($allSubjects, $response['sujetos']);
+                }
+
+                if (isset($response['paginacion'])) {
+                    $totalPages = $response['paginacion']['cantidadPaginas'];
+                }
+
+                $currentPage++;
+            } while ($currentPage <= $totalPages);
+
+            $data = $allSubjects;
+
+        } catch (Throwable $th) {
+            $isSuccessful = false;
+
+            Log::channel('filings_process')->error('Error processing subjects ', [
+                'class' => $th->getFile(),
+                'line' => $th->getLine(),
+                'message' => $th->getMessage(),
+            ]);
+        }
+
+        return (object) ['isSuccessful' => $isSuccessful, 'data' => $data];
+    }
 }

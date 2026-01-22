@@ -8,7 +8,9 @@ use Database\Factories\ProcessSubjectFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
+use Src\Domain\Process\QueryBuilders\ProcessSubjectQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 
 /**
@@ -22,13 +24,19 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read Process $process
+ *
+ * @method static ProcessSubjectQueryBuilder query()
+ * @method ProcessSubjectQueryBuilder whereProcess(string $processId)
+ * @method ProcessSubjectQueryBuilder whereSubjectRegistrationId(int $subjectRegistrationId)
+ * @method ProcessSubjectQueryBuilder whereProcessAndRegistrationId(string $processId, int $subjectRegistrationId)
+ * @method ProcessSubjectQueryBuilder whereSubjectType(string $subjectType)
+ * @method ProcessSubjectQueryBuilder whereCited()
+ * @method ProcessSubjectQueryBuilder orderedBySubjectType()
  */
 class ProcessSubject extends Model
 {
     use HasFactory;
     use Uuid;
-
-    protected $table = 'process_subjects';
 
     protected $keyType = 'string';
 
@@ -67,6 +75,14 @@ class ProcessSubject extends Model
     protected static function newFactory(): ProcessSubjectFactory
     {
         return ProcessSubjectFactory::new();
+    }
+
+    /**
+     * @param  Builder  $query
+     */
+    public function newEloquentBuilder(mixed $query): ProcessSubjectQueryBuilder
+    {
+        return new ProcessSubjectQueryBuilder($query);
     }
 
     /**

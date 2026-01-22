@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Domain\Process\QueryBuilders;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Date;
 use Src\Application\AppUser\Process\Data\ProcessFilterData;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 
@@ -101,69 +102,240 @@ class ProcessQueryBuilder extends Builder
      * @param  ProcessFilterData  $data  The filtering criteria.
      * @return $this
      */
-    public function filters(ProcessFilterData $data): self
+    public function filters(ProcessFilterData $data): static
     {
-        return $this
-            ->when($data->process_number, function ($query, $processNumber): void {
-                $query->where('process_number', 'LIKE', "%{$processNumber}%");
-            })
-            ->when($data->created_at, function ($query, $createdAt): void {
-                $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($createdAt): void {
-                    $q->whereDate('organization_processes.created_at', \Illuminate\Support\Facades\Date::parse($createdAt)->format('Y-m-d'));
+        $this->applyProcessNumberFilter($data->process_number);
+        $this->applyCourtFilter($data->court);
+        $this->applyProcessClassFilter($data->process_class);
+        $this->applyPlaintiffFilter($data->plaintiff);
+        $this->applyDefendantFilter($data->defendant);
+        $this->applyCreatedAtFilter($data->created_at, $data->created_at_from, $data->created_at_to);
+        $this->applyProcessDateFilter($data->process_date, $data->process_date_from, $data->process_date_to);
+        $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
+        $this->applyStatusFilter($data->status);
+        $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
+
+        return $this;
+    }
+
+    /**
+     * Apply process number filter.
+     */
+    private function applyProcessNumberFilter(?string $processNumber): void
+    {
+        if (! $processNumber) {
+            return;
+        }
+
+        $this->where('process_number', 'LIKE', "%{$processNumber}%");
+    }
+
+    /**
+     * Apply court filter.
+     */
+    private function applyCourtFilter(?string $court): void
+    {
+        if (! $court) {
+            return;
+        }
+
+        $this->where('court', 'LIKE', "%{$court}%");
+    }
+
+    /**
+     * Apply process class filter.
+     */
+    private function applyProcessClassFilter(?string $processClass): void
+    {
+        if (! $processClass) {
+            return;
+        }
+
+        $this->where('process_class', 'LIKE', "%{$processClass}%");
+    }
+
+    /**
+     * Apply plaintiff filter (searches in subjects by name or identification).
+     */
+    private function applyPlaintiffFilter(?string $plaintiff): void
+    {
+        if (! $plaintiff) {
+            return;
+        }
+
+        $this->whereHas('subjects', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($plaintiff): void {
+            $query->where('subject_type', 'Demandante')
+                ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQuery) use ($plaintiff): void {
+                    $subQuery->where('name_or_business_name', 'LIKE', "%{$plaintiff}%")
+                        ->orWhere('identification', 'LIKE', "%{$plaintiff}%");
                 });
-            })
-            ->when($data->created_at_from || $data->created_at_to, function ($query) use ($data): void {
-                // Filtrar por rango de created_at del pivot organization_processes
-                if ($data->created_at_from && $data->created_at_to) {
-                    $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($data): void {
-                        $q->whereBetween('organization_processes.created_at', [
-                            \Illuminate\Support\Facades\Date::parse($data->created_at_from)->startOfDay(),
-                            \Illuminate\Support\Facades\Date::parse($data->created_at_to)->endOfDay(),
-                        ]);
-                    });
-                } elseif ($data->created_at_from) {
-                    // Solo fecha desde
-                    $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($data): void {
-                        $q->whereDate('organization_processes.created_at', '>=', \Illuminate\Support\Facades\Date::parse($data->created_at_from)->format('Y-m-d'));
-                    });
-                } elseif ($data->created_at_to) {
-                    // Solo fecha hasta
-                    $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($data): void {
-                        $q->whereDate('organization_processes.created_at', '<=', \Illuminate\Support\Facades\Date::parse($data->created_at_to)->format('Y-m-d'));
-                    });
-                }
-            })
-            ->when($data->process_date, function ($query, \DateTimeInterface|\Carbon\WeekDay|\Carbon\Month|string|int|float|null $processDate): void {
-                $query->whereDate('process_date', \Illuminate\Support\Facades\Date::parse($processDate)->format('Y-m-d'));
-            })
-            ->when($data->process_date_from || $data->process_date_to, function ($query) use ($data): void {
-                if ($data->process_date_from && $data->process_date_to) {
-                    $query->whereBetween('process_date', [
-                        \Illuminate\Support\Facades\Date::parse($data->process_date_from)->format('Y-m-d'),
-                        \Illuminate\Support\Facades\Date::parse($data->process_date_to)->format('Y-m-d'),
-                    ]);
-                } elseif ($data->process_date_from) {
-                    $query->whereDate('process_date', '>=', \Illuminate\Support\Facades\Date::parse($data->process_date_from)->format('Y-m-d'));
-                } elseif ($data->process_date_to) {
-                    $query->whereDate('process_date', '<=', \Illuminate\Support\Facades\Date::parse($data->process_date_to)->format('Y-m-d'));
-                }
-            })
-            ->when($data->status, function ($query, $status): void {
-                $statusEnum = OrganizationProcessStatus::tryFrom($status);
-                if ($statusEnum) {
-                    $isActive = $statusEnum === OrganizationProcessStatus::ACTIVE;
-                    $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($isActive): void {
-                        $q->where('organization_processes.is_active', $isActive);
-                    });
-                }
-            })
-            ->when($data->is_private !== null && $data->is_private !== '', function ($query) use ($data): void {
-                $isPrivate = filter_var($data->is_private, FILTER_VALIDATE_BOOLEAN);
-                $query->where('is_private', $isPrivate);
-            })
-            ->when($data->has_multiple_instances !== null && $data->has_multiple_instances !== '', function ($query) use ($data): void {
-                $hasMultiple = filter_var($data->has_multiple_instances, FILTER_VALIDATE_BOOLEAN);
-                $query->where('has_multiple_instances', $hasMultiple);
+        });
+    }
+
+    /**
+     * Apply defendant filter (searches in subjects by name or identification).
+     */
+    private function applyDefendantFilter(?string $defendant): void
+    {
+        if (! $defendant) {
+            return;
+        }
+
+        $this->whereHas('subjects', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($defendant): void {
+            $query->where('subject_type', 'Demandado')
+                ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQuery) use ($defendant): void {
+                    $subQuery->where('name_or_business_name', 'LIKE', "%{$defendant}%")
+                        ->orWhere('identification', 'LIKE', "%{$defendant}%");
+                });
+        });
+    }
+
+    /**
+     * Apply created_at filter (exact date or date range).
+     * Filters by organization_processes.created_at (when the organization registered the process).
+     */
+    private function applyCreatedAtFilter(?string $createdAt, ?string $createdAtFrom, ?string $createdAtTo): void
+    {
+        if ($createdAt) {
+            $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($createdAt): void {
+                $query->whereDate('organization_processes.created_at', Date::parse($createdAt)->format('Y-m-d'));
             });
+
+            return;
+        }
+
+        $this->applyOrganizationProcessDateRangeFilter($createdAtFrom, $createdAtTo);
+    }
+
+    /**
+     * Apply process_date filter (exact date or date range).
+     */
+    private function applyProcessDateFilter(?string $processDate, ?string $processDateFrom, ?string $processDateTo): void
+    {
+        if ($processDate) {
+            $this->whereDate('process_date', Date::parse($processDate)->format('Y-m-d'));
+
+            return;
+        }
+
+        $this->applyDateRangeFilter('process_date', $processDateFrom, $processDateTo, false);
+    }
+
+    /**
+     * Apply last_api_update filter (date range only).
+     */
+    private function applyLastApiUpdateFilter(?string $lastApiUpdateFrom, ?string $lastApiUpdateTo): void
+    {
+        $this->applyDateRangeFilter('last_api_update', $lastApiUpdateFrom, $lastApiUpdateTo, true);
+    }
+
+    /**
+     * Apply status filter.
+     */
+    private function applyStatusFilter(?string $status): void
+    {
+        if (! $status) {
+            return;
+        }
+
+        $statusEnum = OrganizationProcessStatus::tryFrom($status);
+        if (! $statusEnum) {
+            return;
+        }
+
+        $isActive = $statusEnum === OrganizationProcessStatus::ACTIVE;
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($isActive): void {
+            $query->where('organization_processes.is_active', $isActive);
+        });
+    }
+
+    /**
+     * Apply has_multiple_instances filter.
+     */
+    private function applyHasMultipleInstancesFilter(mixed $hasMultipleInstances): void
+    {
+        if ($hasMultipleInstances === null || $hasMultipleInstances === '') {
+            return;
+        }
+
+        $hasMultiple = filter_var($hasMultipleInstances, FILTER_VALIDATE_BOOLEAN);
+
+        $this->where('has_multiple_instances', $hasMultiple);
+    }
+
+    /**
+     * Apply date range filter helper.
+     *
+     * @param  string  $column  The column name to filter.
+     * @param  string|null  $from  Start date.
+     * @param  string|null  $to  End date.
+     * @param  bool  $useTime  Whether to use startOfDay/endOfDay or just date.
+     */
+    private function applyDateRangeFilter(string $column, ?string $from, ?string $to, bool $useTime = false): void
+    {
+        if (! $from && ! $to) {
+            return;
+        }
+
+        if ($from && $to) {
+            if ($useTime) {
+                $this->whereBetween($column, [
+                    Date::parse($from)->startOfDay(),
+                    Date::parse($to)->endOfDay(),
+                ]);
+            } else {
+                $this->whereBetween($column, [
+                    Date::parse($from)->format('Y-m-d'),
+                    Date::parse($to)->format('Y-m-d'),
+                ]);
+            }
+
+            return;
+        }
+
+        if ($from) {
+            if ($useTime) {
+                $this->where($column, '>=', Date::parse($from)->startOfDay());
+            } else {
+                $this->whereDate($column, '>=', Date::parse($from)->format('Y-m-d'));
+            }
+
+            return;
+        }
+
+        // $to is set (we already checked !$from && !$to at the beginning)
+        if ($useTime) {
+            $this->where($column, '<=', Date::parse($to)->endOfDay());
+        } else {
+            $this->whereDate($column, '<=', Date::parse($to)->format('Y-m-d'));
+        }
+    }
+
+    /**
+     * Apply date range filter for organization_processes pivot table.
+     * Filters by when the organization registered the process.
+     *
+     * @param  string|null  $from  Start date.
+     * @param  string|null  $to  End date.
+     */
+    private function applyOrganizationProcessDateRangeFilter(?string $from, ?string $to): void
+    {
+        if (! $from && ! $to) {
+            return;
+        }
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($from, $to): void {
+            if ($from && $to) {
+                $query->whereBetween('organization_processes.created_at', [
+                    Date::parse($from)->startOfDay(),
+                    Date::parse($to)->endOfDay(),
+                ]);
+            } elseif ($from) {
+                $query->whereDate('organization_processes.created_at', '>=', Date::parse($from)->format('Y-m-d'));
+            } elseif ($to) {
+                $query->whereDate('organization_processes.created_at', '<=', Date::parse($to)->format('Y-m-d'));
+            }
+        });
     }
 }

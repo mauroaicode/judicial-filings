@@ -6,6 +6,7 @@ namespace Src\Application\AppUser\Process\Services;
 
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Traits\ParseDateTrait;
@@ -17,11 +18,14 @@ readonly class RegisterProcessService
 
     public function __construct(
         private JudicialBranchConsultService $judicialBranchConsultService,
-        private ProcessActionService $processActionService
+        private ProcessActionService $processActionService,
+        private ProcessSubjectService $processSubjectService
     ) {}
 
     /**
      * Handle the process of registration.
+     *
+     * @throws \Throwable
      */
     public function handle(string $processNumber, string $organizationId): RegisterProcessResult
     {
@@ -36,66 +40,70 @@ readonly class RegisterProcessService
         $registeredProcesses = collect();
         $privateCount = 0;
 
-        foreach ($processesData as $processData) {
-            $isPrivate = $processData['esPrivado'] ?? false;
+        return DB::transaction(function () use ($processNumber, $organizationId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): \Src\Application\AppUser\Process\DTOs\RegisterProcessResult {
 
-            if ($isPrivate) {
-                $privateCount++;
+            foreach ($processesData as $processData) {
+                $isPrivate = $processData['esPrivado'] ?? false;
 
-                continue;
-            }
-
-            $processId = $processData['idProceso'] ?? null;
-
-            if (! $processId) {
-                continue;
-            }
-
-            $detailData = $this->validateAndGetProcessDetails($processId);
-
-            $globalProcess = Process::query()
-                ->whereProcessId($processId)
-                ->first();
-
-            if ($globalProcess) {
-                if ($globalProcess->is_private) {
+                if ($isPrivate) {
                     $privateCount++;
 
                     continue;
                 }
 
-                if ($hasMultipleInstances && ! $globalProcess->has_multiple_instances) {
-                    $globalProcess->update(['has_multiple_instances' => true]);
+                $processId = $processData['idProceso'] ?? null;
+
+                if (! $processId) {
+                    continue;
                 }
 
-                $this->attachProcessToOrganization($globalProcess, $organizationId);
-                $registeredProcesses->push($globalProcess);
+                $detailData = $this->validateAndGetProcessDetails($processId);
 
-                continue;
+                $globalProcess = Process::query()
+                    ->whereProcessId($processId)
+                    ->first();
+
+                if ($globalProcess) {
+                    if ($globalProcess->is_private) {
+                        $privateCount++;
+
+                        continue;
+                    }
+
+                    if ($hasMultipleInstances && ! $globalProcess->has_multiple_instances) {
+                        $globalProcess->update(['has_multiple_instances' => true]);
+                    }
+
+                    $this->attachProcessToOrganization($globalProcess, $organizationId);
+                    $registeredProcesses->push($globalProcess);
+
+                    continue;
+                }
+
+                $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances);
+                $this->attachProcessToOrganization($process, $organizationId);
+
+                $this->processActionService->handle($process, $processId);
+                $this->processSubjectService->handle($process, $processId);
+                $registeredProcesses->push($process);
             }
 
-            $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances);
-            $this->attachProcessToOrganization($process, $organizationId);
-            $this->processActionService->handle($process, $processId);
-            $registeredProcesses->push($process);
-        }
+            if ($registeredProcesses->isEmpty()) {
+                if ($totalProcesses === 1 && $privateCount === 1) {
+                    abort(422, __('process.is_private'));
+                }
 
-        if ($registeredProcesses->isEmpty()) {
-
-            if ($totalProcesses === 1 && $privateCount === 1) {
-                abort(422, __('process.is_private'));
+                abort(422, __('process.all_instances_are_private'));
             }
 
-            abort(422, __('process.all_instances_are_private'));
-        }
-
-        return new RegisterProcessResult(
-            processes: $registeredProcesses,
-            hasMultipleInstances: $hasMultipleInstances,
-            totalProcesses: $totalProcesses,
-            registeredCount: $registeredProcesses->count(),
-            privateCount: $privateCount,
-        );
+            return new RegisterProcessResult(
+                processes: $registeredProcesses,
+                hasMultipleInstances: $hasMultipleInstances,
+                totalProcesses: $totalProcesses,
+                registeredCount: $registeredProcesses->count(),
+                privateCount: $privateCount,
+            );
+        });
     }
 
     /**

@@ -22,21 +22,21 @@ it('fetches and saves actions from judicial branch', function (): void {
         config('judicial-branch.api_url')."/Proceso/Actuaciones/{$this->processId}*" => Http::response([
             'actuaciones' => [
                 [
-                    'idRegistroActuacion' => 123456,
+                    'idRegActuacion' => 123456,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
-                    'fechaInicio' => null,
-                    'fechaFin' => null,
+                    'fechaInicial' => null,
+                    'fechaFinal' => null,
                     'fechaRegistro' => '2025-01-01',
                 ],
                 [
-                    'idRegistroActuacion' => 123457,
+                    'idRegActuacion' => 123457,
                     'fechaActuacion' => '2025-01-02',
                     'actuacion' => 'Test action 2',
                     'anotacion' => 'Test annotation 2',
-                    'fechaInicio' => '2025-01-01',
-                    'fechaFin' => '2025-01-02',
+                    'fechaInicial' => '2025-01-01',
+                    'fechaFinal' => '2025-01-02',
                     'fechaRegistro' => '2025-01-02',
                 ],
             ],
@@ -77,12 +77,12 @@ it('does not create duplicate actions', function (): void {
         config('judicial-branch.api_url')."/Proceso/Actuaciones/{$this->processId}*" => Http::response([
             'actuaciones' => [
                 [
-                    'idRegistroActuacion' => 123456,
+                    'idRegActuacion' => 123456,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
-                    'fechaInicio' => null,
-                    'fechaFin' => null,
+                    'fechaInicial' => null,
+                    'fechaFinal' => null,
                     'fechaRegistro' => '2025-01-01',
                 ],
             ],
@@ -165,12 +165,12 @@ it('parses dates correctly', function (): void {
         config('judicial-branch.api_url')."/Proceso/Actuaciones/{$this->processId}*" => Http::response([
             'actuaciones' => [
                 [
-                    'idRegistroActuacion' => 123456,
+                    'idRegActuacion' => 123456,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
-                    'fechaInicio' => '2025-01-01',
-                    'fechaFin' => '2025-01-02',
+                    'fechaInicial' => '2025-01-01',
+                    'fechaFinal' => '2025-01-02',
                     'fechaRegistro' => '2025-01-01',
                 ],
             ],

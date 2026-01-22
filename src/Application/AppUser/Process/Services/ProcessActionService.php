@@ -72,7 +72,7 @@ readonly class ProcessActionService
      */
     private function createOrUpdateAction(Process $process, array $actionData): void
     {
-        $actionRegistrationId = $actionData['idRegistroActuacion'] ?? null;
+        $actionRegistrationId = $actionData['idRegActuacion'] ?? null;
 
         if (! $actionRegistrationId) {
             return;
@@ -92,8 +92,8 @@ readonly class ProcessActionService
             'action_date' => $this->parseDate($actionData['fechaActuacion'] ?? null),
             'action' => $actionData['actuacion'] ?? '',
             'annotation' => $actionData['anotacion'] ?? null,
-            'start_date' => $this->parseDate($actionData['fechaInicio'] ?? null),
-            'end_date' => $this->parseDate($actionData['fechaFin'] ?? null),
+            'start_date' => $this->parseDate($actionData['fechaInicial'] ?? null),
+            'end_date' => $this->parseDate($actionData['fechaFinal'] ?? null),
             'registration_date' => $this->parseDate($actionData['fechaRegistro'] ?? null),
         ]);
     }
