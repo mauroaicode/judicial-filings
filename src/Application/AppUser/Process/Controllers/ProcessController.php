@@ -11,7 +11,10 @@ use Illuminate\Http\Request;
 use Src\Application\AppUser\Process\Data\ProcessFilterData;
 use Src\Application\AppUser\Process\Data\RegisterProcessData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
+use Src\Application\AppUser\Process\Resources\ProcessDetailResource;
 use Src\Application\AppUser\Process\Resources\ProcessIndexResource;
+use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
+use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Domain\AppUser\Models\AppUser;
@@ -22,7 +25,8 @@ readonly class ProcessController
 {
     public function __construct(
         private RegisterProcessService $registerProcessService,
-        private ProcessFinderService $processFinderService
+        private ProcessFinderService $processFinderService,
+        private ProcessDetailService $processDetailService
     ) {}
 
     /**
@@ -57,6 +61,34 @@ readonly class ProcessController
         $paginatedProcesses->setCollection($transformedItems);
 
         return $paginatedProcesses;
+    }
+
+    /**
+     * Display the specified process detail with subjects.
+     */
+    public function show(string $id): JsonResponse
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        $process = $this->processDetailService->handle($id, $organization->id);
+
+        if (! $process instanceof \Src\Domain\Process\Models\Process) {
+            abort(404, __('process.not_found'));
+        }
+
+        $subjects = $process->subjects->map(fn (\Src\Domain\Process\Models\ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
+
+        return response()->json([
+            'process' => ProcessDetailResource::fromModel($process, $organization->id)->toArray(),
+            'subjects' => $subjects->values()->all(),
+        ]);
     }
 
     /**

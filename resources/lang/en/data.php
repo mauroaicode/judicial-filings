@@ -22,4 +22,9 @@ return [
     'last_api_update_to' => 'Last API Update To',
     'has_multiple_instances' => 'Has Multiple Instances',
     'status' => 'Status',
+    'action_date_from' => 'Action Date From',
+    'action_date_to' => 'Action Date To',
+    'registration_date_from' => 'Registration Date From',
+    'registration_date_to' => 'Registration Date To',
+    'search' => 'Search',
 ];

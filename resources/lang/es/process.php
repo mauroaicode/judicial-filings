@@ -2,6 +2,7 @@
 
 return [
     'already_registered' => 'Este número de radicado ya ha sido registrado para tu organización.',
+    'not_found' => 'Proceso no encontrado.',
     'not_found_in_judicial_branch' => 'El número de radicado no existe en la Rama Judicial.',
     'registered_successfully' => 'Proceso registrado exitosamente.',
     'user_has_no_organization' => 'El usuario no pertenece a ninguna organización.',
