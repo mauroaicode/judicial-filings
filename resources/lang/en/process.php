@@ -2,6 +2,7 @@
 
 return [
     'already_registered' => 'This filing number has already been registered for your organization.',
+    'not_found' => 'Process not found.',
     'not_found_in_judicial_branch' => 'The filing number does not exist in the Judicial Branch.',
     'registered_successfully' => 'Process registered successfully.',
     'user_has_no_organization' => 'The user does not belong to any organization.',
