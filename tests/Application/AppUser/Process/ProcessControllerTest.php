@@ -243,17 +243,6 @@ it('attaches existing process to organization if process already exists globally
 
     $existingProcessId = random_int(9000000000, 9999999999);
 
-    // First, ensure no process with this number is attached to this organization
-    Process::query()
-        ->whereProcessNumber($uniqueProcessNumber)
-        ->whereHas('organizations', function ($query): void {
-            $query->where('organizations.id', $this->organization->id);
-        })
-        ->get()
-        ->each(function ($process): void {
-            $process->organizations()->detach($this->organization->id);
-        });
-
     // Get or create the global process
     $existingProcess = Process::query()
         ->whereProcessNumber($uniqueProcessNumber)
@@ -271,11 +260,12 @@ it('attaches existing process to organization if process already exists globally
         }
     }
 
-    // Ensure the process is not already attached to this organization
-    $existingProcess->organizations()->detach($this->organization->id);
+    // Ensure the process is not already attached to ANY organization (including this one)
+    // This is important because the process might be attached to another organization from a previous test
+    $existingProcess->organizations()->detach();
     $existingProcess->refresh();
 
-    // Double-check that the process is not attached
+    // Double-check that the process is not attached to this organization
     expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
 
     Http::fake([

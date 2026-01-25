@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
+use Src\Domain\Role\Models\Role;
 use Src\Domain\User\Enums\UserStatus;
 use Src\Domain\User\Models\User;
 
@@ -13,6 +14,12 @@ beforeEach(function (): void {
         'email_verified_at' => now(),
         'state' => UserStatus::ACTIVE,
     ]);
+
+    // Assign admin role to user
+    $adminRole = Role::query()->where('guard_name', 'admin')->first();
+    if ($adminRole) {
+        $this->user->roles()->attach($adminRole->id);
+    }
 });
 
 it('allows admin to login with valid credentials', function (): void {

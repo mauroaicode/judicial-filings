@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
-use Src\Application\AppUser\Process\Data\ProcessFilterData;
+use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\QueryBuilders\ProcessQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;

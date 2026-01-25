@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Process\Services;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Src\Application\AppUser\Process\Data\ProcessFilterData;
+use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\Process\Models\Process;
 
 readonly class ProcessFinderService

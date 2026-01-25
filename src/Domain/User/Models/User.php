@@ -135,4 +135,13 @@ class User extends Authenticatable
             'email_verified_at' => now(),
         ]);
     }
+
+    /**
+     * Get the guard name for the model.
+     * Used by Spatie Permission to determine which guard to use.
+     */
+    public function getGuardName(): string
+    {
+        return 'admin';
+    }
 }

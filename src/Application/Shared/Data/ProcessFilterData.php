@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Process\Data;
+namespace Src\Application\Shared\Data;
 
 use Spatie\LaravelData\Attributes\Validation\Date;
 use Spatie\LaravelData\Attributes\Validation\In;
@@ -19,6 +19,7 @@ class ProcessFilterData extends Data
         public ?string $process_class = null,
         public ?string $plaintiff = null,
         public ?string $defendant = null,
+        public ?string $organization = null,
         #[Date]
         public ?string $created_at = null,
         #[Date]

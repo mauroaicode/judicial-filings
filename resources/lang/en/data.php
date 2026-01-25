@@ -12,6 +12,7 @@ return [
     'process_class' => 'Process Class',
     'plaintiff' => 'Plaintiff',
     'defendant' => 'Defendant',
+    'organization' => 'Organization',
     'created_at' => 'Created At',
     'created_at_from' => 'Created At From',
     'created_at_to' => 'Created At To',

@@ -6,11 +6,12 @@ namespace Src\Domain\Process\QueryBuilders;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
-use Src\Application\AppUser\Process\Data\ProcessFilterData;
+use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\Process\Models\Process;
 
 /**
- * @extends Builder<\Src\Domain\Process\Models\Process>
+ * @extends Builder<Process>
  */
 class ProcessQueryBuilder extends Builder
 {
@@ -87,6 +88,23 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Order processes by earliest organization registration date (most recent first).
+     * Used for admin views where we want to see all processes ordered by when they were first registered.
+     *
+     * @return $this
+     */
+    public function orderedByRegistrationDate(): self
+    {
+        $this->orderByRaw('(
+            SELECT COALESCE(MIN(organization_processes.created_at), processes.created_at)
+            FROM organization_processes
+            WHERE organization_processes.process_id = processes.id
+        ) DESC');
+
+        return $this;
+    }
+
+    /**
      * Order processes by process_date (most recent first).
      *
      * @return $this
@@ -109,6 +127,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyProcessClassFilter($data->process_class);
         $this->applyPlaintiffFilter($data->plaintiff);
         $this->applyDefendantFilter($data->defendant);
+        $this->applyOrganizationFilter($data->organization);
         $this->applyCreatedAtFilter($data->created_at, $data->created_at_from, $data->created_at_to);
         $this->applyProcessDateFilter($data->process_date, $data->process_date_from, $data->process_date_to);
         $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
@@ -187,6 +206,20 @@ class ProcessQueryBuilder extends Builder
                     $subQuery->where('name_or_business_name', 'LIKE', "%{$defendant}%")
                         ->orWhere('identification', 'LIKE', "%{$defendant}%");
                 });
+        });
+    }
+
+    /**
+     * Apply organization filter (searches in organizations by name).
+     */
+    private function applyOrganizationFilter(?string $organization): void
+    {
+        if (! $organization) {
+            return;
+        }
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organization): void {
+            $query->where('organizations.name', 'LIKE', "%{$organization}%");
         });
     }
 

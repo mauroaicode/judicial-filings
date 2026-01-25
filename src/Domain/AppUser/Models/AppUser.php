@@ -169,4 +169,13 @@ class AppUser extends Model implements Authenticatable
     {
         return $this->organizations()->wherePivot('is_owner', true);
     }
+
+    /**
+     * Get the guard name for the model.
+     * Used by Spatie Permission to determine which guard to use.
+     */
+    public function getGuardName(): string
+    {
+        return 'app_user';
+    }
 }
