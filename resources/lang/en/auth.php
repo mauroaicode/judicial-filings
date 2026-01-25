@@ -9,4 +9,5 @@ return [
     'logout_successful' => 'Logout successful.',
     'need_password_setup' => 'You need to set up a password to login.',
     'unauthorized' => 'Unauthorized. Please login.',
+    'user_inactive' => 'Your account is inactive. Please contact the administrator.',
 ];

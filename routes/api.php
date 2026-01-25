@@ -13,3 +13,15 @@ Route::prefix('app-user')->middleware('api')->group(function () {
         }
     }
 });
+
+Route::prefix('admin')->middleware('api')->group(function () {
+    $adminRoutesPath = __DIR__.'/api/admin';
+
+    if (is_dir($adminRoutesPath)) {
+        $files = glob($adminRoutesPath.'/*.php');
+
+        foreach ($files as $file) {
+            require $file;
+        }
+    }
+});

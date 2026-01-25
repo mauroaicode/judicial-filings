@@ -9,4 +9,5 @@ return [
     'logout_successful' => 'Cierre de sesión exitoso.',
     'need_password_setup' => 'Necesitas configurar una contraseña para iniciar sesión.',
     'unauthorized' => 'No autorizado. Por favor, inicia sesión.',
+    'user_inactive' => 'Tu cuenta está inactiva. Por favor, contacta al administrador.',
 ];

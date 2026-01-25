@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Src\Domain\User\Enums\UserStatus;
 use Src\Domain\User\Models\User;
 
 /**
@@ -34,8 +35,11 @@ class UserFactory extends Factory
             'last_name' => $lastName,
             'phone' => $this->faker->phoneNumber,
             'address' => $this->faker->address,
+            'email' => $this->faker->unique()->safeEmail,
             'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             'slug' => Str::slug(strtolower($name).'-'.strtolower($lastName).Str::random(5), '-'),
+            'state' => UserStatus::ACTIVE,
+            'email_verified_at' => now(),
         ];
     }
 
