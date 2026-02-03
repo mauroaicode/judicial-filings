@@ -60,5 +60,33 @@ class ProcessSeeder extends Seeder
         }
 
         $this->command->info("Proceso creado y asignado a {$organizations->count()} organizaciones.");
+
+        // Proceso de prueba para organización de juan.perez@example.com (sin actuaciones ni sujetos)
+        $organizationJuanPerez = Organization::query()->where('email', 'juan.perez@example.com')->firstOrFail();
+
+        $processJuanPerez = Process::create([
+            'process_id' => 149513233,
+            'process_number' => '11001020500020250094900',
+            'court' => 'DESPACHO 000 - CORTE SUPREMA DE JUSTICIA - LABORAL - BOGOTÁ *',
+            'department' => 'BOGOTÁ',
+            'process_type' => 'Laboral',
+            'process_class' => 'Acción Constitucional',
+            'subclass_process' => 'Tutela 1ra Instancia',
+            'litigants' => 'Demandante: FRANCISCO FERLY RAMIREZ BENAVIDES | Demandante: BERTHA CECILIA BENAVIDES | Demandante: ROSALBA BENAVIDEZ | Demandante: NANCY ESPERANZA ANACONA | Demandante: GLORIA STELLA BENAVIDEZ Y OTROS',
+            'process_date' => '2024-05-08',
+            'last_activity_date' => '2025-04-30',
+            'location' => 'Corte Constitucional',
+            'filing_content' => 'Generación de Tutela en línea No 2813332',
+            'is_private' => false,
+            'has_multiple_instances' => false,
+            'last_api_update' => '2026-02-03 16:17:01',
+        ]);
+
+        $processJuanPerez->organizations()->attach($organizationJuanPerez->id, [
+            'interest_date' => now()->subDays(7),
+            'is_active' => true,
+        ]);
+
+        $this->command->info('Proceso de prueba (11001020500020250094900) creado y asignado a organización de juan.perez@example.com.');
     }
 }

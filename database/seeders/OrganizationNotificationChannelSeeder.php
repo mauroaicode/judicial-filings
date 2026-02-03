@@ -1,120 +1,83 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
+use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Organization\Models\Organization;
 
 class OrganizationNotificationChannelSeeder extends Seeder
 {
+    private const CHANNEL_TYPES = ['email', 'whatsapp', 'sms'];
+
     /**
      * Run the database seeds.
+     * Creates only email, whatsapp and sms channels (one of each type per org).
+     * Each organization gets randomly 1, 2 or 3 of these channel types.
      */
     public function run(): void
     {
-        //        $organizations = Organization::all();
-        //
-        //        foreach ($organizations as $organization) {
-        //            // Crear 2 canales de email por organización
-        //            $this->createEmailChannels($organization);
-        //
-        //            // Crear 2 canales de WhatsApp por organización
-        //            $this->createWhatsAppChannels($organization);
-        //
-        //            // Crear 2 canales de SMS por organización
-        //            $this->createSmsChannels($organization);
-        //
-        //            // Crear 2 canales internos por organización
-        //            $this->createInternalChannels($organization);
-        //        }
+        $organizations = Organization::query()->get();
+
+        foreach ($organizations as $organization) {
+            $channelTypes = $this->pickRandomChannels();
+
+            foreach ($channelTypes as $channelType) {
+                $this->createChannel($organization, $channelType);
+            }
+        }
     }
 
     /**
-     * Create email notification channels for an organization.
+     * Pick randomly between 1 and 3 channel types (email, whatsapp, sms).
+     *
+     * @return array<int, string>
      */
-    //    private function createEmailChannels(Organization $organization): void
-    //    {
-    //        $emails = [
-    //            $organization->email ?? 'contacto@' . Str::slug($organization->name) . '.cl',
-    //            'notificaciones@' . Str::slug($organization->name) . '.cl',
-    //        ];
-    //
-    //        foreach ($emails as $index => $email) {
-    //            OrganizationNotificationChannel::create([
-    //                'id' => Str::uuid(),
-    //                'organization_id' => $organization->id,
-    //                'channel_type' => NotificationChannelType::EMAIL,
-    //                'channel_value' => $email,
-    //                'is_active' => true,
-    //                'priority' => $index + 1,
-    //            ]);
-    //        }
-    //    }
+    private function pickRandomChannels(): array
+    {
+        $all = self::CHANNEL_TYPES;
+        $count = random_int(1, 3);
+        $maxIndex = count($all) - 1;
 
-    /**
-     * Create WhatsApp notification channels for an organization.
-     */
-    //    private function createWhatsAppChannels(Organization $organization): void
-    //    {
-    //        $phones = [
-    //            $organization->phone ?? '+56 9 1234 5678',
-    //            '+56 9 8765 4321',
-    //        ];
-    //
-    //        foreach ($phones as $index => $phone) {
-    //            OrganizationNotificationChannel::create([
-    //                'id' => Str::uuid(),
-    //                'organization_id' => $organization->id,
-    //                'channel_type' => NotificationChannelType::WHATSAPP,
-    //                'channel_value' => $phone,
-    //                'is_active' => true,
-    //                'priority' => $index + 1,
-    //            ]);
-    //        }
-    //    }
+        /** @var list<string> $result */
+        $result = [];
 
-    /**
-     * Create SMS notification channels for an organization.
-     */
-    //    private function createSmsChannels(Organization $organization): void
-    //    {
-    //        $phones = [
-    //            $organization->phone ?? '+56 9 1234 5678',
-    //            '+56 9 8765 4321',
-    //        ];
-    //
-    //        foreach ($phones as $index => $phone) {
-    //            OrganizationNotificationChannel::create([
-    //                'id' => Str::uuid(),
-    //                'organization_id' => $organization->id,
-    //                'channel_type' => NotificationChannelType::SMS,
-    //                'channel_value' => $phone,
-    //                'is_active' => true,
-    //                'priority' => $index + 1,
-    //            ]);
-    //        }
-    //    }
+        while (count($result) < $count) {
+            $channel = $all[random_int(0, $maxIndex)];
+            if (! in_array($channel, $result, true)) {
+                $result[] = $channel;
+            }
+        }
 
-    //    /**
-    //     * Create internal notification channels for an organization.
-    //     */
-    //    private function createInternalChannels(Organization $organization): void
-    //    {
-    //        $internalChannels = [
-    //            'dashboard',
-    //            'mobile_app',
-    //        ];
-    //
-    //        foreach ($internalChannels as $index => $channel) {
-    //            OrganizationNotificationChannel::create([
-    //                'id' => Str::uuid(),
-    //                'organization_id' => $organization->id,
-    //                'channel_type' => NotificationChannelType::INTERNAL,
-    //                'channel_value' => $channel,
-    //                'is_active' => true,
-    //                'priority' => $index + 1,
-    //            ]);
-    //        }
-    //    }
+        return $result;
+    }
+
+    private function createChannel(Organization $organization, string $channelType): void
+    {
+        $channelValue = $this->channelValueFor($organization, $channelType);
+
+        OrganizationNotificationChannel::query()->firstOrCreate(
+            [
+                'organization_id' => $organization->id,
+                'channel_type' => $channelType,
+                'priority' => 1,
+            ],
+            [
+                'channel_value' => $channelValue,
+                'is_active' => true,
+            ]
+        );
+    }
+
+    private function channelValueFor(Organization $organization, string $channelType): string
+    {
+        return match ($channelType) {
+            'email' => $organization->email ?? 'contacto@'.Str::slug($organization->name).'.com',
+            'whatsapp', 'sms' => $organization->phone ?? '+57 300 '.random_int(100, 999).' '.random_int(1000, 9999),
+            default => '',
+        };
+    }
 }

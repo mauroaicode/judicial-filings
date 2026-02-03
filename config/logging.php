@@ -184,5 +184,13 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+
+        'judicial_sync_notifications' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/judicial_sync_notifications.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
     ],
 ];

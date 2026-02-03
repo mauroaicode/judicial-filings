@@ -63,21 +63,6 @@ class OrganizationSeeder extends Seeder
                     'password' => bcrypt('password1234'),
                 ],
             ],
-            [
-                'name' => 'Consultora XYZ SpA',
-                'type' => 'juridical',
-                'identification' => '65.987.654-3',
-                'address' => 'Av. Apoquindo 321, Santiago',
-                'phone' => '+56 2 3456 7890',
-                'email' => 'info@consultoraxyz.cl',
-                'contact_person' => 'Ana Martínez',
-                'owner' => [
-                    'name' => 'Ana',
-                    'last_name' => 'Martínez',
-                    'email' => 'ana.martinez@example.com',
-                    'password' => bcrypt('password1234'),
-                ],
-            ],
         ];
 
         foreach ($organizations as $orgData) {
@@ -103,14 +88,6 @@ class OrganizationSeeder extends Seeder
 
             $organization->appUsers()->attach($owner->id, ['is_owner' => true]);
 
-            $owner->roles()->attach($role->id);
-        }
-
-        // Create additional random organizations using factory
-        $factoryOrganizations = Organization::factory(3)->create();
-        foreach ($factoryOrganizations as $organization) {
-            $owner = AppUser::factory()->create();
-            $organization->appUsers()->attach($owner->id, ['is_owner' => true]);
             $owner->roles()->attach($role->id);
         }
     }
