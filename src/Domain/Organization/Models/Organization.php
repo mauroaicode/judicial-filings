@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Traits\Uuid;
 
@@ -111,5 +112,15 @@ class Organization extends Model
             'organization_id',
             'process_id'
         )->withPivot(['interest_date', 'is_active'])->withTimestamps();
+    }
+
+    /**
+     * Get the notification channels for the organization.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Src\Domain\Notification\Models\OrganizationNotificationChannel, $this>
+     */
+    public function notificationChannels(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrganizationNotificationChannel::class, 'organization_id');
     }
 }
