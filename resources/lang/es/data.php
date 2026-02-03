@@ -2,6 +2,7 @@
 
 return [
     'email' => 'Correo electrónico',
+    'file' => 'Archivo',
     'last_name' => 'Apellido',
     'name' => 'Nombre',
     'password' => 'Contraseña',

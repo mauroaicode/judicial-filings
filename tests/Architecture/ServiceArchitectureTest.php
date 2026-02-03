@@ -30,6 +30,7 @@ beforeEach(function (): void {
     $this->arch()->ignore([
         'Src\Application\AppUser\Chat\Services\OpenAIThreadManager',
         'Src\Application\AppUser\Chat\Services\OpenAIAssistantRunner',
+        'Src\Application\Admin\Process\Services\ProcessImportService', // callback-style public methods for Maatwebsite Excel imports
     ]);
 });
 
