@@ -344,17 +344,14 @@ it('registers a new process successfully', function (): void {
     expect($response->json('registered_count'))->toBe(1);
     expect($response->json('private_count'))->toBe(0);
 
-    // Verify process was created
-    $process = Process::query()
-        ->where('process_number', '76001333301320170009301')
-        ->first();
+    // Verify process was created (use response id so we assert on the process just registered)
+    $processUuid = $response->json('process.id');
+    $process = Process::query()->find($processUuid);
 
-    expect($process)->not->toBeNull();
-    expect($process->process_id)->toBe(1834511724);
-    expect($process->court)->toContain('DESPACHO 000 - TRIBUNAL ADMINISTRATIVO');
-
-    // Verify process is attached to organization
-    expect($process->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
+    expect($process)->not->toBeNull()
+        ->and($process->process_id)->toBe(1834511724)
+        ->and($process->court)->toContain('DESPACHO 000 - TRIBUNAL ADMINISTRATIVO')
+        ->and($process->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
 });
 
 it('attaches existing process to organization if process already exists globally', function (): void {

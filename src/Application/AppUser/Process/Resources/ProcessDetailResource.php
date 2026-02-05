@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Resources;
 
-use Spatie\LaravelData\Resource;
+use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
+use Spatie\LaravelData\Resource;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
@@ -60,16 +61,16 @@ class ProcessDetailResource extends Resource
             process_class: StrParseHelper::toTitleCase($process->process_class) ?? '',
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
             litigants: $process->litigants,
-            process_date: $process->process_date->format('Y-m-d'),
-            last_activity_date: $process->last_activity_date?->format('Y-m-d'),
+            process_date: DateFormatHelper::formatDate($process->process_date),
+            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : null,
             location: $process->location ? StrParseHelper::toTitleCase($process->location) : null,
             filing_content: $process->filing_content,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
-            last_api_update: $process->last_api_update?->format('Y-m-d H:i:s'),
+            last_api_update: $process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null,
             status_label: $status->getLabel(),
-            created_at: $createdAt->format('Y-m-d H:i:s'),
-            updated_at: $process->updated_at->format('Y-m-d H:i:s'),
+            created_at: DateFormatHelper::formatDateTime($createdAt),
+            updated_at: DateFormatHelper::formatDateTime($process->updated_at),
         );
     }
 }

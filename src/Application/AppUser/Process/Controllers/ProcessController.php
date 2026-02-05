@@ -19,6 +19,7 @@ use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessSubject;
 use Throwable;
 
 readonly class ProcessController
@@ -79,11 +80,11 @@ readonly class ProcessController
 
         $process = $this->processDetailService->handle($id, $organization->id);
 
-        if (! $process instanceof \Src\Domain\Process\Models\Process) {
+        if (! $process instanceof Process) {
             abort(404, __('process.not_found'));
         }
 
-        $subjects = $process->subjects->map(fn (\Src\Domain\Process\Models\ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
+        $subjects = $process->subjects->map(fn (ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
 
         return response()->json([
             'process' => ProcessDetailResource::fromModel($process, $organization->id)->toArray(),
@@ -123,7 +124,7 @@ readonly class ProcessController
             'total_processes' => $result->totalProcesses,
             'registered_count' => $result->registeredCount,
             'private_count' => $result->privateCount,
-            'process' => $firstProcess instanceof \Src\Domain\Process\Models\Process ? [
+            'process' => $firstProcess instanceof Process ? [
                 'id' => $firstProcess->id,
                 'process_number' => $firstProcess->process_number,
                 'court' => $firstProcess->court,

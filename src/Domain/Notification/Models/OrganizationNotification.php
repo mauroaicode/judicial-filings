@@ -8,10 +8,13 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
+use Src\Domain\Notification\QueryBuilders\OrganizationNotificationQueryBuilder;
 use Src\Domain\Organization\Models\Organization;
 
 /**
+ * @property-read string|null $id
  * @property-read string $organization_id
  * @property-read string $notifiable_id
  * @property-read string $notifiable_type
@@ -23,7 +26,15 @@ use Src\Domain\Organization\Models\Organization;
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read Organization $organization
- * @property-read \Illuminate\Database\Eloquent\Model|null $notifiable
+ * @property-read Model|null $notifiable
+ *
+ * @method static OrganizationNotificationQueryBuilder query()
+ * @method OrganizationNotificationQueryBuilder whereOrganization(string $organizationId)
+ * @method OrganizationNotificationQueryBuilder whereNotificationType(string $type)
+ * @method OrganizationNotificationQueryBuilder whereViewed(bool $viewed)
+ * @method OrganizationNotificationQueryBuilder whereUnviewed()
+ * @method OrganizationNotificationQueryBuilder withNotifiableAndProcess()
+ * @method OrganizationNotificationQueryBuilder orderedByCreatedAt()
  */
 class OrganizationNotification extends Model
 {
@@ -45,6 +56,7 @@ class OrganizationNotification extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'id',
         'organization_id',
         'notifiable_id',
         'notifiable_type',
@@ -103,6 +115,14 @@ class OrganizationNotification extends Model
     }
 
     /**
+     * @param  QueryBuilder  $query
+     */
+    public function newEloquentBuilder(mixed $query): OrganizationNotificationQueryBuilder
+    {
+        return new OrganizationNotificationQueryBuilder($query);
+    }
+
+    /**
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Organization\Models\Organization, $this>
      */
     public function organization(): BelongsTo
@@ -111,7 +131,7 @@ class OrganizationNotification extends Model
     }
 
     /**
-     * @return MorphTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return MorphTo<Model, $this>
      */
     public function notifiable(): MorphTo
     {

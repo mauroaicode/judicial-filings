@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Support\Facades\Log;
-use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
-use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Traits\MapsJudicialActuacionTrait;
 use Src\Application\Shared\Traits\MapsJudicialSujetoTrait;
-use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessSubject;
@@ -22,7 +19,7 @@ class ProcessSyncService
 
     public function __construct(
         private readonly JudicialBranchConsultService $judicialService,
-        private readonly AnnotationAlertDetectionInterface $alertDetection
+        private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService
     ) {}
 
     public function handle(Process $process): void
@@ -75,14 +72,7 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
 
-            $annotation = $action->annotation ?? '';
-            $isAlert = $this->alertDetection->containsAlertKeywords($annotation);
-
-            $this->createNotificationsAndDispatch($process, $action, 'actuacion');
-
-            if ($isAlert) {
-                $this->createNotificationsAndDispatch($process, $action, 'actuacion_alerta');
-            }
+            $this->processActionAlertNotificationService->handle($action, $process);
         }
     }
 
@@ -106,32 +96,7 @@ class ProcessSyncService
             $attributes = $this->mapApiSujetoToAttributes($apiSujeto);
             $attributes['process_id'] = $process->id;
 
-            $subject = ProcessSubject::query()->create($attributes);
-
-            $this->createNotificationsAndDispatch($process, $subject, 'sujeto_procesal');
-        }
-    }
-
-    private function createNotificationsAndDispatch(Process $process, ProcessAction|ProcessSubject $notifiable, string $notificationType): void
-    {
-
-        $organizations = $process->organizations()->wherePivot('is_active', true)->get();
-
-        foreach ($organizations as $organization) {
-            $notification = OrganizationNotification::query()->firstOrCreate(
-                [
-                    'organization_id' => $organization->id,
-                    'notifiable_id' => $notifiable->id,
-                    'notifiable_type' => $notifiable->getMorphClass(),
-                    'notification_type' => $notificationType,
-                ],
-                [
-                    'is_viewed' => false,
-                    'is_notified' => false,
-                ]
-            );
-
-            dispatch(SendOrganizationNotificationJob::fromNotification($notification));
+            ProcessSubject::query()->create($attributes);
         }
     }
 }

@@ -248,9 +248,10 @@ class SyncJudicialProcessesCommand extends Command
                         'organization_id' => $organization->id,
                         'notifiable_id' => $process->id,
                         'notifiable_type' => $process->getMorphClass(),
+                        'notification_type' => 'multiple_instances',
                     ],
                     [
-                        'notification_type' => 'multiple_instances',
+                        'id' => (string) \Illuminate\Support\Str::uuid(),
                         'is_viewed' => false,
                         'is_notified' => false,
                     ]

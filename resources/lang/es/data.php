@@ -29,4 +29,9 @@ return [
     'registration_date_from' => 'Fecha de Registro Desde',
     'registration_date_to' => 'Fecha de Registro Hasta',
     'search' => 'Búsqueda',
+    'type' => 'Tipo',
+    'viewed' => 'Visto',
+    'per_page' => 'Por página',
+    'page' => 'Página',
+    'notification_ids' => 'IDs de notificación',
 ];

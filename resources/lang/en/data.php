@@ -29,4 +29,9 @@ return [
     'registration_date_from' => 'Registration Date From',
     'registration_date_to' => 'Registration Date To',
     'search' => 'Search',
+    'type' => 'Type',
+    'viewed' => 'Viewed',
+    'per_page' => 'Per Page',
+    'page' => 'Page',
+    'notification_ids' => 'Notification IDs',
 ];
