@@ -158,8 +158,8 @@ it('filters actions by action_date_from', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(2);
-    expect($response->json('data.0.action_date'))->toBe('2024-02-01');
-    expect($response->json('data.1.action_date'))->toBe('2024-01-20');
+    expect($response->json('data.0.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-02-01')));
+    expect($response->json('data.1.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
 });
 
 it('filters actions by search term in action field', function (): void {

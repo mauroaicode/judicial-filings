@@ -8,6 +8,7 @@ use Database\Factories\ProcessActionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Src\Domain\Process\QueryBuilders\ProcessActionQueryBuilder;
@@ -26,6 +27,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read Process $process
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, ProcessActionAlertHighlight> $alertHighlights
  *
  * @method static ProcessActionQueryBuilder query()
  * @method ProcessActionQueryBuilder whereProcess(string $processId)
@@ -100,5 +102,15 @@ class ProcessAction extends Model
     public function process(): BelongsTo
     {
         return $this->belongsTo(Process::class, 'process_id');
+    }
+
+    /**
+     * Get the alert highlights (detected keywords spans) for this action.
+     *
+     * @return HasMany<ProcessActionAlertHighlight, $this>
+     */
+    public function alertHighlights(): HasMany
+    {
+        return $this->hasMany(ProcessActionAlertHighlight::class, 'process_action_id');
     }
 }

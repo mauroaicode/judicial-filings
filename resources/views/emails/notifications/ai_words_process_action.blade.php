@@ -230,7 +230,7 @@
 
         <div class="footer">
             <p><strong>Sistema de Monitoreo Judicial - Alerta Crítica</strong></p>
-            <p>Notificación enviada el {{ $additionalData['detected_at'] ?? now()->format('d/m/Y H:i:s') }}</p>
+            <p>Notificación enviada el {{ \Src\Application\Shared\Helpers\DateFormatHelper::formatDateTime($additionalData['detected_at'] ?? now()) }}</p>
         </div>
     </div>
 </body>

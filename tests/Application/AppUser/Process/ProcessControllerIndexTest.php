@@ -423,7 +423,7 @@ it('filters processes by process_date', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data.0.process_date'))->toBe('2024-01-15');
+    expect($response->json('data.0.process_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-15')));
 });
 
 it('filters processes by created_at date range', function (): void {

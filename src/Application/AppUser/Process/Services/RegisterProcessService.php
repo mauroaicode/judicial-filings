@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
+use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationService;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\Process\Models\Process;
 
@@ -19,7 +20,8 @@ readonly class RegisterProcessService
     public function __construct(
         private JudicialBranchConsultService $judicialBranchConsultService,
         private ProcessActionService $processActionService,
-        private ProcessSubjectService $processSubjectService
+        private ProcessSubjectService $processSubjectService,
+        private ProcessActionAlertNotificationService $processActionAlertNotificationService
     ) {}
 
     /**
@@ -83,8 +85,13 @@ readonly class RegisterProcessService
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances);
                 $this->attachProcessToOrganization($process, $organizationId);
 
-                $this->processActionService->handle($process, $processId);
-                $this->processSubjectService->handle($process, $processId);
+//                $this->processActionService->handle($process, $processId);
+//                $this->processSubjectService->handle($process, $processId);
+//
+//                foreach ($process->actions()->get() as $action) {
+//                    $this->processActionAlertNotificationService->handle($action, $process);
+//                }
+
                 $registeredProcesses->push($process);
             }
 

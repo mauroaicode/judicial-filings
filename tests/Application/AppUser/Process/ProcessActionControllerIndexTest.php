@@ -158,8 +158,8 @@ it('filters actions by action_date_from', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(2);
-    expect($response->json('data.0.action_date'))->toBe('2024-02-01');
-    expect($response->json('data.1.action_date'))->toBe('2024-01-20');
+    expect($response->json('data.0.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-02-01')));
+    expect($response->json('data.1.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
 });
 
 it('filters actions by action_date_to', function (): void {
@@ -189,8 +189,8 @@ it('filters actions by action_date_to', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(2);
-    expect($response->json('data.0.action_date'))->toBe('2024-01-20');
-    expect($response->json('data.1.action_date'))->toBe('2024-01-10');
+    expect($response->json('data.0.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
+    expect($response->json('data.1.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-10')));
 });
 
 it('filters actions by action_date range', function (): void {
@@ -220,7 +220,7 @@ it('filters actions by action_date range', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data.0.action_date'))->toBe('2024-01-20');
+    expect($response->json('data.0.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
 });
 
 it('filters actions by registration_date_from', function (): void {
@@ -449,10 +449,10 @@ it('formats dates correctly', function (): void {
         ->getJson("/api/app-user/processes/{$process->id}/actions");
 
     $response->assertStatus(200);
-    expect($response->json('data.0.action_date'))->toBe('2024-01-15');
-    expect($response->json('data.0.start_date'))->toBe('2024-01-10');
-    expect($response->json('data.0.end_date'))->toBe('2024-01-20');
-    expect($response->json('data.0.registration_date'))->toBe('2024-01-15');
+    expect($response->json('data.0.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-15')));
+    expect($response->json('data.0.start_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-10')));
+    expect($response->json('data.0.end_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
+    expect($response->json('data.0.registration_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-15')));
 });
 
 it('handles nullable fields correctly', function (): void {

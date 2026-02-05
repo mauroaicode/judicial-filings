@@ -6,6 +6,7 @@ namespace Src\Application\Admin\Process\Resources;
 
 use Illuminate\Support\Carbon;
 use Spatie\LaravelData\Resource;
+use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -47,12 +48,12 @@ class AdminProcessIndexResource extends Resource
             court: StrParseHelper::toTitleCase($process->court) ?? '',
             process_class: StrParseHelper::toTitleCase($process->process_class) ?? '',
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
-            process_date: $process->process_date->format('Y-m-d'),
-            last_activity_date: $process->last_api_update?->format('Y-m-d h:i:s A'),
+            process_date: DateFormatHelper::formatDate($process->process_date),
+            last_activity_date: $process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
             status_label: $status->getLabel(),
-            created_at: $createdAt->format('Y-m-d'),
+            created_at: DateFormatHelper::formatDate($createdAt),
             plaintiff: $plaintiff,
             defendant: $defendant,
             organization: $organization,

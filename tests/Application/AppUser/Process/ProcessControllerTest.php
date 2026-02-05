@@ -206,16 +206,13 @@ it('registers a new process successfully', function (): void {
     expect($response->json('process.process_number'))->toBe('76001333301320170009301');
     expect($response->json('message'))->toBe(__('process.registered_successfully'));
 
-    // Verify process was created
-    $process = Process::query()
-        ->where('process_number', '76001333301320170009301')
-        ->first();
+    // Verify process was created (use response id so we assert on the process just registered)
+    $processUuid = $response->json('process.id');
+    $process = Process::query()->find($processUuid);
 
     expect($process)->not->toBeNull();
     expect($process->process_id)->toBe(1834511724);
     expect($process->court)->toContain('DESPACHO 000 - TRIBUNAL ADMINISTRATIVO');
-
-    // Verify process is attached to organization
     expect($process->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
 });
 
@@ -249,15 +246,16 @@ it('attaches existing process to organization if process already exists globally
         ->first();
 
     if (! $existingProcess) {
-        $existingProcess = Process::factory()->create([
+        $existingProcess = Process::factory()->public()->create([
             'process_number' => $uniqueProcessNumber,
             'process_id' => $existingProcessId,
         ]);
     } else {
-        // Update process_id if it doesn't match
-        if ($existingProcess->process_id !== $existingProcessId) {
-            $existingProcess->update(['process_id' => $existingProcessId]);
-        }
+        // Update process_id if needed and ensure process is not private (so registration succeeds)
+        $existingProcess->update([
+            'process_id' => $existingProcessId,
+            'is_private' => false,
+        ]);
     }
 
     // Ensure the process is not already attached to ANY organization (including this one)

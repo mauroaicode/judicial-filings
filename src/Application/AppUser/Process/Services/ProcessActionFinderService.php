@@ -21,6 +21,7 @@ readonly class ProcessActionFinderService
     {
         return ProcessAction::query()
             ->whereProcess($processId)
+            ->with('alertHighlights')
             ->filters($filters)
             ->orderedByActionDate()
             ->paginate($perPage)

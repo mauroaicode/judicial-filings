@@ -545,6 +545,6 @@ it('uses earliest organization registration date for created_at', function (): v
         ->getJson('/api/admin/processes');
 
     $response->assertStatus(200);
-    // Should use the earliest date (5 days ago)
-    expect($response->json('data.0.created_at'))->toBe($earlierDate->format('Y-m-d'));
+    // Should use the earliest date (5 days ago), formatted for display
+    expect($response->json('data.0.created_at'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate($earlierDate));
 });

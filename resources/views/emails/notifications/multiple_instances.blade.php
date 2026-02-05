@@ -103,7 +103,7 @@
 
         <div class="footer">
             <p><strong>Sistema de Monitoreo Judicial</strong></p>
-            <p>Notificación enviada el {{ $additionalData['detected_at'] }}</p>
+            <p>Notificación enviada el {{ \Src\Application\Shared\Helpers\DateFormatHelper::formatDateTime($additionalData['detected_at'] ?? now()) }}</p>
         </div>
     </div>
 </body>
