@@ -130,3 +130,27 @@ it('fallback uses config alert-keywords', function (): void {
     $texts = array_column($spans, 'text');
     expect($texts)->toContain('APELACIÓN', 'CONSULTA');
 });
+
+it('filters out disallowed fragments from AI (Notificar, Notificación alone, Recurso)', function (): void {
+    Config::set('services.openai.api_key', 'sk-test');
+    Http::fake([
+        'api.openai.com/*' => Http::response([
+            'choices' => [
+                [
+                    'message' => [
+                        'content' => 'Sí. Fragmentos: Notificar, Sentencia, Recurso, Notificación.',
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $annotation = 'Notificar a los interesados. Sentencia - Niega Tutela. Recurso. Notificación.';
+    $spans = $this->provider->getDetectedAlertSpans($annotation);
+
+    $texts = array_column($spans, 'text');
+    expect($texts)->toContain('Sentencia');
+    expect($texts)->not->toContain('Notificar');
+    expect($texts)->not->toContain('Recurso');
+    expect($texts)->not->toContain('Notificación');
+});

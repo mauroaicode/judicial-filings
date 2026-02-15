@@ -11,11 +11,16 @@ use Src\Domain\Process\QueryBuilders\ProcessActionAlertHighlightQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 
 /**
+ * Posición de una palabra clave detectada en el texto (anotación/actuación).
+ * Guarda la palabra tal como viene (puede venir mal escrita). La relación
+ * para filtrar (actuaciones por tipo) es la pivot process_action_alert_action_keyword.
+ *
  * @property-read string $id
  * @property-read string $process_action_id
  * @property-read int $start
  * @property-read int $end
  * @property-read string $detected_text
+ * @property-read string $source  'annotation' | 'action' | 'both'
  * @property-read ProcessAction $processAction
  *
  * @method static ProcessActionAlertHighlightQueryBuilder query()
@@ -42,6 +47,7 @@ class ProcessActionAlertHighlight extends Model
         'start',
         'end',
         'detected_text',
+        'source',
     ];
 
     /**

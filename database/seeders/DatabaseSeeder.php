@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             RoleModelTableSeed::class,
             UserModelTableSeed::class,
             OrganizationSeeder::class,
+            AlertKeywordSeeder::class,
             ProcessSeeder::class,
             ProcessActionSeeder::class,
             ProcessSubjectSeeder::class,

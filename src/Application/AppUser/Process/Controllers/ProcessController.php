@@ -128,6 +128,8 @@ readonly class ProcessController
                 'id' => $firstProcess->id,
                 'process_number' => $firstProcess->process_number,
                 'court' => $firstProcess->court,
+                'term_start_date' => '-',
+                'term_end_date' => '-',
             ] : null,
         ], 201);
     }

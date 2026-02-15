@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
@@ -11,6 +13,16 @@ use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessActionAlertHighlight;
 
 beforeEach(function (): void {
+    if (! Schema::hasTable('alert_actions_keywords')) {
+        Artisan::call('migrate', [
+            '--path' => 'database/migrations/2026_02_05_000000_create_alert_actions_keywords_table.php',
+        ]);
+        Artisan::call('migrate', [
+            '--path' => 'database/migrations/2026_02_05_000001_create_process_action_alert_action_keyword_table.php',
+        ]);
+        (new \Database\Seeders\AlertKeywordSeeder)->run();
+    }
+
     $this->organization = Organization::factory()->create();
     $this->appUser = AppUser::factory()->create([
         'email' => 'notifications@example.com',
@@ -88,6 +100,8 @@ it('returns notification_type and data and meta for actuacion list', function ()
                     'annotation',
                     'action_date',
                     'registration_date',
+                    'term_start_date',
+                    'term_end_date',
                     'subjects',
                 ],
             ],
@@ -143,6 +157,51 @@ it('returns alert_highlights in detail for actuacion_alerta when action has high
     expect($highlights)->toBeArray()->toHaveCount(2);
     expect($highlights[0])->toMatchArray(['start' => 21, 'end' => 29, 'text' => 'CONSULTA']);
     expect($highlights[1])->toMatchArray(['start' => 45, 'end' => 54, 'text' => 'APELACIÓN']);
+});
+
+it('filters actuacion_alerta by alert_slug and returns alert_type in highlights', function (): void {
+    $keyword = \Src\Domain\Process\Models\AlertActionKeyword::query()->firstOrCreate(
+        ['slug' => 'apelacion'],
+        ['name' => 'Apelación']
+    );
+    $process = Process::factory()->create(['process_number' => '76001400301020180007600']);
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto de apelación',
+        'annotation' => 'Se notifica APELACIÓN.',
+    ]);
+    $action->alertActionKeywords()->attach($keyword->id);
+    ProcessActionAlertHighlight::query()->create([
+        'process_action_id' => $action->id,
+        'start' => 12,
+        'end' => 21,
+        'detected_text' => 'APELACIÓN',
+    ]);
+
+    OrganizationNotification::create([
+        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'organization_id' => $this->organization->id,
+        'notifiable_id' => $action->id,
+        'notifiable_type' => $action->getMorphClass(),
+        'notification_type' => 'actuacion_alerta',
+        'is_viewed' => false,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/organization-notifications?type=actuacion_alerta&alert_slug=apelacion');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('notification_type', 'actuacion_alerta');
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.detail.alert_highlights.0.alert_type'))->toMatchArray([
+        'id' => $keyword->id,
+        'name' => 'Apelación',
+        'slug' => 'apelacion',
+    ]);
 });
 
 it('returns only unviewed notifications by default', function (): void {

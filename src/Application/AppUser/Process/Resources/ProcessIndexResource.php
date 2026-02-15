@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Resources;
 
+use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
-use Spatie\LaravelData\Resource;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
@@ -25,6 +25,8 @@ class ProcessIndexResource extends Resource
         public bool $has_multiple_instances,
         public string $status_label,
         public string $created_at,
+        public string $term_start_date,
+        public string $term_end_date,
         public ?string $plaintiff,
         public ?string $defendant,
     ) {}
@@ -80,6 +82,8 @@ class ProcessIndexResource extends Resource
             has_multiple_instances: $process->has_multiple_instances,
             status_label: $status->getLabel(),
             created_at: DateFormatHelper::formatDate($createdAt),
+            term_start_date: '-',
+            term_end_date: '-',
             plaintiff: $plaintiff,
             defendant: $defendant,
         );

@@ -130,6 +130,13 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+        'filings_process' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/filings_process.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
         'notifications' => [
             'driver' => 'daily',
             'path' => storage_path('logs/notifications.log'),

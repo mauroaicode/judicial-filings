@@ -12,9 +12,9 @@ interface AnnotationAlertDetectionInterface
     public function containsAlertKeywords(string $annotation): bool;
 
     /**
-     * Return detected alert spans (start, end, text) in the annotation for highlighting.
+     * Return detected alert spans (start, end, text) in the text (e.g. annotation + action).
      *
      * @return array<int, array{start: int, end: int, text: string}>
      */
-    public function getDetectedAlertSpans(string $annotation): array;
+    public function getDetectedAlertSpans(string $text): array;
 }

@@ -474,8 +474,8 @@ it('handles nullable fields correctly', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data.0.annotation'))->toBeNull();
-    expect($response->json('data.0.start_date'))->toBeNull();
-    expect($response->json('data.0.end_date'))->toBeNull();
+    expect($response->json('data.0.start_date'))->toBe('-');
+    expect($response->json('data.0.end_date'))->toBe('-');
 });
 
 it('only returns actions for the specified process', function (): void {

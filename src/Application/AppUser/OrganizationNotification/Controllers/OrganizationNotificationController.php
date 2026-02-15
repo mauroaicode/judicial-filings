@@ -36,10 +36,11 @@ readonly class OrganizationNotificationController
 
         $resource = $this->listService->handle(
             $organization->id,
-            $data->type, // actuacion, actuacion_alerta
+            $data->type,
             $data->viewed,
             $data->per_page,
-            $data->page
+            $data->page,
+            $data->alert_slug
         );
 
         return response()->json($resource->toArray());

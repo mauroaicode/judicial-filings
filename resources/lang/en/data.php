@@ -30,6 +30,7 @@ return [
     'registration_date_to' => 'Registration Date To',
     'search' => 'Search',
     'type' => 'Type',
+    'alert_slug' => 'Alert Type (slug)',
     'viewed' => 'Viewed',
     'per_page' => 'Per Page',
     'page' => 'Page',

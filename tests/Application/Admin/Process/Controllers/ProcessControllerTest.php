@@ -41,6 +41,10 @@ it('returns empty list when there are no processes', function (): void {
     $response = $this->actingAs($this->user)
         ->getJson('/api/admin/processes');
 
+    if ($response->status() === 500) {
+        dump('500 response body:', $response->getContent());
+        dump('500 json:', $response->json());
+    }
     $response->assertStatus(200);
     $response->assertJsonStructure([
         'data',
@@ -346,6 +350,8 @@ it('returns correct resource structure', function (): void {
                 'has_multiple_instances',
                 'status_label',
                 'created_at',
+                'term_start_date',
+                'term_end_date',
                 'plaintiff',
                 'defendant',
                 'organization',

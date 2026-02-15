@@ -576,6 +576,8 @@ it('returns correct resource structure', function (): void {
                 'has_multiple_instances',
                 'status_label',
                 'created_at',
+                'term_start_date',
+                'term_end_date',
                 'plaintiff',
                 'defendant',
             ],

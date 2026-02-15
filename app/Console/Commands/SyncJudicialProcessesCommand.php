@@ -56,14 +56,11 @@ class SyncJudicialProcessesCommand extends Command
             'radicado_filter' => $radicado,
         ]);
 
-        foreach ($processNumbers as $processNumber) {
-            $this->syncProcessesByRadicado((string) $processNumber);
-        }
-
-        $processIds = $this->getProcessIdsToSync($radicado);
         $jobsDispatched = 0;
-        foreach ($processIds as $processId) {
-            SyncProcessJob::dispatch($processId);
+        foreach ($processNumbers as $processNumber) {
+            $processNumber = (string) $processNumber;
+            $this->syncProcessesByRadicado($processNumber);
+            SyncProcessJob::dispatch($processNumber);
             $jobsDispatched++;
         }
 
@@ -71,25 +68,31 @@ class SyncJudicialProcessesCommand extends Command
             'jobs_dispatched' => $jobsDispatched,
         ]);
 
-        $this->info("Dispatched {$jobsDispatched} sync jobs.");
+        $this->info("Dispatched {$jobsDispatched} sync jobs (one per radicado).");
 
         return self::SUCCESS;
     }
 
     /**
      * Get distinct process_number (radicados) to sync.
+     * Only radicados where at least one organization has the process active (is_active=1).
+     * Avoids wasting API requests when no one is interested.
      *
      * @return Collection<int, string>
      */
     private function getProcessNumbersToSync(?string $radicadoFilter): Collection
     {
-        $query = Process::query()->distinct()->select('process_number');
+        $query = Process::query()
+            ->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
+            ->where('organization_processes.is_active', true)
+            ->distinct()
+            ->select('processes.process_number');
 
         if ($radicadoFilter !== null && $radicadoFilter !== '') {
-            $query->where('process_number', $radicadoFilter);
+            $query->where('processes.process_number', $radicadoFilter);
         }
 
-        return $query->pluck('process_number');
+        return $query->pluck('processes.process_number');
     }
 
     /**
@@ -260,21 +263,5 @@ class SyncJudicialProcessesCommand extends Command
                 dispatch(SendOrganizationNotificationJob::fromNotification($notification));
             }
         }
-    }
-
-    /**
-     * Get process IDs to sync (for dispatching SyncProcessJob).
-     *
-     * @return Collection<int, string>
-     */
-    private function getProcessIdsToSync(?string $radicadoFilter): Collection
-    {
-        $query = Process::query()->select('id');
-
-        if ($radicadoFilter !== null && $radicadoFilter !== '') {
-            $query->where('process_number', $radicadoFilter);
-        }
-
-        return $query->pluck('id');
     }
 }

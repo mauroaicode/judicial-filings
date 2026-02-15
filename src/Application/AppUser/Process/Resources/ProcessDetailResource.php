@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Resources;
 
+use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
-use Spatie\LaravelData\Resource;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
@@ -32,6 +32,8 @@ class ProcessDetailResource extends Resource
         public string $status_label,
         public string $created_at,
         public string $updated_at,
+        public string $term_start_date,
+        public string $term_end_date,
     ) {}
 
     public static function fromModel(Process $process, string $organizationId): self
@@ -71,6 +73,8 @@ class ProcessDetailResource extends Resource
             status_label: $status->getLabel(),
             created_at: DateFormatHelper::formatDateTime($createdAt),
             updated_at: DateFormatHelper::formatDateTime($process->updated_at),
+            term_start_date: '-',
+            term_end_date: '-',
         );
     }
 }

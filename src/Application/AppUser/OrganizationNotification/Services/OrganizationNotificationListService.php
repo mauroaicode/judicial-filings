@@ -11,17 +11,18 @@ use Src\Application\AppUser\OrganizationNotification\Resources\OrganizationNotif
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\ProcessAction;
 
 readonly class OrganizationNotificationListService
 {
     private const VALID_TYPES = ['actuacion', 'actuacion_alerta'];
 
-    public function handle(string $organizationId, string $type, bool $viewed, int $perPage, int $page): OrganizationNotificationListResource
+    public function handle(string $organizationId, string $type, bool $viewed, int $perPage, int $page, ?string $alertSlug = null): OrganizationNotificationListResource
     {
         $this->validateType($type);
 
-        $paginator = $this->getPaginatedNotifications($organizationId, $type, $viewed, $perPage, $page);
+        $paginator = $this->getPaginatedNotifications($organizationId, $type, $viewed, $perPage, $page, $alertSlug);
         $items = $this->mapNotificationsToItems(collect($paginator->items()));
 
         return OrganizationNotificationListResource::fromPaginator($type, $items, $paginator);
@@ -34,14 +35,25 @@ readonly class OrganizationNotificationListService
         }
     }
 
-    private function getPaginatedNotifications(string $organizationId, string $type, bool $viewed, int $perPage, int $page): LengthAwarePaginator
+    private function getPaginatedNotifications(string $organizationId, string $type, bool $viewed, int $perPage, int $page, ?string $alertSlug = null): LengthAwarePaginator
     {
-        return OrganizationNotification::query()
+        $query = OrganizationNotification::query()
             ->whereOrganization($organizationId)
             ->whereNotificationType($type)
             ->whereViewed($viewed)
-            ->with(['notifiable' => fn ($q) => $q->with(['process' => fn ($q2) => $q2->with('subjects')], 'alertHighlights')])
-            ->orderedByNotifiableActionDate()
+            ->with(['notifiable' => fn ($q) => $q->with(['process' => fn ($q2) => $q2->with('subjects')], 'alertHighlights')]);
+
+        if ($alertSlug !== null && $alertSlug !== '' && $type === 'actuacion_alerta') {
+            $keyword = AlertActionKeyword::query()->where('slug', $alertSlug)->first();
+            if ($keyword !== null) {
+                $query->whereHasMorph('notifiable', [ProcessAction::class], function (\Illuminate\Contracts\Database\Query\Builder $q) use ($keyword): void {
+                    $q->whereHas('alertActionKeywords', fn (\Illuminate\Contracts\Database\Query\Builder $q2) => $q2->where('id', $keyword->id));
+                });
+            }
+        }
+
+        return $query
+            ->orderedByCreatedAt()
             ->paginate($perPage, ['*'], 'page', $page)
             ->appends(request()->query());
     }
@@ -97,6 +109,8 @@ readonly class OrganizationNotificationListService
             'annotation' => $action->annotation,
             'action_date' => DateFormatHelper::formatDate($action->action_date),
             'registration_date' => DateFormatHelper::formatDate($action->registration_date),
+            'term_start_date' => $action->start_date ? DateFormatHelper::formatDate($action->start_date) : '-',
+            'term_end_date' => $action->end_date ? DateFormatHelper::formatDate($action->end_date) : '-',
         ];
 
         $subjects = $process->relationLoaded('subjects')
@@ -113,13 +127,59 @@ readonly class OrganizationNotificationListService
             : $action->alertHighlights()->orderedByStart()->get();
 
         if ($highlights->isNotEmpty()) {
-            $detail['alert_highlights'] = $highlights->map(fn ($h): array => [
-                'start' => $h->start,
-                'end' => $h->end,
-                'text' => $h->detected_text,
-            ])->values()->all();
+            $anno = trim($action->annotation ?? '');
+            $act = trim($action->action ?? '');
+            $annotationBoundary = mb_strlen($anno) + ($anno !== '' && $act !== '' ? 1 : 0);
+
+            $detail['alert_highlights'] = $highlights->map(function ($h) use ($annotationBoundary): array {
+                $keyword = AlertActionKeyword::matchFragment($h->detected_text);
+                $source = $h->source ?? 'annotation';
+                $positions = $this->highlightPositionsInSource($h->start, $h->end, $source, $annotationBoundary);
+
+                return array_merge($positions, [
+                    'text' => $h->detected_text,
+                    'source' => $source,
+                    'alert_type' => $keyword instanceof AlertActionKeyword
+                        ? ['id' => $keyword->id, 'name' => $keyword->name, 'slug' => $keyword->slug]
+                        : null,
+                ]);
+            })->values()->all();
         }
 
         return $detail;
+    }
+
+    /**
+     * Return start/end relative to the field indicated by source so the frontend can highlight in the correct place.
+     * - source "annotation" → start, end are positions within the annotation string.
+     * - source "action" → start, end are positions within the action string.
+     * - source "both" → start, end for the annotation part; action_start, action_end for the action part.
+     *
+     * @return array{start: int, end: int, action_start?: int, action_end?: int}
+     */
+    private function highlightPositionsInSource(int $start, int $end, string $source, int $annotationBoundary): array
+    {
+        if ($source === 'annotation') {
+            return ['start' => $start, 'end' => $end];
+        }
+
+        if ($source === 'action') {
+            return [
+                'start' => max(0, $start - $annotationBoundary),
+                'end' => max(0, $end - $annotationBoundary),
+            ];
+        }
+
+        // both: span crosses annotation and action
+        $annotationEnd = min($end, $annotationBoundary);
+        $actionStart = max(0, $start - $annotationBoundary);
+        $actionEnd = max(0, $end - $annotationBoundary);
+
+        return [
+            'start' => $start,
+            'end' => $annotationEnd,
+            'action_start' => $actionStart,
+            'action_end' => $actionEnd,
+        ];
     }
 }

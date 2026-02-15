@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Services\Process;
 
+use Illuminate\Support\Str;
 use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessActionAlertHighlight;
@@ -20,25 +22,66 @@ readonly class ProcessActionAlertNotificationService
     public function handle(ProcessAction $action, Process $process): void
     {
         $annotation = $action->annotation ?? '';
-        $spans = $this->alertDetection->getDetectedAlertSpans($annotation);
+        $actionText = $action->action ?? '';
+        $anno = trim($annotation);
+        $act = trim($actionText);
+        // Buscar palabras/frases en anotación Y en actuación (texto concatenado).
+        $searchText = $anno === '' && $act === '' ? '' : trim($anno.' '.$act);
+        $spans = $this->alertDetection->getDetectedAlertSpans($searchText);
 
-        $this->saveHighlights($action, $spans);
+        // Límite para saber si el span está en anotación o actuación al guardar en ProcessActionAlertHighlight.
+        $annotationBoundary = mb_strlen($anno) + ($anno !== '' && $act !== '' ? 1 : 0);
+        $this->saveHighlights($action, $spans, $annotationBoundary);
         $this->createNotificationsAndDispatch($process, $action, $spans);
     }
 
     /**
+     * Guarda en ProcessActionAlertHighlight la posición (start, end) y el origen (annotation|action|both)
+     * de cada fragmento detectado en el texto concatenado anotación + actuación.
+     *
      * @param  array<int, array{start: int, end: int, text: string}>  $spans
      */
-    private function saveHighlights(ProcessAction $action, array $spans): void
+    private function saveHighlights(ProcessAction $action, array $spans, int $annotationBoundary): void
     {
+        $keywordIds = [];
         foreach ($spans as $span) {
+            $source = $this->computeSource($span['start'], $span['end'], $annotationBoundary);
             ProcessActionAlertHighlight::query()->create([
                 'process_action_id' => $action->id,
                 'start' => $span['start'],
                 'end' => $span['end'],
                 'detected_text' => $span['text'],
+                'source' => $source,
             ]);
+            $keyword = AlertActionKeyword::matchFragment($span['text']);
+            if ($keyword instanceof AlertActionKeyword) {
+                $keywordIds[$keyword->id] = [];
+            }
         }
+
+        if ($keywordIds !== []) {
+            $action->alertActionKeywords()->syncWithoutDetaching(array_keys($keywordIds));
+        }
+    }
+
+    /**
+     * Donde se encontró el fragmento en el texto concatenado (anotación + actuación).
+     */
+    private function computeSource(int $start, int $end, int $annotationBoundary): string
+    {
+        if ($annotationBoundary <= 0) {
+            return 'action';
+        }
+
+        if ($end <= $annotationBoundary) {
+            return 'annotation';
+        }
+
+        if ($start >= $annotationBoundary) {
+            return 'action';
+        }
+
+        return 'both';
     }
 
     /**
@@ -67,7 +110,7 @@ readonly class ProcessActionAlertNotificationService
                 'notification_type' => $notificationType,
             ],
             [
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'is_viewed' => false,
                 'is_notified' => false,
             ]

@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
 
-class OpenAIAnnotationAlertDetectionProvider implements AnnotationAlertDetectionInterface
+class OllamaAnnotationAlertDetectionProvider implements AnnotationAlertDetectionInterface
 {
     use AnnotationAlertDetectionTrait;
 
@@ -28,17 +28,16 @@ class OpenAIAnnotationAlertDetectionProvider implements AnnotationAlertDetection
             return [];
         }
 
-        $apiKey = config('services.openai.api_key');
-
-        if (empty($apiKey)) {
+        $baseUrl = rtrim(config('alert-ai.ollama.base_url', 'http://127.0.0.1:11434'), '/');
+        if ($baseUrl === '') {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->error('OpenAI API key not configured for alert detection');
+                ->error('Ollama base_url not configured for alert detection');
 
             return $this->fallbackGetDetectedAlertSpans($text);
         }
 
         try {
-            $fragments = $this->fetchFragmentsFromOpenAI($text);
+            $fragments = $this->fetchFragmentsFromOllama($text, $baseUrl);
             if ($fragments === null) {
                 return $this->fallbackGetDetectedAlertSpans($text);
             }
@@ -52,7 +51,7 @@ class OpenAIAnnotationAlertDetectionProvider implements AnnotationAlertDetection
             return $this->findSpansInAnnotation($text, $fragments);
         } catch (\Throwable $e) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->error('Alert detection provider error', [
+                ->error('Ollama alert detection provider error', [
                     'message' => $e->getMessage(),
                 ]);
 
@@ -61,11 +60,12 @@ class OpenAIAnnotationAlertDetectionProvider implements AnnotationAlertDetection
     }
 
     /**
-     * @return array<int, string>|null
+     * Llama a Ollama POST /api/chat y parsea la respuesta como fragmentos.
      *
+     * @return array<int, string>|null
      * @throws ConnectionException
      */
-    private function fetchFragmentsFromOpenAI(string $text): ?array
+    private function fetchFragmentsFromOllama(string $text, string $baseUrl): ?array
     {
         $words = config('alert-keywords.words', ['Consulta', 'Apelación', 'Sentencia', 'Rechaza', 'Traslado']);
         $phrases = config('alert-keywords.phrases', ['Fijación estado', 'Notificación estado']);
@@ -76,27 +76,30 @@ class OpenAIAnnotationAlertDetectionProvider implements AnnotationAlertDetection
         $prompt = str_replace([':words', ':phrases', ':annotation'], [$wordsList, $phrasesList, $text], $prompt);
 
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
-        Log::channel($channel)->debug('OpenAI alert detection request', [
+        Log::channel($channel)->debug('Ollama alert detection request', [
             'text_length' => mb_strlen($text),
-            'text_preview' => mb_substr($text, 0, 200),
-            'words' => $wordsList,
-            'phrases' => $phrasesList,
+            'base_url' => $baseUrl,
         ]);
 
-        $response = Http::withToken(config('services.openai.api_key'))
-            ->timeout(15)
-            ->post('https://api.openai.com/v1/chat/completions', [
-                'model' => config('alert-ai.model', 'gpt-4o-mini'),
+        $model = config('alert-ai.ollama.model', 'llama3.2:3b');
+        $timeout = (int) config('alert-ai.ollama.timeout', 60);
+
+        $response = Http::timeout($timeout)
+            ->post("{$baseUrl}/api/chat", [
+                'model' => $model,
                 'messages' => [
                     ['role' => 'user', 'content' => $prompt],
                 ],
-                'temperature' => config('alert-ai.temperature', 0),
-                'max_tokens' => config('alert-ai.max_tokens_spans', 150),
+                'stream' => false,
+                'options' => [
+                    'temperature' => config('alert-ai.temperature', 0),
+                    'num_predict' => config('alert-ai.max_tokens_spans', 200),
+                ],
             ]);
 
         if (! $response->successful()) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->error('OpenAI API error for alert detection', [
+                ->error('Ollama API error for alert detection', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
@@ -105,16 +108,15 @@ class OpenAIAnnotationAlertDetectionProvider implements AnnotationAlertDetection
         }
 
         $body = $response->json();
-        $content = trim($body['choices'][0]['message']['content'] ?? '');
+        $content = trim($body['message']['content'] ?? '');
         $upper = mb_strtoupper($content);
 
-        Log::channel($channel)->debug('OpenAI alert detection response', [
-            'response' => $content,
-            'response_upper' => $upper,
+        Log::channel($channel)->debug('Ollama alert detection response', [
+            'response_preview' => mb_substr($content, 0, 300),
         ]);
 
         if (str_contains($upper, 'NO') && ! str_contains($upper, 'SÍ') && ! str_contains($upper, 'SI')) {
-            Log::channel($channel)->debug('OpenAI returned No - no keywords found');
+            Log::channel($channel)->debug('Ollama returned No - no keywords found');
 
             return [];
         }

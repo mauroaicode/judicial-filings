@@ -30,6 +30,7 @@ return [
     'registration_date_to' => 'Fecha de Registro Hasta',
     'search' => 'Búsqueda',
     'type' => 'Tipo',
+    'alert_slug' => 'Tipo de alerta (slug)',
     'viewed' => 'Visto',
     'per_page' => 'Por página',
     'page' => 'Página',

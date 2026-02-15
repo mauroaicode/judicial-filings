@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Src\Domain\Process\Models;
 
 use Database\Factories\ProcessActionFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -27,7 +29,8 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read Process $process
- * @property-read \Illuminate\Database\Eloquent\Collection<int, ProcessActionAlertHighlight> $alertHighlights
+ * @property-read Collection<int, ProcessActionAlertHighlight> $alertHighlights
+ * @property-read Collection<int, AlertActionKeyword> $alertActionKeywords
  *
  * @method static ProcessActionQueryBuilder query()
  * @method ProcessActionQueryBuilder whereProcess(string $processId)
@@ -105,12 +108,27 @@ class ProcessAction extends Model
     }
 
     /**
-     * Get the alert highlights (detected keywords spans) for this action.
+     * Get the alert highlights (position of keyword in text) for this action.
      *
      * @return HasMany<ProcessActionAlertHighlight, $this>
      */
     public function alertHighlights(): HasMany
     {
         return $this->hasMany(ProcessActionAlertHighlight::class, 'process_action_id');
+    }
+
+    /**
+     * Alert keyword types linked to this action (direct relation for filtering e.g. "all actions with Apelación").
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Process\Models\AlertActionKeyword, $this>
+     */
+    public function alertActionKeywords(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            AlertActionKeyword::class,
+            'process_action_alert_action_keyword',
+            'process_action_id',
+            'alert_action_keyword_id'
+        );
     }
 }

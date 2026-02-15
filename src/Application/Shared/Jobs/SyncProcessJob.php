@@ -11,7 +11,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
-use Src\Domain\Process\Models\Process;
 use Throwable;
 
 class SyncProcessJob implements ShouldQueue
@@ -31,7 +30,7 @@ class SyncProcessJob implements ShouldQueue
     public $timeout = 120;
 
     public function __construct(
-        public string $processId
+        public string $processNumber
     ) {
         $config = config('judicial-sync.jobs.sync_process', []);
         $this->queue = $config['queue'] ?? 'judicial-sync';
@@ -43,9 +42,9 @@ class SyncProcessJob implements ShouldQueue
         }
     }
 
-    public static function fromProcess(Process $process): self
+    public static function fromProcessNumber(string $processNumber): self
     {
-        return new self($process->id);
+        return new self($processNumber);
     }
 
     /**
@@ -55,19 +54,11 @@ class SyncProcessJob implements ShouldQueue
     {
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
-        $process = Process::query()->find($this->processId);
-
-        if ($process === null) {
-            Log::channel($channel)->warning('SyncProcessJob: process not found', ['process_id' => $this->processId]);
-
-            return;
-        }
-
         try {
-            $syncService->handle($process);
+            $syncService->syncByProcessNumber($this->processNumber);
         } catch (Throwable $e) {
             Log::channel($channel)->error('SyncProcessJob failed', [
-                'process_id' => $this->processId,
+                'process_number' => $this->processNumber,
                 'message' => $e->getMessage(),
             ]);
 

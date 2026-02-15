@@ -97,6 +97,8 @@ it('returns process detail with subjects', function (): void {
             'status_label',
             'created_at',
             'updated_at',
+            'term_start_date',
+            'term_end_date',
         ],
         'subjects' => [
             '*' => [

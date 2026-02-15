@@ -5,4 +5,6 @@ use Src\Application\AppUser\Process\Controllers\ProcessActionController;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('processes/{processId}/actions', [ProcessActionController::class, 'index']);
+    Route::get('processes/{processId}/alert-keywords', [ProcessActionController::class, 'alertKeywords']);
+    Route::get('processes/{processId}/alert-keyword-stats', [ProcessActionController::class, 'alertKeywordStats']);
 });

@@ -75,6 +75,7 @@ class ProcessActionQueryBuilder extends Builder
         $this->applyActionDateFilter($data->action_date_from, $data->action_date_to);
         $this->applyRegistrationDateFilter($data->registration_date_from, $data->registration_date_to);
         $this->applySearchFilter($data->search);
+        $this->applyAlertSlugFilter($data->alert_slug);
 
         return $this;
     }
@@ -107,6 +108,20 @@ class ProcessActionQueryBuilder extends Builder
         $this->where(function (\Illuminate\Contracts\Database\Query\Builder $query) use ($search): void {
             $query->where('action', 'LIKE', "%{$search}%")
                 ->orWhere('annotation', 'LIKE', "%{$search}%");
+        });
+    }
+
+    /**
+     * Filter actions that have the given alert keyword (by slug) via process_action_alert_action_keyword.
+     */
+    private function applyAlertSlugFilter(?string $alertSlug): void
+    {
+        if (! $alertSlug || trim($alertSlug) === '') {
+            return;
+        }
+
+        $this->whereHas('alertActionKeywords', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($alertSlug): void {
+            $q->where('slug', trim($alertSlug));
         });
     }
 

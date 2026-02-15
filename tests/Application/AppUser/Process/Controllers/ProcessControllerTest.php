@@ -334,6 +334,8 @@ it('registers a new process successfully', function (): void {
             'id',
             'process_number',
             'court',
+            'term_start_date',
+            'term_end_date',
         ],
     ]);
 
