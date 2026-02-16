@@ -64,6 +64,7 @@ it('returns process actions for a process', function (): void {
     $action1 = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_registration_id' => 123456,
+        'cons_action' => 1,
         'action_date' => '2024-01-15',
         'action' => 'Test action 1',
         'annotation' => 'Test annotation 1',
@@ -73,6 +74,7 @@ it('returns process actions for a process', function (): void {
     $action2 = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_registration_id' => 123457,
+        'cons_action' => 2,
         'action_date' => '2024-01-20',
         'action' => 'Test action 2',
         'annotation' => 'Test annotation 2',
@@ -85,7 +87,7 @@ it('returns process actions for a process', function (): void {
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(2);
     expect($response->json('total'))->toBe(2);
-    expect($response->json('data.0.id'))->toBe($action2->id); // Ordered by action_date desc
+    expect($response->json('data.0.id'))->toBe($action2->id); // Ordered by cons_action desc
     expect($response->json('data.1.id'))->toBe($action1->id);
 });
 
@@ -141,16 +143,19 @@ it('filters actions by action_date_from', function (): void {
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-01-10',
+        'cons_action' => 1,
     ]);
 
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-01-20',
+        'cons_action' => 2,
     ]);
 
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-02-01',
+        'cons_action' => 3,
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -172,16 +177,19 @@ it('filters actions by action_date_to', function (): void {
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-01-10',
+        'cons_action' => 1,
     ]);
 
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-01-20',
+        'cons_action' => 2,
     ]);
 
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-02-01',
+        'cons_action' => 3,
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -414,13 +422,15 @@ it('returns correct resource structure', function (): void {
     $response->assertJsonStructure([
         'data' => [
             '*' => [
+                'index',
                 'id',
                 'action_registration_id',
+                'cons_action',
                 'action_date',
                 'action',
                 'annotation',
-                'start_date',
-                'end_date',
+                'term_start_date',
+                'term_end_date',
                 'registration_date',
             ],
         ],
@@ -450,8 +460,8 @@ it('formats dates correctly', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data.0.action_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-15')));
-    expect($response->json('data.0.start_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-10')));
-    expect($response->json('data.0.end_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
+    expect($response->json('data.0.term_start_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-10')));
+    expect($response->json('data.0.term_end_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-20')));
     expect($response->json('data.0.registration_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-15')));
 });
 
@@ -474,8 +484,8 @@ it('handles nullable fields correctly', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('data.0.annotation'))->toBeNull();
-    expect($response->json('data.0.start_date'))->toBe('-');
-    expect($response->json('data.0.end_date'))->toBe('-');
+    expect($response->json('data.0.term_start_date'))->toBe('-');
+    expect($response->json('data.0.term_end_date'))->toBe('-');
 });
 
 it('only returns actions for the specified process', function (): void {

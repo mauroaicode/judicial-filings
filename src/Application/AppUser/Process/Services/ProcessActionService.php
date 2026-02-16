@@ -89,6 +89,7 @@ readonly class ProcessActionService
         ProcessAction::query()->create([
             'process_id' => $process->id,
             'action_registration_id' => $actionRegistrationId,
+            'cons_action' => (int) ($actionData['consActuacion'] ?? 0),
             'action_date' => $this->parseDate($actionData['fechaActuacion'] ?? null),
             'action' => $actionData['actuacion'] ?? '',
             'annotation' => $actionData['anotacion'] ?? null,

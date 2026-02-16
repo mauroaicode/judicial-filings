@@ -7,9 +7,7 @@ use Src\Domain\Process\Models\ProcessSubject;
 
 it('filters subjects by process', function (): void {
     $process = Process::factory()->create();
-    $subject = ProcessSubject::factory()->create([
-        'process_id' => $process->id,
-    ]);
+    $subject = ProcessSubject::factory()->forProcess($process)->create();
 
     $result = ProcessSubject::query()
         ->whereProcess($process->id)
@@ -34,8 +32,7 @@ it('filters subjects by subject registration id', function (): void {
 
 it('filters subjects by process and registration id', function (): void {
     $process = Process::factory()->create();
-    $subject = ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    $subject = ProcessSubject::factory()->forProcess($process)->create([
         'subject_registration_id' => 123456,
     ]);
 
@@ -78,12 +75,10 @@ it('filters subjects that are cited', function (): void {
 
 it('orders subjects by subject type', function (): void {
     $process = Process::factory()->create();
-    $defendant = ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    $defendant = ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
     ]);
-    $plaintiff = ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    $plaintiff = ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
     ]);
 

@@ -50,7 +50,8 @@ readonly class ProcessActionController
         $paginatedActions = $this->processActionFinderService->handle($processId, $filters, $perPage);
 
         /** @var \Illuminate\Pagination\LengthAwarePaginator $paginatedActions */
-        $transformedItems = $paginatedActions->getCollection()->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel($action)->toArray());
+        $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
+        $transformedItems = $paginatedActions->getCollection()->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel($action, $offset + $key + 1)->toArray());
 
         $paginatedActions->setCollection($transformedItems);
 

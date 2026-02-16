@@ -12,13 +12,15 @@ use Illuminate\Database\Eloquent\Builder;
 class ProcessSubjectQueryBuilder extends Builder
 {
     /**
-     * Filter subjects by process ID.
+     * Filter subjects attached to the given process (via pivot).
      *
      * @return $this
      */
     public function whereProcess(string $processId): self
     {
-        return $this->where('process_id', $processId);
+        return $this->whereHas('processes', function ($query) use ($processId): void {
+            $query->where('processes.id', $processId);
+        });
     }
 
     /**
@@ -32,14 +34,36 @@ class ProcessSubjectQueryBuilder extends Builder
     }
 
     /**
-     * Filter subjects by process and subject registration ID.
+     * Verifica si ya existe un sujeto con el subject_registration_id dado (en toda la tabla).
+     */
+    public function existsBySubjectRegistrationId(int $subjectRegistrationId): bool
+    {
+        return $this->where('subject_registration_id', $subjectRegistrationId)->exists();
+    }
+
+    /**
+     * Verifica si el proceso ya tiene asociado un sujeto con ese subject_registration_id (via pivot).
+     */
+    public function existsByProcessAndSubjectRegistrationId(string $processId, int $subjectRegistrationId): bool
+    {
+        return $this->where('subject_registration_id', $subjectRegistrationId)
+            ->whereHas('processes', function ($query) use ($processId): void {
+                $query->where('processes.id', $processId);
+            })
+            ->exists();
+    }
+
+    /**
+     * Filter subjects by process (via pivot) and subject registration ID.
      *
      * @return $this
      */
     public function whereProcessAndRegistrationId(string $processId, int $subjectRegistrationId): self
     {
-        return $this->whereProcess($processId)
-            ->whereSubjectRegistrationId($subjectRegistrationId);
+        return $this->where('subject_registration_id', $subjectRegistrationId)
+            ->whereHas('processes', function ($query) use ($processId): void {
+                $query->where('processes.id', $processId);
+            });
     }
 
     /**

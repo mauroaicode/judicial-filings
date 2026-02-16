@@ -29,6 +29,10 @@ class ProcessIndexResource extends Resource
         public string $term_end_date,
         public ?string $plaintiff,
         public ?string $defendant,
+        /** @var list<string> Full list of plaintiff names for tooltip */
+        public array $plaintiffs,
+        /** @var list<string> Full list of defendant names for tooltip */
+        public array $defendants,
     ) {}
 
     public static function fromModel(Process $process, string $organizationId, int $index = 0): self
@@ -50,22 +54,26 @@ class ProcessIndexResource extends Resource
 
         $plaintiff = null;
         $defendant = null;
+        $plaintiffsList = [];
+        $defendantsList = [];
 
         if ($process->relationLoaded('subjects')) {
             $subjects = $process->subjects;
 
-            $plaintiffs = $subjects->where('subject_type', 'Demandante');
-            if ($plaintiffs->isNotEmpty()) {
-                $firstPlaintiff = $plaintiffs->first();
+            $plaintiffsCollection = $subjects->where('subject_type', 'Demandante');
+            if ($plaintiffsCollection->isNotEmpty()) {
+                $firstPlaintiff = $plaintiffsCollection->first();
                 $plaintiffName = StrParseHelper::toTitleCase($firstPlaintiff->name_or_business_name) ?? '';
-                $plaintiff = $plaintiffs->count() > 1 ? $plaintiffName.' (+'.($plaintiffs->count() - 1).')' : $plaintiffName;
+                $plaintiff = $plaintiffsCollection->count() > 1 ? $plaintiffName.' (+'.($plaintiffsCollection->count() - 1).')' : $plaintiffName;
+                $plaintiffsList = $plaintiffsCollection->map(fn ($s) => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
             }
 
-            $defendants = $subjects->where('subject_type', 'Demandado');
-            if ($defendants->isNotEmpty()) {
-                $firstDefendant = $defendants->first();
+            $defendantsCollection = $subjects->where('subject_type', 'Demandado');
+            if ($defendantsCollection->isNotEmpty()) {
+                $firstDefendant = $defendantsCollection->first();
                 $defendantName = StrParseHelper::toTitleCase($firstDefendant->name_or_business_name) ?? '';
-                $defendant = $defendants->count() > 1 ? $defendantName.' (+'.($defendants->count() - 1).')' : $defendantName;
+                $defendant = $defendantsCollection->count() > 1 ? $defendantName.' (+'.($defendantsCollection->count() - 1).')' : $defendantName;
+                $defendantsList = $defendantsCollection->map(fn ($s) => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
             }
         }
 
@@ -77,7 +85,7 @@ class ProcessIndexResource extends Resource
             process_class: StrParseHelper::toTitleCase($process->process_class) ?? '',
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
             process_date: DateFormatHelper::formatDate($process->process_date),
-            last_activity_date: $process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null,
+            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : null,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
             status_label: $status->getLabel(),
@@ -86,6 +94,8 @@ class ProcessIndexResource extends Resource
             term_end_date: '-',
             plaintiff: $plaintiff,
             defendant: $defendant,
+            plaintiffs: $plaintiffsList,
+            defendants: $defendantsList,
         );
     }
 }

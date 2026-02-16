@@ -118,16 +118,18 @@ class MultipleInstanceProcessSeeder extends Seeder
             ];
         }
 
+        $subjectIds = [];
         foreach ($subjects as $subject) {
-            ProcessSubject::create([
-                'process_id' => $process->id,
+            $ps = ProcessSubject::create([
                 'subject_registration_id' => fake()->unique()->numberBetween(1000000, 9999999),
                 'subject_type' => $subject['type'],
                 'is_cited' => false,
                 'identification' => $subject['identification'],
                 'name_or_business_name' => $subject['name'],
             ]);
+            $subjectIds[] = $ps->id;
         }
+        $process->subjects()->attach($subjectIds);
 
         echo "Sujetos procesales creados para instancia {$instance}\n";
     }
@@ -138,18 +140,21 @@ class MultipleInstanceProcessSeeder extends Seeder
             // Actuaciones del proceso principal
             $actions = [
                 [
+                    'cons_action' => 3,
                     'action' => 'Recepción memorial al despacho',
                     'annotation' => 'MOS-C25-28072 - Renuncia de poder - ABDÓN MAURICIO ROJAS MARROQUÍN - Apoderado EMCALI E.I.C.E. E.S.P.',
                     'action_date' => '2025-06-20',
                     'registration_date' => '2025-06-20',
                 ],
                 [
+                    'cons_action' => 2,
                     'action' => 'A despacho',
                     'annotation' => 'MTV-para sentencia',
                     'action_date' => '2025-05-14',
                     'registration_date' => '2025-05-14',
                 ],
                 [
+                    'cons_action' => 1,
                     'action' => 'RECIBE MEMORIALES ONLINE AL DESPACHO',
                     'annotation' => 'El Señor(a):CAROLINA OCAMPO FRANCO a través de la ventanilla virtual, radicó la solicitud No. 1651763 tipo: Recepción de Memoriales de fecha: 05/05/2025 15:52:20. Se realiza la siguiente gestión: ALEGATOS DE CONCLUSION CAROLINA OCAMPO FRANCO DISTRITO ESPECIAL DE SANTIAGO DE CALI',
                     'action_date' => '2025-05-05',
@@ -160,18 +165,21 @@ class MultipleInstanceProcessSeeder extends Seeder
             // Actuaciones de la segunda instancia
             $actions = [
                 [
+                    'cons_action' => 3,
                     'action' => 'Apelación interpuesta',
                     'annotation' => 'Se interpone recurso de apelación contra la sentencia de primera instancia',
                     'action_date' => '2025-04-30',
                     'registration_date' => '2025-04-30',
                 ],
                 [
+                    'cons_action' => 2,
                     'action' => 'Admisión de apelación',
                     'annotation' => 'Se admite el recurso de apelación y se remite al tribunal superior',
                     'action_date' => '2025-04-25',
                     'registration_date' => '2025-04-25',
                 ],
                 [
+                    'cons_action' => 1,
                     'action' => 'Notificación a partes',
                     'annotation' => 'Se notifica a todas las partes sobre la admisión del recurso',
                     'action_date' => '2025-04-20',
@@ -184,6 +192,7 @@ class MultipleInstanceProcessSeeder extends Seeder
             $processAction = ProcessAction::create([
                 'process_id' => $process->id,
                 'action_registration_id' => fake()->unique()->numberBetween(1000000, 9999999),
+                'cons_action' => $action['cons_action'],
                 'action_date' => $action['action_date'],
                 'action' => $action['action'],
                 'annotation' => $action['annotation'],

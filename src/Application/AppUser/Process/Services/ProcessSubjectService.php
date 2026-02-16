@@ -69,27 +69,38 @@ readonly class ProcessSubjectService
      */
     private function createOrUpdateSubject(Process $process, array $subjectData): void
     {
-        $subjectRegistrationId = $subjectData['idRegSujeto'] ?? null;
+        $subjectRegistrationId = (int) ($subjectData['idRegSujeto'] ?? 0);
 
-        if (! $subjectRegistrationId) {
+        if ($subjectRegistrationId === 0) {
             return;
         }
 
-        $existingSubject = ProcessSubject::query()
-            ->whereProcessAndRegistrationId($process->id, $subjectRegistrationId)
-            ->first();
+        $tipoSujeto = (string) ($subjectData['tipoSujeto'] ?? '');
+        $subjectType = $this->normalizeSubjectType($tipoSujeto);
 
-        if ($existingSubject) {
-            return;
+        $subject = ProcessSubject::query()->firstOrCreate(
+            ['subject_registration_id' => $subjectRegistrationId],
+            [
+                'subject_type' => $subjectType,
+                'is_cited' => (bool) ($subjectData['esEmplazado'] ?? false),
+                'identification' => isset($subjectData['identificacion']) ? (string) $subjectData['identificacion'] : null,
+                'name_or_business_name' => (string) ($subjectData['nombreRazonSocial'] ?? ''),
+            ]
+        );
+
+        $process->subjects()->syncWithoutDetaching([$subject->id]);
+    }
+
+    private function normalizeSubjectType(string $tipoSujeto): string
+    {
+        $t = trim($tipoSujeto);
+        if (stripos($t, 'Demandante') !== false) {
+            return 'Demandante';
+        }
+        if (stripos($t, 'Demandado') !== false) {
+            return 'Demandado';
         }
 
-        ProcessSubject::query()->create([
-            'process_id' => $process->id,
-            'subject_registration_id' => $subjectRegistrationId,
-            'subject_type' => $subjectData['tipoSujeto'] ?? '',
-            'is_cited' => $subjectData['esEmplazado'] ?? false,
-            'identification' => $subjectData['identificacion'] ?? null,
-            'name_or_business_name' => $subjectData['nombreRazonSocial'] ?? '',
-        ]);
+        return $tipoSujeto;
     }
 }

@@ -28,7 +28,7 @@ class OllamaAnnotationAlertDetectionProvider implements AnnotationAlertDetection
             return [];
         }
 
-        $baseUrl = rtrim(config('alert-ai.ollama.base_url', 'http://127.0.0.1:11434'), '/');
+        $baseUrl = rtrim((string) config('alert-ai.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         if ($baseUrl === '') {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
                 ->error('Ollama base_url not configured for alert detection');
@@ -63,6 +63,7 @@ class OllamaAnnotationAlertDetectionProvider implements AnnotationAlertDetection
      * Llama a Ollama POST /api/chat y parsea la respuesta como fragmentos.
      *
      * @return array<int, string>|null
+     *
      * @throws ConnectionException
      */
     private function fetchFragmentsFromOllama(string $text, string $baseUrl): ?array

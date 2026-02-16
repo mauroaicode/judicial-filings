@@ -23,6 +23,7 @@ it('fetches and saves actions from judicial branch', function (): void {
             'actuaciones' => [
                 [
                     'idRegActuacion' => 123456,
+                    'consActuacion' => 1,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
@@ -32,6 +33,7 @@ it('fetches and saves actions from judicial branch', function (): void {
                 ],
                 [
                     'idRegActuacion' => 123457,
+                    'consActuacion' => 2,
                     'fechaActuacion' => '2025-01-02',
                     'actuacion' => 'Test action 2',
                     'anotacion' => 'Test annotation 2',
@@ -78,6 +80,7 @@ it('does not create duplicate actions', function (): void {
             'actuaciones' => [
                 [
                     'idRegActuacion' => 123456,
+                    'consActuacion' => 1,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',
@@ -166,6 +169,7 @@ it('parses dates correctly', function (): void {
             'actuaciones' => [
                 [
                     'idRegActuacion' => 123456,
+                    'consActuacion' => 1,
                     'fechaActuacion' => '2025-01-01',
                     'actuacion' => 'Test action',
                     'anotacion' => 'Test annotation',

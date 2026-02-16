@@ -15,6 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->uuid('process_id');
             $table->bigInteger('action_registration_id')->unique()->comment('ID de registro de actuación desde la API');
+            $table->integer('cons_action')->comment('Consecutivo de actuación desde la API');
             $table->date('action_date')->comment('Fecha de la actuación');
             $table->string('action')->comment('Descripción de la actuación');
             $table->text('annotation')->nullable()->comment('Anotación o detalles de la actuación');

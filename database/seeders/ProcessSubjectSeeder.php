@@ -22,9 +22,7 @@ class ProcessSubjectSeeder extends Seeder
         foreach ($processes as $process) {
             echo 'Procesando proceso: '.$process->process_number."\n";
 
-            // Create a plaintiff (demandante) for each process
-            ProcessSubject::create([
-                'process_id' => $process->id,
+            $plaintiff = ProcessSubject::create([
                 'subject_registration_id' => fake()->unique()->numberBetween(1000000, 9999999),
                 'subject_type' => 'Demandante',
                 'is_cited' => false,
@@ -32,9 +30,7 @@ class ProcessSubjectSeeder extends Seeder
                 'name_or_business_name' => fake()->name().' '.fake()->lastName().' Y OTROS',
             ]);
 
-            // Create a defendant (demandado) for each process
-            ProcessSubject::create([
-                'process_id' => $process->id,
+            $defendant = ProcessSubject::create([
                 'subject_registration_id' => fake()->unique()->numberBetween(1000000, 9999999),
                 'subject_type' => 'Demandado',
                 'is_cited' => false,
@@ -42,6 +38,7 @@ class ProcessSubjectSeeder extends Seeder
                 'name_or_business_name' => fake()->company().' - '.fake()->companySuffix(),
             ]);
 
+            $process->subjects()->attach([$plaintiff->id, $defendant->id]);
             echo "  - Demandante y Demandado creados\n";
         }
 

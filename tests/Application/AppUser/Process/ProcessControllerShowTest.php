@@ -56,16 +56,14 @@ it('returns process detail with subjects', function (): void {
         'is_active' => true,
     ]);
 
-    $subject1 = ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    $subject1 = ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ GARCIA',
         'identification' => '1234567890',
         'is_cited' => false,
     ]);
 
-    $subject2 = ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    $subject2 = ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ S.A.',
         'identification' => '9001234567',
@@ -214,8 +212,7 @@ it('converts subject names to title case', function (): void {
         'is_active' => true,
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN CARLOS PEREZ GARCIA',
     ]);

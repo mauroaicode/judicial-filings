@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Traits;
 
+use Illuminate\Support\Facades\Date;
+
 trait MapsJudicialActuacionTrait
 {
     /**
@@ -16,6 +18,7 @@ trait MapsJudicialActuacionTrait
     {
         return [
             'action_registration_id' => (int) ($apiActuacion['idRegActuacion'] ?? 0),
+            'cons_action' => (int) ($apiActuacion['consActuacion'] ?? 0),
             'action_date' => $this->parseActuacionDate($apiActuacion['fechaActuacion'] ?? null),
             'action' => (string) ($apiActuacion['actuacion'] ?? ''),
             'annotation' => isset($apiActuacion['anotacion']) ? (string) $apiActuacion['anotacion'] : null,
@@ -35,7 +38,7 @@ trait MapsJudicialActuacionTrait
         }
 
         try {
-            return \Illuminate\Support\Facades\Date::parse($date)->format('Y-m-d');
+            return Date::parse($date)->format('Y-m-d');
         } catch (\Throwable) {
             return null;
         }

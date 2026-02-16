@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessSubject;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create();
@@ -161,7 +162,7 @@ it('filters processes by plaintiff', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();
 
-    $process1->subjects()->create([
+    ProcessSubject::factory()->forProcess($process1)->create([
         'subject_registration_id' => 12345678,
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ GARCIA',
@@ -169,7 +170,7 @@ it('filters processes by plaintiff', function (): void {
         'is_cited' => false,
     ]);
 
-    $process2->subjects()->create([
+    ProcessSubject::factory()->forProcess($process2)->create([
         'subject_registration_id' => 87654321,
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'MARIA LOPEZ RODRIGUEZ',
@@ -198,7 +199,7 @@ it('filters processes by plaintiff using identification', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();
 
-    $process1->subjects()->create([
+    ProcessSubject::factory()->forProcess($process1)->create([
         'subject_registration_id' => 12345678,
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ GARCIA',
@@ -206,7 +207,7 @@ it('filters processes by plaintiff using identification', function (): void {
         'is_cited' => false,
     ]);
 
-    $process2->subjects()->create([
+    ProcessSubject::factory()->forProcess($process2)->create([
         'subject_registration_id' => 87654321,
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'MARIA LOPEZ RODRIGUEZ',
@@ -235,7 +236,7 @@ it('filters processes by defendant', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();
 
-    $process1->subjects()->create([
+    ProcessSubject::factory()->forProcess($process1)->create([
         'subject_registration_id' => 11111111,
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA ABC S.A.S.',
@@ -243,7 +244,7 @@ it('filters processes by defendant', function (): void {
         'is_cited' => false,
     ]);
 
-    $process2->subjects()->create([
+    ProcessSubject::factory()->forProcess($process2)->create([
         'subject_registration_id' => 22222222,
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ LTDA.',
@@ -272,7 +273,7 @@ it('filters processes by defendant using identification', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();
 
-    $process1->subjects()->create([
+    ProcessSubject::factory()->forProcess($process1)->create([
         'subject_registration_id' => 11111111,
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA ABC S.A.S.',
@@ -280,7 +281,7 @@ it('filters processes by defendant using identification', function (): void {
         'is_cited' => false,
     ]);
 
-    $process2->subjects()->create([
+    ProcessSubject::factory()->forProcess($process2)->create([
         'subject_registration_id' => 22222222,
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ LTDA.',
@@ -305,15 +306,15 @@ it('filters processes by defendant using identification', function (): void {
     expect($response->json('data.0.id'))->toBe($process1->id);
 });
 
-it('filters processes by last_api_update date range', function (): void {
+it('filters processes by last_activity_date date range', function (): void {
     $process1 = Process::factory()->create([
-        'last_api_update' => '2024-01-10 10:00:00',
+        'last_activity_date' => '2024-01-10',
     ]);
     $process2 = Process::factory()->create([
-        'last_api_update' => '2024-01-20 10:00:00',
+        'last_activity_date' => '2024-01-20',
     ]);
     $process3 = Process::factory()->create([
-        'last_api_update' => '2024-02-01 10:00:00',
+        'last_activity_date' => '2024-02-01',
     ]);
 
     $process1->organizations()->attach($this->organization->id, [
@@ -580,6 +581,30 @@ it('returns correct resource structure', function (): void {
                 'term_end_date',
                 'plaintiff',
                 'defendant',
+                'plaintiffs',
+                'defendants',
+                'instances' => [
+                    '*' => [
+                        'index',
+                        'id',
+                        'process_number',
+                        'court',
+                        'process_class',
+                        'subclass_process',
+                        'process_date',
+                        'last_activity_date',
+                        'is_private',
+                        'has_multiple_instances',
+                        'status_label',
+                        'created_at',
+                        'term_start_date',
+                        'term_end_date',
+                        'plaintiff',
+                        'defendant',
+                        'plaintiffs',
+                        'defendants',
+                    ],
+                ],
             ],
         ],
         'current_page',
@@ -607,6 +632,44 @@ it('converts court and process_class to title case', function (): void {
     expect($response->json('data.0.court'))->toBe('Juzgado 017 Administrativo de Cali');
     expect($response->json('data.0.process_class'))->toBe('Accion de Reparacion Directa');
     expect($response->json('data.0.subclass_process'))->toBe('Sin Subclase de Proceso');
+});
+
+it('returns one row per radicado with instances array for multiple instances', function (): void {
+    $processNumber = '76001400301020180007600';
+    $process1 = Process::factory()->create([
+        'process_number' => $processNumber,
+        'court' => 'Juzgado 006 Civil Municipal de Ejecución de Sentencias de Cali',
+        'process_class' => 'Ejecutivo Singular',
+        'last_activity_date' => now()->subDays(2),
+    ]);
+    $process2 = Process::factory()->create([
+        'process_number' => $processNumber,
+        'court' => 'Juzgado 010 Civil Municipal de Cali',
+        'process_class' => 'Ejecutivo Singular',
+        'last_activity_date' => now(),
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('total'))->toBe(1);
+    expect($response->json('data.0.process_number'))->toBe($processNumber);
+    expect($response->json('data.0.instances'))->toHaveCount(2);
+    expect($response->json('data.0.id'))->toBe($process2->id);
+    expect($response->json('data.0.court'))->toContain('010');
+    expect($response->json('data.0.instances.0.id'))->toBe($process2->id);
+    expect($response->json('data.0.instances.1.id'))->toBe($process1->id);
 });
 
 it('returns error when user has no organization', function (): void {

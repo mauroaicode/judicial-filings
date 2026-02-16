@@ -360,8 +360,6 @@ class ProcessImportService
         }
 
         DB::transaction(function () use ($rows): void {
-            $subjectsToInsert = [];
-
             foreach ($rows as $index => $row) {
                 try {
                     $process = $this->getProcessByNumber((string) $row->get('process_number'));
@@ -376,35 +374,23 @@ class ProcessImportService
                     }
 
                     $subjectRegistrationId = (int) $row->get('subject_registration_id');
-                    $exists = ProcessSubject::query()
-                        ->whereProcessAndRegistrationId($process->id, $subjectRegistrationId)
-                        ->exists();
+                    $subject = ProcessSubject::query()->firstOrCreate(
+                        ['subject_registration_id' => $subjectRegistrationId],
+                        [
+                            'subject_type' => (string) $row->get('subject_type'),
+                            'is_cited' => $this->parseBoolean($row->get('is_cited')),
+                            'identification' => $row->get('identification') ? (string) $row->get('identification') : null,
+                            'name_or_business_name' => (string) $row->get('name_or_business_name'),
+                        ]
+                    );
 
-                    if ($exists) {
-                        continue;
-                    }
-
-                    $subjectsToInsert[] = [
-                        'id' => (string) Str::uuid(),
-                        'process_id' => $process->id,
-                        'subject_registration_id' => $subjectRegistrationId,
-                        'subject_type' => (string) $row->get('subject_type'),
-                        'is_cited' => $this->parseBoolean($row->get('is_cited')),
-                        'identification' => $row->get('identification') ? (string) $row->get('identification') : null,
-                        'name_or_business_name' => (string) $row->get('name_or_business_name'),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
+                    $process->subjects()->syncWithoutDetaching([$subject->id]);
                 } catch (Throwable $e) {
                     $this->stats['errors'][] = [
                         'row' => $index + 2,
                         'message' => $e->getMessage(),
                     ];
                 }
-            }
-
-            if ($subjectsToInsert !== []) {
-                ProcessSubject::query()->insert($subjectsToInsert);
             }
         });
     }

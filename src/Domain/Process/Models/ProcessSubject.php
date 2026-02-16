@@ -7,7 +7,7 @@ namespace Src\Domain\Process\Models;
 use Database\Factories\ProcessSubjectFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Src\Domain\Process\QueryBuilders\ProcessSubjectQueryBuilder;
@@ -15,7 +15,6 @@ use Src\Domain\Shared\Traits\Uuid;
 
 /**
  * @property-read string $id
- * @property-read string $process_id
  * @property-read int $subject_registration_id
  * @property-read string $subject_type
  * @property-read bool $is_cited
@@ -23,7 +22,6 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $name_or_business_name
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
- * @property-read Process $process
  *
  * @method static ProcessSubjectQueryBuilder query()
  * @method ProcessSubjectQueryBuilder whereProcess(string $processId)
@@ -48,7 +46,6 @@ class ProcessSubject extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'process_id',
         'subject_registration_id',
         'subject_type',
         'is_cited',
@@ -86,12 +83,17 @@ class ProcessSubject extends Model
     }
 
     /**
-     * Get the process that owns the subject.
+     * Get the processes that have this subject.
      *
-     * @return BelongsTo<Process, $this>
+     * @return BelongsToMany<Process, $this>
      */
-    public function process(): BelongsTo
+    public function processes(): BelongsToMany
     {
-        return $this->belongsTo(Process::class, 'process_id');
+        return $this->belongsToMany(
+            Process::class,
+            'process_process_subject',
+            'process_subject_id',
+            'process_id'
+        );
     }
 }

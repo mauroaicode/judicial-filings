@@ -40,7 +40,7 @@ readonly class RegisterProcessService
         $registeredProcesses = collect();
         $privateCount = 0;
 
-        return DB::transaction(function () use ($processNumber, $organizationId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): \Src\Application\AppUser\Process\DTOs\RegisterProcessResult {
+        return DB::transaction(function () use ($processNumber, $organizationId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
 
             foreach ($processesData as $processData) {
                 $isPrivate = $processData['esPrivado'] ?? false;
@@ -80,7 +80,8 @@ readonly class RegisterProcessService
                     continue;
                 }
 
-                $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances);
+                $fechaUltimaActuacion = $processData['fechaUltimaActuacion'] ?? null;
+                $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
                 $this->attachProcessToOrganization($process, $organizationId);
 
                 $this->processSyncService->handle($process);
@@ -108,8 +109,10 @@ readonly class RegisterProcessService
 
     /**
      * Create a new process record.
+     *
+     * @param  string|null  $fechaUltimaActuacion  From the list-by-number API (procesos[].fechaUltimaActuacion), not from detail.
      */
-    private function createProcess(string $processNumber, int $processId, array $detailData, bool $hasMultipleInstances = false): Process
+    private function createProcess(string $processNumber, int $processId, array $detailData, bool $hasMultipleInstances = false, ?string $fechaUltimaActuacion = null): Process
     {
         $processData = [
             'process_id' => $processId,
@@ -121,7 +124,7 @@ readonly class RegisterProcessService
             'subclass_process' => $detailData['subclaseProceso'] ?? null,
             'litigants' => $detailData['sujetosProcesales'] ?? null,
             'process_date' => $this->parseDate($detailData['fechaProceso'] ?? null) ?? now()->toDateString(),
-            'last_activity_date' => $this->parseDate($detailData['fechaUltimaActuacion'] ?? null),
+            'last_activity_date' => $this->parseDate($fechaUltimaActuacion),
             'location' => $detailData['ubicacion'] ?? null,
             'filing_content' => $detailData['contenidoRadicacion'] ?? null,
             'is_private' => $detailData['esPrivado'] ?? false,

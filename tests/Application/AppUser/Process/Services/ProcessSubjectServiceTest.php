@@ -77,8 +77,7 @@ it('fetches and saves subjects from judicial branch', function (): void {
 });
 
 it('does not create duplicate subjects', function (): void {
-    $existingSubject = ProcessSubject::factory()->create([
-        'process_id' => $this->process->id,
+    $existingSubject = ProcessSubject::factory()->forProcess($this->process)->create([
         'subject_registration_id' => $this->subjectRegistrationId1,
     ]);
 

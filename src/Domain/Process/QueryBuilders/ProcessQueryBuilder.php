@@ -115,6 +115,26 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Order processes by last_api_update (most recent first).
+     *
+     * @return $this
+     */
+    public function orderedByLastApiUpdate(): self
+    {
+        return $this->latest('last_api_update');
+    }
+
+    /**
+     * Order processes by last_activity_date (most recent first).
+     *
+     * @return $this
+     */
+    public function orderedByLastActivityDate(): self
+    {
+        return $this->latest('last_activity_date');
+    }
+
+    /**
      * Apply filters to the process query.
      *
      * @param  ProcessFilterData  $data  The filtering criteria.
@@ -255,11 +275,11 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Apply last_api_update filter (date range only).
+     * Apply last_activity_date filter (date range only). Uses query params last_api_update_from / last_api_update_to.
      */
     private function applyLastApiUpdateFilter(?string $lastApiUpdateFrom, ?string $lastApiUpdateTo): void
     {
-        $this->applyDateRangeFilter('last_api_update', $lastApiUpdateFrom, $lastApiUpdateTo, true);
+        $this->applyDateRangeFilter('last_activity_date', $lastApiUpdateFrom, $lastApiUpdateTo, false);
     }
 
     /**

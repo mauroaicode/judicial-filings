@@ -8,6 +8,7 @@ use Database\Factories\ProcessFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany as EloquentBelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
@@ -45,6 +46,8 @@ use Src\Domain\Shared\Traits\Uuid;
  * @method ProcessQueryBuilder withRelations()
  * @method ProcessQueryBuilder orderedByCreatedAt()
  * @method ProcessQueryBuilder orderedByProcessDate()
+ * @method ProcessQueryBuilder orderedByLastApiUpdate()
+ * @method ProcessQueryBuilder orderedByLastActivityDate()
  * @method ProcessQueryBuilder filters(ProcessFilterData $data)
  */
 class Process extends Model
@@ -125,13 +128,18 @@ class Process extends Model
     }
 
     /**
-     * Get the subjects for the process.
+     * Get the subjects for the process (many-to-many via pivot).
      *
-     * @return HasMany<ProcessSubject, $this>
+     * @return EloquentBelongsToMany<ProcessSubject, $this>
      */
-    public function subjects(): HasMany
+    public function subjects(): EloquentBelongsToMany
     {
-        return $this->hasMany(ProcessSubject::class, 'process_id');
+        return $this->belongsToMany(
+            ProcessSubject::class,
+            'process_process_subject',
+            'process_id',
+            'process_subject_id'
+        );
     }
 
     /**

@@ -48,7 +48,7 @@ trait AnnotationAlertDetectionTrait
             $norm = $this->normalizeFragment($fragment);
             foreach ($keywords as $keyword) {
                 $kwNorm = $this->normalizeFragment((string) $keyword);
-                if ($norm === $kwNorm || mb_strpos($norm, $kwNorm) !== false) {
+                if ($norm === $kwNorm || mb_strpos((string) $norm, (string) $kwNorm) !== false) {
                     $allowed[] = $fragment;
                     break;
                 }
@@ -64,7 +64,7 @@ trait AnnotationAlertDetectionTrait
         $s = Str::ascii($s);
         $s = preg_replace('/\s+/u', ' ', (string) $s);
 
-        return trim($s);
+        return trim((string) $s);
     }
 
     /**

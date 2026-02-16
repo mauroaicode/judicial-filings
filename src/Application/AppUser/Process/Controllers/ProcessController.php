@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 use Src\Application\AppUser\Process\Data\RegisterProcessData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\AppUser\Process\Resources\ProcessDetailResource;
-use Src\Application\AppUser\Process\Resources\ProcessIndexResource;
 use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
@@ -46,22 +45,9 @@ readonly class ProcessController
 
         $filters = ProcessFilterData::from($request->query());
         $perPage = (int) $request->query('per_page', 20);
+        $page = (int) $request->query('page', 1);
 
-        $paginatedProcesses = $this->processFinderService->handle($filters, $organization->id, $perPage);
-
-        /** @var \Illuminate\Pagination\LengthAwarePaginator $paginatedProcesses */
-        $currentPage = $paginatedProcesses->currentPage();
-        $startIndex = (($currentPage - 1) * $perPage) + 1;
-
-        $transformedItems = $paginatedProcesses->getCollection()->map(function (Process $process, int $key) use ($organization, $startIndex): array {
-            $index = $startIndex + $key;
-
-            return ProcessIndexResource::fromModel($process, $organization->id, $index)->toArray();
-        });
-
-        $paginatedProcesses->setCollection($transformedItems);
-
-        return $paginatedProcesses;
+        return $this->processFinderService->handle($filters, $organization->id, $perPage, $page);
     }
 
     /**

@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('process_subjects', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('process_id');
             $table->bigInteger('subject_registration_id')->unique()->comment('Internal API subject registration ID');
             $table->string('subject_type')->comment('Type of subject (Demandante, Demandado, etc.)');
             $table->boolean('is_cited')->default(false)->comment('Whether the subject is cited/summoned');
@@ -21,8 +20,7 @@ return new class extends Migration
             $table->text('name_or_business_name')->comment('Subject name or business name');
             $table->timestamps();
 
-            $table->foreign('process_id')->references('id')->on('processes')->onDelete('cascade');
-            $table->index(['process_id', 'subject_type']);
+            $table->index('subject_type');
         });
     }
 

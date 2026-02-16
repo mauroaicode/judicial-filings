@@ -25,14 +25,12 @@ beforeEach(function (): void {
 it('includes plaintiff and defendant in process response', function (): void {
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ S.A.',
     ]);
@@ -53,20 +51,17 @@ it('includes plaintiff and defendant in process response', function (): void {
 it('shows indicator when there are multiple plaintiffs', function (): void {
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'MARIA GARCIA',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ S.A.',
     ]);
@@ -87,26 +82,22 @@ it('shows indicator when there are multiple plaintiffs', function (): void {
 it('shows indicator when there are multiple defendants', function (): void {
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ S.A.',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA ABC S.A.',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA DEF S.A.',
     ]);
@@ -126,6 +117,7 @@ it('shows indicator when there are multiple defendants', function (): void {
 
 it('shows null when process has no subjects', function (): void {
     $process = Process::factory()->create();
+    // No subjects attached
 
     $process->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
@@ -143,8 +135,7 @@ it('shows null when process has no subjects', function (): void {
 it('shows null when process has no plaintiff', function (): void {
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ S.A.',
     ]);
@@ -165,8 +156,7 @@ it('shows null when process has no plaintiff', function (): void {
 it('shows null when process has no defendant', function (): void {
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ',
     ]);
@@ -184,49 +174,76 @@ it('shows null when process has no defendant', function (): void {
     expect($response->json('data.0.defendant'))->toBeNull();
 });
 
+it('returns full plaintiffs and defendants lists for tooltip', function (): void {
+    $process = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process)->create([
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'JUAN PEREZ',
+    ]);
+    ProcessSubject::factory()->forProcess($process)->create([
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'MARIA GARCIA',
+    ]);
+    ProcessSubject::factory()->forProcess($process)->create([
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA XYZ S.A.',
+    ]);
+    ProcessSubject::factory()->forProcess($process)->create([
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA ABC S.A.',
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes');
+
+    $response->assertStatus(200);
+    expect($response->json('data.0.plaintiff'))->toContain('(+1)');
+    expect($response->json('data.0.defendant'))->toContain('(+1)');
+    expect($response->json('data.0.plaintiffs'))->toBe(['Juan Perez', 'Maria Garcia']);
+    expect($response->json('data.0.defendants'))->toBe(['Empresa Xyz S.A.', 'Empresa Abc S.A.']);
+});
+
 it('shows correct count indicator for multiple plaintiffs and defendants', function (): void {
     $process = Process::factory()->create();
 
     // Create 3 plaintiffs
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ',
     ]);
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'MARIA GARCIA',
     ]);
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'CARLOS LOPEZ',
     ]);
 
     // Create 5 defendants
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ S.A.',
     ]);
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA ABC S.A.',
     ]);
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA DEF S.A.',
     ]);
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA GHI S.A.',
     ]);
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA JKL S.A.',
     ]);

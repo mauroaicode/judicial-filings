@@ -56,6 +56,7 @@ class SyncProcessJob implements ShouldQueue
 
         try {
             $syncService->syncByProcessNumber($this->processNumber);
+
         } catch (Throwable $e) {
             Log::channel($channel)->error('SyncProcessJob failed', [
                 'process_number' => $this->processNumber,

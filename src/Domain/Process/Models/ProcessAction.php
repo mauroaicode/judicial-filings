@@ -20,6 +20,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $id
  * @property-read string $process_id
  * @property-read int $action_registration_id
+ * @property-read int $cons_action
  * @property-read Carbon $action_date
  * @property-read string $action
  * @property-read string|null $annotation
@@ -38,6 +39,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @method ProcessActionQueryBuilder whereProcessAndRegistrationId(string $processId, int $actionRegistrationId)
  * @method ProcessActionQueryBuilder orderedByActionDate()
  * @method ProcessActionQueryBuilder orderedByRegistrationDate()
+ * @method ProcessActionQueryBuilder orderedByConsActionDesc()
  */
 class ProcessAction extends Model
 {
@@ -58,6 +60,7 @@ class ProcessAction extends Model
     protected $fillable = [
         'process_id',
         'action_registration_id',
+        'cons_action',
         'action_date',
         'action',
         'annotation',
@@ -78,6 +81,7 @@ class ProcessAction extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'registration_date' => 'date',
+            'cons_action' => 'integer',
         ];
     }
 

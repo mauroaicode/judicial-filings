@@ -27,6 +27,7 @@ class ProcessActionSeeder extends Seeder
         $actions = [
             [
                 'action_registration_id' => 1229284324,
+                'cons_action' => 5,
                 'action_date' => '2025-06-20',
                 'action' => 'Recepción memorial oa al despacho',
                 'annotation' => 'MOS-C25-28072 - Renuncia de poder - ABDÓN MAURICIO ROJAS MARROQUÍN - Apoderado EMCALI E.I.C.E. E.S.P.',
@@ -36,6 +37,7 @@ class ProcessActionSeeder extends Seeder
             ],
             [
                 'action_registration_id' => 1224098984,
+                'cons_action' => 4,
                 'action_date' => '2025-05-14',
                 'action' => 'A despacho',
                 'annotation' => 'MTV-para sentencia',
@@ -45,6 +47,7 @@ class ProcessActionSeeder extends Seeder
             ],
             [
                 'action_registration_id' => 1222890564,
+                'cons_action' => 3,
                 'action_date' => '2025-05-05',
                 'action' => 'RECIBE MEMORIALES ONLINE AL DESPACHO',
                 'annotation' => 'El Señor(a):CAROLINA OCAMPO FRANCO a través de la ventanilla virtual, radicó la solicitud No. 1651763 tipo: Recepción de Memoriales de fecha: 05/05/2025 15:52:20. Se realiza la siguiente gestión: ALEGATOS DE CONCLUSION CAROLINA OCAMPO FRANCO DISTRITO ESPECIAL DE SANTIAGO DE CALI',
@@ -54,6 +57,7 @@ class ProcessActionSeeder extends Seeder
             ],
             [
                 'action_registration_id' => 1221500000,
+                'cons_action' => 2,
                 'action_date' => '2025-04-15',
                 'action' => 'Citación a audiencia',
                 'annotation' => 'Se cita a las partes para audiencia de conciliación el día 20 de abril de 2025 a las 9:00 AM',
@@ -63,6 +67,7 @@ class ProcessActionSeeder extends Seeder
             ],
             [
                 'action_registration_id' => 1220000000,
+                'cons_action' => 1,
                 'action_date' => '2025-03-10',
                 'action' => 'Auto de trámite',
                 'annotation' => 'Se admite la demanda y se ordena la práctica de pruebas por el término de 10 días',

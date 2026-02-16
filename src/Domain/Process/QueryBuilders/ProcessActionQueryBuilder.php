@@ -7,9 +7,10 @@ namespace Src\Domain\Process\QueryBuilders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
 use Src\Application\AppUser\Process\Data\ProcessActionFilterData;
+use Src\Domain\Process\Models\ProcessAction;
 
 /**
- * @extends Builder<\Src\Domain\Process\Models\ProcessAction>
+ * @extends Builder<ProcessAction>
  */
 class ProcessActionQueryBuilder extends Builder
 {
@@ -31,6 +32,14 @@ class ProcessActionQueryBuilder extends Builder
     public function whereActionRegistrationId(int $actionRegistrationId): self
     {
         return $this->where('action_registration_id', $actionRegistrationId);
+    }
+
+    /**
+     * Verifica si ya existe una actuación con el action_registration_id dado.
+     */
+    public function existsByActionRegistrationId(int $actionRegistrationId): bool
+    {
+        return $this->where('action_registration_id', $actionRegistrationId)->exists();
     }
 
     /**
@@ -62,6 +71,16 @@ class ProcessActionQueryBuilder extends Builder
     public function orderedByRegistrationDate(): self
     {
         return $this->latest('registration_date');
+    }
+
+    /**
+     * Order actions by cons_action descending (mayor a menor).
+     */
+    public function orderedByConsActionDesc(): static
+    {
+        $this->orderByDesc('cons_action');
+
+        return $this;
     }
 
     /**

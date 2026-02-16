@@ -64,6 +64,7 @@ it('returns process actions for a process', function (): void {
     $action1 = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_registration_id' => 123456,
+        'cons_action' => 1,
         'action_date' => '2024-01-15',
         'action' => 'Test action 1',
         'annotation' => 'Test annotation 1',
@@ -73,6 +74,7 @@ it('returns process actions for a process', function (): void {
     $action2 = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_registration_id' => 123457,
+        'cons_action' => 2,
         'action_date' => '2024-01-20',
         'action' => 'Test action 2',
         'annotation' => 'Test annotation 2',
@@ -85,8 +87,12 @@ it('returns process actions for a process', function (): void {
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(2);
     expect($response->json('total'))->toBe(2);
-    expect($response->json('data.0.id'))->toBe($action2->id); // Ordered by action_date desc
+    expect($response->json('data.0.id'))->toBe($action2->id); // Ordered by cons_action desc
     expect($response->json('data.1.id'))->toBe($action1->id);
+    expect($response->json('data.0.index'))->toBe(1);
+    expect($response->json('data.1.index'))->toBe(2);
+    expect($response->json('data.0.cons_action'))->toBe(2);
+    expect($response->json('data.1.cons_action'))->toBe(1);
 });
 
 it('returns 404 when process does not exist', function (): void {
@@ -141,16 +147,19 @@ it('filters actions by action_date_from', function (): void {
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-01-10',
+        'cons_action' => 1,
     ]);
 
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-01-20',
+        'cons_action' => 2,
     ]);
 
     ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action_date' => '2024-02-01',
+        'cons_action' => 3,
     ]);
 
     $response = $this->actingAs($this->appUser)

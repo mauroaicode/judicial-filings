@@ -86,3 +86,28 @@ it('orders actions by registration date', function (): void {
     expect($results->first()->id)->toBe($action2->id);
     expect($results->last()->id)->toBe($action1->id);
 });
+
+it('orders actions by cons_action descending', function (): void {
+    $process = Process::factory()->create();
+    $action1 = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 10,
+    ]);
+    $action2 = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 20,
+    ]);
+    $action3 = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 15,
+    ]);
+
+    $results = ProcessAction::query()
+        ->whereProcess($process->id)
+        ->orderedByConsActionDesc()
+        ->get();
+
+    expect($results->first()->id)->toBe($action2->id);
+    expect($results->get(1)->id)->toBe($action3->id);
+    expect($results->last()->id)->toBe($action1->id);
+});

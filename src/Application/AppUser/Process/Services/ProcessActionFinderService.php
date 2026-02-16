@@ -23,7 +23,7 @@ readonly class ProcessActionFinderService
             ->whereProcess($processId)
             ->with('alertHighlights')
             ->filters($filters)
-            ->orderedByActionDate()
+            ->orderedByConsActionDesc()
             ->paginate($perPage)
             ->appends(request()->query());
     }

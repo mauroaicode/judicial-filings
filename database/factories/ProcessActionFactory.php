@@ -22,6 +22,7 @@ class ProcessActionFactory extends Factory
             'id' => Str::uuid(),
             'process_id' => Process::factory(),
             'action_registration_id' => $this->faker->unique()->numberBetween(1000000000, 9999999999),
+            'cons_action' => $this->faker->unique()->numberBetween(1, 99999),
             'action_date' => $actionDate,
             'action' => $this->faker->randomElement([
                 'Recepción memorial oa al despacho',

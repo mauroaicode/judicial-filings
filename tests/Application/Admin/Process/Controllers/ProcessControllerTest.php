@@ -134,14 +134,12 @@ it('shows plaintiff and defendant information', function (): void {
     $organization = Organization::factory()->create();
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ GARCIA',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA ABC S.A.S.',
     ]);
@@ -163,20 +161,17 @@ it('shows plaintiff count when there are multiple plaintiffs', function (): void
     $organization = Organization::factory()->create();
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'JUAN PEREZ GARCIA',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'MARIA LOPEZ RODRIGUEZ',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandante',
         'name_or_business_name' => 'CARLOS GOMEZ MARTINEZ',
     ]);
@@ -198,14 +193,12 @@ it('shows defendant count when there are multiple defendants', function (): void
     $organization = Organization::factory()->create();
     $process = Process::factory()->create();
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA ABC S.A.S.',
     ]);
 
-    ProcessSubject::factory()->create([
-        'process_id' => $process->id,
+    ProcessSubject::factory()->forProcess($process)->create([
         'subject_type' => 'Demandado',
         'name_or_business_name' => 'EMPRESA XYZ LTDA.',
     ]);
