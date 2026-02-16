@@ -34,14 +34,20 @@ class AdminProcessIndexResource extends Resource
         public ?int $organizations_count = null,
         public ?int $plaintiffs_count = null,
         public ?int $defendants_count = null,
+        /** @var list<string> Full list of organization names for tooltip */
+        public array $organizations = [],
+        /** @var list<string> Full list of plaintiff names for tooltip */
+        public array $plaintiffs = [],
+        /** @var list<string> Full list of defendant names for tooltip */
+        public array $defendants = [],
     ) {}
 
     public static function fromModel(Process $process, int $index = 0): self
     {
         [$createdAt, $status] = self::getEarliestRegistrationDateAndStatus($process);
-        [$organization, $organizationsCount] = self::getOrganizationInfo($process);
-        [$plaintiff, $plaintiffsCount] = self::getPlaintiffInfo($process);
-        [$defendant, $defendantsCount] = self::getDefendantInfo($process);
+        [$organization, $organizationsCount, $organizationsList] = self::getOrganizationInfo($process);
+        [$plaintiff, $plaintiffsCount, $plaintiffsList] = self::getPlaintiffInfo($process);
+        [$defendant, $defendantsCount, $defendantsList] = self::getDefendantInfo($process);
 
         return new self(
             index: $index,
@@ -51,7 +57,7 @@ class AdminProcessIndexResource extends Resource
             process_class: StrParseHelper::toTitleCase($process->process_class) ?? '',
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
             process_date: DateFormatHelper::formatDate($process->process_date),
-            last_activity_date: $process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null,
+            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : ($process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null),
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
             status_label: $status->getLabel(),
@@ -62,8 +68,11 @@ class AdminProcessIndexResource extends Resource
             defendant: $defendant,
             organization: $organization,
             organizations_count: $organizationsCount,
-            plaintiffs_count: $plaintiffsCount > 1 ? $plaintiffsCount : null,
-            defendants_count: $defendantsCount > 1 ? $defendantsCount : null,
+            plaintiffs_count: $plaintiffsCount,
+            defendants_count: $defendantsCount,
+            organizations: $organizationsList,
+            plaintiffs: $plaintiffsList,
+            defendants: $defendantsList,
         );
     }
 
@@ -102,83 +111,80 @@ class AdminProcessIndexResource extends Resource
     }
 
     /**
-     * Get organization information (name and count).
+     * Get organization information (summary, count and full list for tooltip).
      *
-     * @return array{0: string|null, 1: int|null}
+     * @return array{0: string|null, 1: int|null, 2: list<string>}
      */
     private static function getOrganizationInfo(Process $process): array
     {
         if (! $process->relationLoaded('organizations')) {
-            return [null, null];
+            return [null, null, []];
         }
 
         $organizations = $process->organizations;
         $organizationsCount = $organizations->count();
 
         if ($organizationsCount === 0) {
-            return [null, null];
+            return [null, null, []];
         }
 
-        $firstOrganization = $organizations->first();
-        $organizationName = StrParseHelper::toTitleCase($firstOrganization->name) ?? $firstOrganization->name;
-
+        $names = $organizations->map(fn ($org) => StrParseHelper::toTitleCase($org->name) ?? $org->name)->values()->all();
+        $firstOrganizationName = $names[0] ?? '';
         $organization = $organizationsCount > 1
-            ? $organizationName.' (+'.($organizationsCount - 1).')'
-            : $organizationName;
+            ? $firstOrganizationName.' (+'.($organizationsCount - 1).')'
+            : $firstOrganizationName;
 
-        return [$organization, $organizationsCount];
+        return [$organization, $organizationsCount, $names];
     }
 
     /**
-     * Get plaintiff information (name and count).
+     * Get plaintiff information (summary, count and full list for tooltip).
      *
-     * @return array{0: string|null, 1: int|null}
+     * @return array{0: string|null, 1: int, 2: list<string>}
      */
     private static function getPlaintiffInfo(Process $process): array
     {
         if (! $process->relationLoaded('subjects')) {
-            return [null, null];
+            return [null, 0, []];
         }
 
         $plaintiffs = $process->subjects->where('subject_type', 'Demandante');
         $plaintiffsCount = $plaintiffs->count();
 
         if ($plaintiffs->isEmpty()) {
-            return [null, null];
+            return [null, 0, []];
         }
 
-        $firstPlaintiff = $plaintiffs->first();
-        $plaintiffName = StrParseHelper::toTitleCase($firstPlaintiff->name_or_business_name) ?? '';
+        $names = $plaintiffs->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
+        $firstPlaintiffName = $names[0] ?? '';
+        $plaintiff = self::formatSubjectName($firstPlaintiffName, $plaintiffsCount);
 
-        $plaintiff = self::formatSubjectName($plaintiffName, $plaintiffsCount);
-
-        return [$plaintiff, $plaintiffsCount];
+        return [$plaintiff, $plaintiffsCount, $names];
     }
 
     /**
-     * Get defendant information (name and count).
+     * Get defendant information (summary, count and full list for tooltip).
      *
-     * @return array{0: string|null, 1: int|null}
+     * @return array{0: string|null, 1: int, 2: list<string>}
      */
     private static function getDefendantInfo(Process $process): array
     {
         if (! $process->relationLoaded('subjects')) {
-            return [null, null];
+            return [null, 0, []];
         }
 
         $defendants = $process->subjects->where('subject_type', 'Demandado');
         $defendantsCount = $defendants->count();
 
         if ($defendants->isEmpty()) {
-            return [null, null];
+            return [null, 0, []];
         }
 
-        $firstDefendant = $defendants->first();
-        $defendantName = StrParseHelper::toTitleCase($firstDefendant->name_or_business_name) ?? '';
+        $names = $defendants->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
+        $firstDefendantName = $names[0] ?? '';
+        $defendant = self::formatSubjectName($firstDefendantName, $defendantsCount);
 
-        $defendant = self::formatSubjectName($defendantName, $defendantsCount);
-
-        return [$defendant, $defendantsCount];
+        return [$defendant, $defendantsCount, $names];
     }
 
     /**

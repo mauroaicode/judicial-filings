@@ -97,6 +97,7 @@ readonly class ProcessSubjectService
         if (stripos($t, 'Demandante') !== false) {
             return 'Demandante';
         }
+
         if (stripos($t, 'Demandado') !== false) {
             return 'Demandado';
         }

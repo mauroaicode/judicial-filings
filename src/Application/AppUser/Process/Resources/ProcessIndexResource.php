@@ -62,18 +62,16 @@ class ProcessIndexResource extends Resource
 
             $plaintiffsCollection = $subjects->where('subject_type', 'Demandante');
             if ($plaintiffsCollection->isNotEmpty()) {
-                $firstPlaintiff = $plaintiffsCollection->first();
-                $plaintiffName = StrParseHelper::toTitleCase($firstPlaintiff->name_or_business_name) ?? '';
-                $plaintiff = $plaintiffsCollection->count() > 1 ? $plaintiffName.' (+'.($plaintiffsCollection->count() - 1).')' : $plaintiffName;
-                $plaintiffsList = $plaintiffsCollection->map(fn ($s) => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
+                $plaintiffsList = $plaintiffsCollection->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->sort()->values()->all();
+                $firstPlaintiffName = $plaintiffsList[0] ?? '';
+                $plaintiff = $plaintiffsCollection->count() > 1 ? $firstPlaintiffName.' (+'.($plaintiffsCollection->count() - 1).')' : $firstPlaintiffName;
             }
 
             $defendantsCollection = $subjects->where('subject_type', 'Demandado');
             if ($defendantsCollection->isNotEmpty()) {
-                $firstDefendant = $defendantsCollection->first();
-                $defendantName = StrParseHelper::toTitleCase($firstDefendant->name_or_business_name) ?? '';
-                $defendant = $defendantsCollection->count() > 1 ? $defendantName.' (+'.($defendantsCollection->count() - 1).')' : $defendantName;
-                $defendantsList = $defendantsCollection->map(fn ($s) => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
+                $defendantsList = $defendantsCollection->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->sort()->values()->all();
+                $firstDefendantName = $defendantsList[0] ?? '';
+                $defendant = $defendantsCollection->count() > 1 ? $firstDefendantName.' (+'.($defendantsCollection->count() - 1).')' : $firstDefendantName;
             }
         }
 

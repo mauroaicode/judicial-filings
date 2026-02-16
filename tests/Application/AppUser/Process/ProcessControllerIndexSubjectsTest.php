@@ -206,7 +206,7 @@ it('returns full plaintiffs and defendants lists for tooltip', function (): void
     expect($response->json('data.0.plaintiff'))->toContain('(+1)');
     expect($response->json('data.0.defendant'))->toContain('(+1)');
     expect($response->json('data.0.plaintiffs'))->toBe(['Juan Perez', 'Maria Garcia']);
-    expect($response->json('data.0.defendants'))->toBe(['Empresa Xyz S.A.', 'Empresa Abc S.A.']);
+    expect($response->json('data.0.defendants'))->toBe(['Empresa Abc S.A.', 'Empresa Xyz S.A.']);
 });
 
 it('shows correct count indicator for multiple plaintiffs and defendants', function (): void {

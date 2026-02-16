@@ -20,6 +20,7 @@ class ProcessSyncService
 
     public function __construct(
         private readonly JudicialBranchConsultService $judicialService,
+        /** @phpstan-ignore property.onlyWritten (used when processActionAlertNotificationService->handle is uncommented in syncActuaciones) */
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService
     ) {}
 
@@ -73,7 +74,7 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
 
-//            $this->processActionAlertNotificationService->handle($action, $process);
+            //            $this->processActionAlertNotificationService->handle($action, $process);
         }
     }
 

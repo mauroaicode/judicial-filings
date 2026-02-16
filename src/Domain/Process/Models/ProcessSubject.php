@@ -85,7 +85,7 @@ class ProcessSubject extends Model
     /**
      * Get the processes that have this subject.
      *
-     * @return BelongsToMany<Process, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Process\Models\Process, $this>
      */
     public function processes(): BelongsToMany
     {

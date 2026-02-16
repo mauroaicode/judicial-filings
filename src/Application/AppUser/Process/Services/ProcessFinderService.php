@@ -39,7 +39,7 @@ readonly class ProcessFinderService
             ->whereIn('id', (clone $filteredIdsQuery))
             ->selectRaw('process_number, MAX(last_activity_date) as max_activity_date')
             ->groupBy('process_number')
-            ->orderByDesc('max_activity_date')
+            ->latest('max_activity_date')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get()

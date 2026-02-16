@@ -18,7 +18,7 @@ class ProcessSubjectQueryBuilder extends Builder
      */
     public function whereProcess(string $processId): self
     {
-        return $this->whereHas('processes', function ($query) use ($processId): void {
+        return $this->whereHas('processes', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($processId): void {
             $query->where('processes.id', $processId);
         });
     }
@@ -47,7 +47,7 @@ class ProcessSubjectQueryBuilder extends Builder
     public function existsByProcessAndSubjectRegistrationId(string $processId, int $subjectRegistrationId): bool
     {
         return $this->where('subject_registration_id', $subjectRegistrationId)
-            ->whereHas('processes', function ($query) use ($processId): void {
+            ->whereHas('processes', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($processId): void {
                 $query->where('processes.id', $processId);
             })
             ->exists();
@@ -61,7 +61,7 @@ class ProcessSubjectQueryBuilder extends Builder
     public function whereProcessAndRegistrationId(string $processId, int $subjectRegistrationId): self
     {
         return $this->where('subject_registration_id', $subjectRegistrationId)
-            ->whereHas('processes', function ($query) use ($processId): void {
+            ->whereHas('processes', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($processId): void {
                 $query->where('processes.id', $processId);
             });
     }
