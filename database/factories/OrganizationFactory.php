@@ -43,6 +43,7 @@ class OrganizationFactory extends Factory
             'phone' => $this->faker->phoneNumber(),
             'email' => $this->faker->unique()->safeEmail(),
             'contact_person' => $type === 'juridical' ? $this->faker->name() : null,
+            'is_active' => true,
         ];
     }
 

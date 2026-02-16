@@ -11,4 +11,25 @@ return [
         'file' => 'El campo debe ser un archivo válido.',
         'mimes' => 'El archivo debe ser de tipo: :values.',
     ],
+    'organization' => [
+        'name' => [
+            'required' => 'El nombre de la organización es obligatorio.',
+        ],
+        'type' => [
+            'required' => 'El tipo de organización es obligatorio.',
+            'in' => 'El tipo debe ser persona natural o persona jurídica.',
+        ],
+        'phone' => [
+            'required' => 'El teléfono es obligatorio.',
+            'regex' => 'El teléfono debe tener 10 dígitos (celular). Se usará el indicativo +56 por defecto.',
+        ],
+        'email' => [
+            'required' => 'El correo electrónico es obligatorio.',
+            'email' => 'El correo electrónico no es válido.',
+            'unique' => 'Ya existe una organización registrada con este correo electrónico.',
+        ],
+        'contact_person' => [
+            'required_if' => 'La persona de contacto es obligatoria para persona jurídica.',
+        ],
+    ],
 ];

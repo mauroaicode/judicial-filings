@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Carbon;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
+use Src\Domain\Organization\QueryBuilders\OrganizationQueryBuilder;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Traits\Uuid;
 
@@ -24,8 +25,14 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string|null $phone
  * @property-read string|null $email
  * @property-read string|null $contact_person
+ * @property-read bool $is_active
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
+ *
+ * @method static OrganizationQueryBuilder query()
+ * @method OrganizationQueryBuilder withRelations()
+ * @method OrganizationQueryBuilder orderedByCreatedAt()
+ * @method OrganizationQueryBuilder filters(\Src\Application\Admin\Organization\Data\OrganizationFilterData $data)
  */
 class Organization extends Model
 {
@@ -52,6 +59,7 @@ class Organization extends Model
         'phone',
         'email',
         'contact_person',
+        'is_active',
     ];
 
     /**
@@ -63,6 +71,7 @@ class Organization extends Model
     {
         return [
             'type' => 'string',
+            'is_active' => 'boolean',
         ];
     }
 
@@ -122,5 +131,15 @@ class Organization extends Model
     public function notificationChannels(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(OrganizationNotificationChannel::class, 'organization_id');
+    }
+
+    /**
+     * Create a new Eloquent query builder for the model.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     */
+    public function newEloquentBuilder($query): OrganizationQueryBuilder
+    {
+        return new OrganizationQueryBuilder($query);
     }
 }

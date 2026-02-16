@@ -11,4 +11,8 @@ return [
     'unauthorized' => 'No autorizado. Por favor, inicia sesión.',
     'user_inactive' => 'Tu cuenta está inactiva. Por favor, contacta al administrador.',
     'forbidden' => 'No tienes permisos para acceder a este recurso.',
+    'account_created_subject' => 'Tu cuenta ha sido creada',
+    'account_created_line_1' => 'Se ha creado una cuenta para tu organización en el sistema de monitoreo judicial. A continuación encontrarás tus credenciales de acceso.',
+    'account_created_warning' => 'Por seguridad, te recomendamos cambiar esta contraseña temporal en tu primer inicio de sesión.',
+    'account_created_line_2' => 'Si no solicitaste esta cuenta, por favor contacta al administrador del sistema.',
 ];

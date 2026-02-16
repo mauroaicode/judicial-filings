@@ -15,4 +15,12 @@ return [
         'active' => 'Active',
         'inactive' => 'Inactive',
     ],
+    'organization_type' => [
+        'natural' => 'Natural person',
+        'juridical' => 'Legal entity',
+    ],
+    'organization_active_status' => [
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+    ],
 ];

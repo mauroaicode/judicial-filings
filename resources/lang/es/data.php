@@ -35,4 +35,9 @@ return [
     'per_page' => 'Por página',
     'page' => 'Página',
     'notification_ids' => 'IDs de notificación',
+    'identification' => 'Identificación',
+    'address' => 'Dirección',
+    'phone' => 'Teléfono',
+    'contact_person' => 'Persona de contacto',
+    'is_active' => 'Activo',
 ];
