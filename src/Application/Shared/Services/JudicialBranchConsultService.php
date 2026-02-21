@@ -6,6 +6,8 @@ namespace Src\Application\Shared\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
+use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Throwable;
 
 class JudicialBranchConsultService
@@ -35,10 +37,18 @@ class JudicialBranchConsultService
                 ];
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
+                $timeout = (int) config('judicial-branch.timeout_seconds', 60);
 
-                $response = Http::withHeaders([
+                $httpResponse = Http::timeout($timeout)->withHeaders([
                     'Content-Type' => 'application/json',
-                ])->get($endpoint)->json();
+                ])->get($endpoint);
+
+                $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchProcesses');
+
+                $response = $httpResponse->json();
+                if (! is_array($response)) {
+                    $response = [];
+                }
 
                 if (isset($response['procesos'])) {
                     $allProcesses = array_merge($allProcesses, $response['procesos']);
@@ -53,6 +63,12 @@ class JudicialBranchConsultService
 
             $data = $allProcesses;
 
+            // 200 con procesos vacíos: fallo definitivo, no reintentar (el usuario puede verificar en la Rama Judicial).
+            if (empty($allProcesses)) {
+                throw new ApiEmptyProcessesException(__('process.api_empty_processes'));
+            }
+        } catch (ApiEmptyProcessesException|ApiForbiddenOrRateLimitException $e) {
+            throw $e;
         } catch (Throwable $th) {
             $isSuccessful = false;
 
@@ -64,6 +80,23 @@ class JudicialBranchConsultService
         }
 
         return (object) ['isSuccessful' => $isSuccessful, 'data' => $data];
+    }
+
+    /**
+     * Lanza excepción si el status es 403 o 429 para que el job reintente (no se trate como "sin procesos").
+     */
+    private function throwIfForbiddenOrRateLimit(int $status, string $context): void
+    {
+        if ($status === 403) {
+            throw new ApiForbiddenOrRateLimitException(
+                __('process.api_forbidden', ['context' => $context])
+            );
+        }
+        if ($status === 429) {
+            throw new ApiForbiddenOrRateLimitException(
+                __('process.api_rate_limit', ['context' => $context])
+            );
+        }
     }
 
     /**
@@ -79,13 +112,18 @@ class JudicialBranchConsultService
 
         try {
             $endpoint = config('judicial-branch.api_url')."/Proceso/Detalle/{$processId}";
+            $timeout = (int) config('judicial-branch.timeout_seconds', 60);
 
-            $response = Http::withHeaders([
+            $httpResponse = Http::timeout($timeout)->withHeaders([
                 'Content-Type' => 'application/json',
-            ])->get($endpoint)->json();
+            ])->get($endpoint);
 
-            $data = $response;
+            $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchDetailProcess');
 
+            $data = $httpResponse->json() ?? [];
+
+        } catch (ApiForbiddenOrRateLimitException $e) {
+            throw $e;
         } catch (Throwable $th) {
             $isSuccessful = false;
 
@@ -122,10 +160,18 @@ class JudicialBranchConsultService
                 ];
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
+                $timeout = (int) config('judicial-branch.timeout_seconds', 60);
 
-                $response = Http::withHeaders([
+                $httpResponse = Http::timeout($timeout)->withHeaders([
                     'Content-Type' => 'application/json',
-                ])->get($endpoint)->json();
+                ])->get($endpoint);
+
+                $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchActionByProcess');
+
+                $response = $httpResponse->json();
+                if (! is_array($response)) {
+                    $response = [];
+                }
 
                 if (isset($response['actuaciones'])) {
                     $allActions = array_merge($allActions, $response['actuaciones']);
@@ -140,6 +186,8 @@ class JudicialBranchConsultService
 
             $data = $allActions;
 
+        } catch (ApiForbiddenOrRateLimitException $e) {
+            throw $e;
         } catch (Throwable $th) {
             $isSuccessful = false;
 
@@ -176,10 +224,18 @@ class JudicialBranchConsultService
                 ];
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
+                $timeout = (int) config('judicial-branch.timeout_seconds', 60);
 
-                $response = Http::withHeaders([
+                $httpResponse = Http::timeout($timeout)->withHeaders([
                     'Content-Type' => 'application/json',
-                ])->get($endpoint)->json();
+                ])->get($endpoint);
+
+                $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchSubjectsByProcess');
+
+                $response = $httpResponse->json();
+                if (! is_array($response)) {
+                    $response = [];
+                }
 
                 if (isset($response['sujetos'])) {
                     $allSubjects = array_merge($allSubjects, $response['sujetos']);
@@ -194,6 +250,8 @@ class JudicialBranchConsultService
 
             $data = $allSubjects;
 
+        } catch (ApiForbiddenOrRateLimitException $e) {
+            throw $e;
         } catch (Throwable $th) {
             $isSuccessful = false;
 

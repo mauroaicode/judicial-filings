@@ -11,6 +11,10 @@ return [
         'file' => 'The field must be a valid file.',
         'mimes' => 'The file must be of type: :values.',
     ],
+    'organization_id' => [
+        'required' => 'The organization is required.',
+        'exists' => 'The selected organization is not valid.',
+    ],
     'organization' => [
         'name' => [
             'required' => 'The organization name is required.',

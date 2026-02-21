@@ -165,6 +165,7 @@ readonly class RegisterProcessService
     {
         $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
 
+        // API falló (timeout, error) o datos vacíos por otro motivo. 200+procesos vacíos lanza ApiEmptyProcessesException antes.
         if (! $response->isSuccessful || empty($response->data)) {
             abort(404, __('process.not_found_in_judicial_branch'));
         }

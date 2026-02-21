@@ -199,5 +199,13 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+
+        'process_import' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/process_import.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
     ],
 ];

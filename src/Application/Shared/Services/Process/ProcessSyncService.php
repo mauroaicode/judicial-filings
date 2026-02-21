@@ -36,8 +36,7 @@ class ProcessSyncService
             Log::channel($logChannel)->error('ProcessSyncService: failed to fetch actuaciones', [
                 'process_id' => $process->id,
             ]);
-
-            return;
+            throw new \RuntimeException(__('process.sync_failed_actuaciones'));
         }
 
         $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
@@ -45,8 +44,7 @@ class ProcessSyncService
             Log::channel($logChannel)->error('ProcessSyncService: failed to fetch sujetos', [
                 'process_id' => $process->id,
             ]);
-
-            return;
+            throw new \RuntimeException(__('process.sync_failed_sujetos'));
         }
 
         $this->syncActuaciones($process, $actionsResult->data);

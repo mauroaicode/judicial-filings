@@ -14,6 +14,7 @@ return [
     'plaintiff' => 'Demandante',
     'defendant' => 'Demandado',
     'organization' => 'Organización',
+    'organization_id' => 'Organización',
     'created_at' => 'Fecha de Creación',
     'created_at_from' => 'Fecha de Creación Desde',
     'created_at_to' => 'Fecha de Creación Hasta',

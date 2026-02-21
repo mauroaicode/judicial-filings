@@ -11,6 +11,10 @@ return [
         'file' => 'El campo debe ser un archivo válido.',
         'mimes' => 'El archivo debe ser de tipo: :values.',
     ],
+    'organization_id' => [
+        'required' => 'La organización es obligatoria.',
+        'exists' => 'La organización seleccionada no es válida.',
+    ],
     'organization' => [
         'name' => [
             'required' => 'El nombre de la organización es obligatorio.',
