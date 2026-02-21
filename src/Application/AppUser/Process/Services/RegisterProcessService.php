@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
+use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
@@ -165,7 +166,6 @@ readonly class RegisterProcessService
     {
         $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
 
-        // API falló (timeout, error) o datos vacíos por otro motivo. 200+procesos vacíos lanza ApiEmptyProcessesException antes.
         if (! $response->isSuccessful || empty($response->data)) {
             abort(404, __('process.not_found_in_judicial_branch'));
         }
@@ -176,8 +176,9 @@ readonly class RegisterProcessService
     /**
      * Validate and get detailed process information from the judicial branch.
      *
-     * @param  int  $processId  The API process ID.
+     * @param int $processId The API process ID.
      * @return array<string, mixed> The detailed process data.
+     * @throws ApiForbiddenOrRateLimitException
      */
     private function validateAndGetProcessDetails(int $processId): array
     {

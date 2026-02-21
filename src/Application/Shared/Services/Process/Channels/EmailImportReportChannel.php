@@ -14,7 +14,7 @@ class EmailImportReportChannel implements ImportReportChannelInterface
 {
     public function send(ProcessImportReport $report): void
     {
-        $to = config('process-import.report_email');
+        $to = config('process-import.admin_report_email');
         if (empty($to) || ! is_string($to)) {
             $to = $report->reportRecipientEmail;
         }

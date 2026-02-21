@@ -7,81 +7,57 @@ namespace Src\Application\Admin\Process\Services;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
 use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Shared\DTOs\ProcessImportReport;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
-use Src\Application\Shared\Notifications\ProcessImportReportNotification;
+use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
 use Src\Domain\Process\Models\ProcessImportBatch;
+use Throwable;
 
 readonly class ProcessImportBatchService
 {
+    public function __construct(
+        private ImportReportNotificationService $notificationService,
+    ) {}
+
     /**
-     * Crea el batch, encola jobs y despacha. Solo debe llamarse cuando $data->isReadyToEnqueue().
+     * Creates the batch record, builds staggered jobs and dispatches the Laravel batch.
      *
+     * @param  ProcessImportDataResult  $data  Validated import data ready to enqueue
      * @return array{message: string, batch_id: string, skipped_already_registered?: int}
-     * @throws \Throwable
+     *
+     * @throws Throwable
      */
     public function dispatch(ProcessImportDataResult $data): array
     {
-        $toEnqueue = $data->toEnqueue;
-        $organizationId = $data->organizationId;
-        $fileName = $data->fileName;
-        $requestedById = $data->requestedById;
-
-        $batch = ProcessImportBatch::query()->create([
-            'organization_id' => $organizationId,
-            'requested_by' => $requestedById,
-            'file_name' => $fileName,
-            'total_count' => count($toEnqueue),
-            'enqueued_process_numbers' => $toEnqueue,
-            'status' => ProcessImportBatch::STATUS_PROCESSING,
-        ]);
-
-        $delaySeconds = (int) config('process-import.delay_between_radicados_seconds');
-        $jobs = [];
-        $importRadicadoQueue = config('process-import.jobs.import_radicado.queue');
-        foreach ($toEnqueue as $index => $processNumber) {
-            $job = (new ImportRadicadoJob(
-                $batch->id,
-                $processNumber,
-                $organizationId,
-            ))->onQueue($importRadicadoQueue)->delay(now()->addSeconds($index * $delaySeconds));
-            $jobs[] = $job;
-        }
-
-        $queueName = config('process-import.queue') ?: 'process-import';
+        $batch = $this->createBatchRecord($data);
+        $jobs = $this->buildJobs($data->toEnqueue, $data->organizationId, $batch->id);
+        $queueName = config('process-import.jobs.import_radicado.queue');
 
         $laravelBatch = Bus::batch($jobs)
             ->allowFailures()
             ->onQueue($queueName)
-            ->then(function (Batch $batch) use ($queueName): void {
-                $this->onBatchCompleted($batch->id, $queueName);
-            })
+            ->then(fn (Batch $b) => $this->onBatchCompleted($b->id))
             ->dispatch();
 
         $batch->update(['laravel_batch_id' => $laravelBatch->id]);
 
-        $logChannel = config('process-import.log_channel', 'process_import');
-        Log::channel($logChannel)->info('Import batch dispatched', [
+        $this->log('Import batch dispatched', [
             'batch_id' => $batch->id,
             'laravel_batch_id' => $laravelBatch->id,
-            'total_jobs' => count($toEnqueue),
+            'total_jobs' => count($data->toEnqueue),
             'queue' => $queueName,
         ]);
 
-        $body = [
-            'message' => __('process.import_started'),
-            'batch_id' => $batch->id,
-        ];
-        if ($data->skippedAlreadyRegistered > 0) {
-            $body['skipped_already_registered'] = $data->skippedAlreadyRegistered;
-        }
-
-        return $body;
+        return $this->buildResponse($batch, $data->skippedAlreadyRegistered);
     }
 
-    private function onBatchCompleted(string $laravelBatchId, string $queueName): void
+    /**
+     * Marks batch as completed, builds the report and dispatches notifications.
+     *
+     * @param  string  $laravelBatchId  Laravel batch identifier
+     */
+    private function onBatchCompleted(string $laravelBatchId): void
     {
         $importBatch = ProcessImportBatch::query()
             ->with('organization', 'requestedByUser')
@@ -92,21 +68,98 @@ readonly class ProcessImportBatchService
             return;
         }
 
+        $this->markBatchCompleted($importBatch);
+
+        $report = $this->buildReport($importBatch);
+
+        $this->notificationService->notifyAdmin($report);
+        $this->notificationService->notifyOrganization($report, $importBatch->organization_id);
+    }
+
+    /**
+     * Persists the initial batch record with PROCESSING status.
+     *
+     * @param  ProcessImportDataResult  $data  Validated import data
+     */
+    private function createBatchRecord(ProcessImportDataResult $data): ProcessImportBatch
+    {
+        return ProcessImportBatch::query()->create([
+            'organization_id' => $data->organizationId,
+            'requested_by' => $data->requestedById,
+            'file_name' => $data->fileName,
+            'total_count' => count($data->toEnqueue),
+            'enqueued_process_numbers' => $data->toEnqueue,
+            'status' => ProcessImportBatch::STATUS_PROCESSING,
+        ]);
+    }
+
+    /**
+     * Builds the ImportRadicadoJob array with staggered delays per index.
+     *
+     * @param  array<int, string>  $toEnqueue  Process numbers to enqueue
+     * @param  string  $organizationId  Organization identifier
+     * @param  string  $batchId  Import batch DB identifier
+     * @return array<int, ImportRadicadoJob>
+     */
+    private function buildJobs(array $toEnqueue, string $organizationId, string $batchId): array
+    {
+        $delaySeconds = $this->resolveDelaySeconds();
+        $queue = config('process-import.jobs.import_radicado.queue');
+        $jobs = [];
+
+        foreach ($toEnqueue as $index => $processNumber) {
+            $jobs[] = (new ImportRadicadoJob($batchId, $processNumber, $organizationId))
+                ->onQueue($queue)
+                ->delay(now()->addSeconds($index * $delaySeconds));
+        }
+
+        return $jobs;
+    }
+
+    /**
+     * Resolves the delay between jobs from config, falling back to a rate-limit calculation.
+     *
+     * @return int Delay in seconds
+     */
+    private function resolveDelaySeconds(): int
+    {
+        $jobRateLimit = (int) config('process-import.rate_limit_per_minute', 4);
+
+        return (int) config(
+            'process-import.delay_between_radicados_seconds',
+            (int) ceil(60 / max(1, $jobRateLimit)),
+        );
+    }
+
+    /**
+     * Updates the batch to COMPLETED status and logs the summary.
+     *
+     * @param  ProcessImportBatch  $importBatch  Batch model to update
+     */
+    private function markBatchCompleted(ProcessImportBatch $importBatch): void
+    {
         $importBatch->update([
             'status' => ProcessImportBatch::STATUS_COMPLETED,
             'completed_at' => now(),
         ]);
 
-        $logChannel = config('process-import.log_channel', 'process_import');
-        Log::channel($logChannel)->info('Import batch completed', [
+        $this->log('Import batch completed', [
             'batch_id' => $importBatch->id,
             'total_count' => $importBatch->total_count,
             'success_count' => $importBatch->success_count,
             'failed_count' => $importBatch->failed_count,
             'errors_sample' => array_slice($importBatch->errors ?? [], 0, 5),
         ]);
+    }
 
-        $report = new ProcessImportReport(
+    /**
+     * Builds the ProcessImportReport DTO from the completed batch.
+     *
+     * @param  ProcessImportBatch  $importBatch  Completed batch model
+     */
+    private function buildReport(ProcessImportBatch $importBatch): ProcessImportReport
+    {
+        return new ProcessImportReport(
             batchId: $importBatch->id,
             organizationName: $importBatch->organization?->name ?? '',
             totalCount: $importBatch->total_count,
@@ -114,19 +167,39 @@ readonly class ProcessImportBatchService
             failedCount: $importBatch->failed_count,
             errors: $importBatch->errors ?? [],
             completedAt: $importBatch->completed_at,
-            reportRecipientEmail: $importBatch->requestedByUser?->email,
         );
+    }
 
-        $to = config('process-import.report_email');
-        if (empty($to) || ! is_string($to)) {
-            $to = $report->reportRecipientEmail;
+    /**
+     * Builds the HTTP response body, including skipped count only when greater than zero.
+     *
+     * @param  ProcessImportBatch  $batch  Dispatched batch model
+     * @param  int  $skipped  Number of already registered radicados skipped
+     * @return array{message: string, batch_id: string, skipped_already_registered?: int}
+     */
+    private function buildResponse(ProcessImportBatch $batch, int $skipped): array
+    {
+        $body = [
+            'message' => __('process.import_started'),
+            'batch_id' => $batch->id,
+        ];
+
+        if ($skipped > 0) {
+            $body['skipped_already_registered'] = $skipped;
         }
-        if (! empty($to) && is_string($to)) {
-            Notification::route('mail', $to)->notify(new ProcessImportReportNotification($report));
-            Log::channel($logChannel)->info('Import report notification queued', [
-                'batch_id' => $importBatch->id,
-                'queue' => 'emails_import_report',
-            ]);
-        }
+
+        return $body;
+    }
+
+    /**
+     * Writes an info log entry to the configured import channel.
+     *
+     * @param  string  $message  Log message
+     * @param  array<string, mixed>  $context  Additional context data
+     */
+    private function log(string $message, array $context = []): void
+    {
+        Log::channel(config('process-import.log_channel', 'process_import'))
+            ->info($message, $context);
     }
 }

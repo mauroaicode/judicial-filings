@@ -4,78 +4,122 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Process\Services;
 
-use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Src\Application\Admin\Process\Data\ProcessImportFromExcelData;
 use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
-use Src\Domain\Organization\Models\Organization;
+use Src\Application\Admin\Process\DTOs\ProcessImportParseResult;
 use Src\Domain\Process\Models\Process;
 
 readonly class ProcessImportDataService
 {
     /**
-     * Valida request, organización activa, parsea Excel y filtra ya registrados.
-     * Retorna resultado con status/body o datos listos para encolar.
+     * Parses the Excel, filters already registered radicados and returns the result ready to enqueue.
+     *
+     * @param string $organizationId Organization identifier
+     * @param UploadedFile $file Uploaded Excel file
+     * @param string $fileName Original file name for the batch record
+     * @param mixed $requestedById User ID who requested the import
+     * @return ProcessImportDataResult
      */
-    public function handle(Request $request): ProcessImportDataResult
-    {
-        $data = ProcessImportFromExcelData::from($request);
+    public function handle(
+        string $organizationId,
+        UploadedFile $file,
+        string $fileName,
+        mixed $requestedById,
+    ): ProcessImportDataResult {
+        $parsed = $this->parseExcel($file);
 
-        $organization = Organization::query()->find($data->organization_id);
-        if (! $organization || ! $organization->is_active) {
-            return new ProcessImportDataResult(422, [
-                'message' => __('process.organization_inactive'),
-            ]);
-        }
-
-        $reader = new ProcessImportExcelReader($data->file);
-        $result = $reader->parse();
-
-        if ($result->hasErrors()) {
+        if ($parsed->hasErrors()) {
             return new ProcessImportDataResult(422, [
                 'message' => __('process.import_validation_failed'),
-                'errors' => ['rows' => $result->rowErrors],
+                'errors' => ['rows' => $parsed->rowErrors],
             ]);
         }
 
-        if ($result->validNumbers === []) {
+        if ($parsed->validNumbers === []) {
             return new ProcessImportDataResult(422, [
                 'message' => __('process.import_validation_failed'),
                 'errors' => ['file' => [__('validation.process_number.regex')]],
             ]);
         }
 
-        $alreadyRegistered = Process::query()
-            ->whereIn('process_number', $result->validNumbers)
-            ->whereHas('organizations', fn ($q) => $q->where('organizations.id', $data->organization_id))
-            ->pluck('process_number');
+        $alreadyRegistered = $this->findAlreadyRegistered($parsed->validNumbers, $organizationId);
+        $processToEnqueue = $this->resolveToEnqueue($parsed->validNumbers, $alreadyRegistered);
+        $skippedAlreadyRegistered = count($parsed->validNumbers) - count($processToEnqueue);
 
-        $toEnqueue = array_values(array_diff($result->validNumbers, $alreadyRegistered->all()));
-        $skippedAlreadyRegistered = count($result->validNumbers) - count($toEnqueue);
-
-        $logChannel = config('process-import.log_channel', 'process_import');
-        Log::channel($logChannel)->info('Import started: parsing and enqueue', [
-            'valid_numbers_from_excel' => count($result->validNumbers),
+        $this->log('Import started: parsing and enqueue', [
+            'valid_numbers_from_excel' => count($parsed->validNumbers),
             'already_registered_for_org' => $alreadyRegistered->count(),
-            'to_enqueue' => count($toEnqueue),
-            'organization_id' => $data->organization_id,
+            'to_enqueue' => count($processToEnqueue),
+            'organization_id' => $organizationId,
         ]);
 
-        if ($toEnqueue === []) {
+        if ($processToEnqueue === []) {
             return new ProcessImportDataResult(200, [
                 'message' => __('process.import_all_already_registered'),
-                'skipped_already_registered' => count($result->validNumbers),
-            ], toEnqueue: [], skippedAlreadyRegistered: count($result->validNumbers));
+                'skipped_already_registered' => count($parsed->validNumbers),
+            ], toEnqueue: [], skippedAlreadyRegistered: count($parsed->validNumbers));
         }
 
         return new ProcessImportDataResult(
             status: 202,
             body: [],
-            toEnqueue: $toEnqueue,
-            organizationId: $data->organization_id,
-            fileName: $data->file->getClientOriginalName(),
+            toEnqueue: $processToEnqueue,
+            organizationId: $organizationId,
+            fileName: $fileName,
             skippedAlreadyRegistered: $skippedAlreadyRegistered,
-            requestedById: auth()->id(),
+            requestedById: $requestedById,
         );
+    }
+
+    /**
+     * Instantiates the reader and executes the parse.
+     *
+     * @param UploadedFile $file Excel file to parse
+     * @return ProcessImportParseResult
+     */
+    private function parseExcel(UploadedFile $file): ProcessImportParseResult
+    {
+        return (new ProcessImportExcelReader($file))->parse();
+    }
+
+    /**
+     * Queries the DB for process numbers already linked to the given organization.
+     *
+     * @param array<int, string> $validNumbers Process numbers from the Excel
+     * @param string $organizationId Organization identifier
+     * @return Collection<int, string>
+     */
+    private function findAlreadyRegistered(array $validNumbers, string $organizationId): Collection
+    {
+        return Process::query()
+            ->whereIn('process_number', $validNumbers)
+            ->whereHas('organizations', fn ($q) => $q->where('organizations.id', $organizationId))
+            ->pluck('process_number');
+    }
+
+    /**
+     * Returns the difference between all valid numbers and the already registered ones.
+     *
+     * @param array<int, string> $validNumbers All valid process numbers
+     * @param Collection<int, string> $alreadyRegistered Already registered numbers
+     * @return array<int, string>
+     */
+    private function resolveToEnqueue(array $validNumbers, Collection $alreadyRegistered): array
+    {
+        return array_values(array_diff($validNumbers, $alreadyRegistered->all()));
+    }
+
+    /**
+     * Writes an info log entry to the configured import channel.
+     *
+     * @param string $message Log message
+     * @param array<string, mixed> $context Additional context data
+     */
+    private function log(string $message, array $context = []): void
+    {
+        Log::channel(config('process-import.log_channel', 'process_import'))
+            ->info($message, $context);
     }
 }

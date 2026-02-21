@@ -44,7 +44,7 @@ class NotificationDispatcherService
 
         foreach ($channels as $channel) {
             $driver = $this->getDriver($channel->channel_type);
-            if (! $driver instanceof \Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface) {
+            if (! $driver instanceof NotificationChannelDriverInterface) {
                 Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
                     ->warning('Unknown notification channel type', ['channel_type' => $channel->channel_type]);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Domain\Process\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -69,7 +70,7 @@ class ProcessImportBatch extends Model
     ];
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Organization\Models\Organization, $this>
+     * @return BelongsTo<Organization, $this>
      */
     public function organization(): BelongsTo
     {
@@ -77,7 +78,7 @@ class ProcessImportBatch extends Model
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\User\Models\User, $this>
+     * @return BelongsTo<User, $this>
      */
     public function requestedByUser(): BelongsTo
     {
@@ -85,11 +86,11 @@ class ProcessImportBatch extends Model
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Casts\Attribute<int, array{process_number: string, reason: string}>
+     * @return Attribute<int, array{process_number: string, reason: string}>
      */
-    protected function errors(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function errors(): Attribute
     {
-        return \Illuminate\Database\Eloquent\Casts\Attribute::make(get: function ($value): array {
+        return Attribute::make(get: function ($value): array {
             $decoded = is_string($value) ? json_decode($value, true) : $value;
 
             return is_array($decoded) ? $decoded : [];

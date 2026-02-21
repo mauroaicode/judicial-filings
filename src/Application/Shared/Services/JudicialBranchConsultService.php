@@ -6,12 +6,36 @@ namespace Src\Application\Shared\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Throwable;
 
 class JudicialBranchConsultService
 {
+    /**
+     * Controla el rate limit interno antes de cada llamada HTTP a la API.
+     * Si el cupo está agotado, duerme en intervalos cortos hasta que se libere
+     * un slot (máximo 60 segundos de espera), evitando lanzar excepciones que
+     * provocarían retries en cascada en el job.
+     *
+     * Requiere que la cola process-import tenga exactamente 1 worker activo.
+     * Con múltiples workers simultáneos, el bucket se llena en paralelo y la
+     * espera no es suficiente para garantizar el límite.
+     */
+    private function throttle(): void
+    {
+        $key = 'judicial-api-http-calls';
+        $limit = (int) config('judicial-branch.rate_limit_per_minute', 8);
+        $sleepSeconds = (int) ceil(60 / max(1, $limit));
+
+        while (RateLimiter::tooManyAttempts($key, $limit)) {
+            sleep($sleepSeconds);
+        }
+
+        RateLimiter::hit($key, 60);
+    }
+
     /**
      * Fetches a list of processes by filing code.
      *
@@ -24,6 +48,8 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
+            $this->throttle();
+
             $baseUrl = config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion';
             $allProcesses = [];
             $currentPage = 1;
@@ -111,6 +137,8 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
+            $this->throttle();
+
             $endpoint = config('judicial-branch.api_url')."/Proceso/Detalle/{$processId}";
             $timeout = (int) config('judicial-branch.timeout_seconds', 60);
 
@@ -149,6 +177,8 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
+            $this->throttle();
+
             $baseUrl = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
             $allActions = [];
             $currentPage = 1;
@@ -213,6 +243,8 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
+            $this->throttle();
+
             $baseUrl = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
             $allSubjects = [];
             $currentPage = 1;
