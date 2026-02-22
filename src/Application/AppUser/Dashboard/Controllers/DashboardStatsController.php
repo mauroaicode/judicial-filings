@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Dashboard\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Src\Application\AppUser\Dashboard\Services\DashboardStatsService;
+use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\AppUser\Models\AppUser;
 
 readonly class DashboardStatsController
@@ -14,7 +16,7 @@ readonly class DashboardStatsController
         private DashboardStatsService $dashboardStatsService
     ) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         /** @var AppUser $appUser */
         $appUser = auth()->user();
@@ -25,7 +27,9 @@ readonly class DashboardStatsController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $stats = $this->dashboardStatsService->handle($organization->id);
+        $filters = ProcessFilterData::from($request->query());
+
+        $stats = $this->dashboardStatsService->handle($organization->id, $filters);
 
         return response()->json($stats->toArray());
     }

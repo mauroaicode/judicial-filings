@@ -30,7 +30,7 @@ class JudicialBranchConsultService
         $sleepSeconds = (int) ceil(60 / max(1, $limit));
 
         while (RateLimiter::tooManyAttempts($key, $limit)) {
-            sleep($sleepSeconds);
+            \Illuminate\Support\Sleep::sleep($sleepSeconds);
         }
 
         RateLimiter::hit($key, 60);
@@ -90,7 +90,7 @@ class JudicialBranchConsultService
             $data = $allProcesses;
 
             // 200 con procesos vacíos: fallo definitivo, no reintentar (el usuario puede verificar en la Rama Judicial).
-            if (empty($allProcesses)) {
+            if ($allProcesses === []) {
                 throw new ApiEmptyProcessesException(__('process.api_empty_processes'));
             }
         } catch (ApiEmptyProcessesException|ApiForbiddenOrRateLimitException $e) {
@@ -118,6 +118,7 @@ class JudicialBranchConsultService
                 __('process.api_forbidden', ['context' => $context])
             );
         }
+
         if ($status === 429) {
             throw new ApiForbiddenOrRateLimitException(
                 __('process.api_rate_limit', ['context' => $context])

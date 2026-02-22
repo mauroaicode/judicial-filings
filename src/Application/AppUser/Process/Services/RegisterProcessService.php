@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
+use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
@@ -233,7 +234,11 @@ readonly class RegisterProcessService
      */
     private function validateAndGetProcessesFromJudicialBranch(string $processNumber): array
     {
-        $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
+        try {
+            $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
+        } catch (ApiEmptyProcessesException) {
+            abort(404, __('process.not_found_in_judicial_branch'));
+        }
 
         if (! $response->isSuccessful || empty($response->data)) {
             abort(404, __('process.not_found_in_judicial_branch'));

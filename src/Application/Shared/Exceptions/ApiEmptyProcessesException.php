@@ -13,10 +13,4 @@ use Exception;
  * por lo que el job reintenta un número limitado de veces antes de marcar fallo definitivo.
  * Si tras todos los reintentos sigue vacío, el radicado genuinamente no existe.
  */
-class ApiEmptyProcessesException extends Exception
-{
-    public function __construct(string $message)
-    {
-        parent::__construct($message);
-    }
-}
+class ApiEmptyProcessesException extends Exception {}

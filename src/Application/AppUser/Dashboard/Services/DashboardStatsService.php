@@ -4,45 +4,70 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Dashboard\Services;
 
+use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Dashboard\Resources\DashboardStatsResource;
+use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\Notification\Models\OrganizationNotification;
-use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
+use Src\Domain\Process\Models\Process;
 
 readonly class DashboardStatsService
 {
-    public function handle(string $organizationId): DashboardStatsResource
+    public function handle(string $organizationId, ProcessFilterData $filters): DashboardStatsResource
     {
-        $processCounts = $this->getProcessCounts($organizationId);
+        $processCounts = $this->getProcessCounts($organizationId, $filters);
         $notificationCountsByType = $this->getNotificationCountsByType($organizationId);
 
         return DashboardStatsResource::fromCounts(
             totalProcesses: $processCounts['total'],
             activeProcesses: $processCounts['active'],
             inactiveProcesses: $processCounts['inactive'],
+            processesWithMultipleInstances: $processCounts['multiple_instances'],
             notificationsByType: $notificationCountsByType
         );
     }
 
     /**
-     * @return array{total: int, active: int, inactive: int}
+     * Counts unique radicados (by process_number) applying the same filters as the process list.
+     * Uses the filteredIdsQuery pattern to ensure consistent results with the listing endpoint.
+     *
+     * @return array{total: int, active: int, inactive: int, multiple_instances: int}
      */
-    private function getProcessCounts(string $organizationId): array
+    private function getProcessCounts(string $organizationId, ProcessFilterData $filters): array
     {
-        $total = OrganizationProcess::query()
-            ->where('organization_id', $organizationId)
-            ->count();
+        $filteredIdsQuery = Process::query()
+            ->whereOrganization($organizationId)
+            ->filters($filters)
+            ->select('id');
 
-        $active = OrganizationProcess::query()
-            ->where('organization_id', $organizationId)
-            ->where('is_active', true)
-            ->count();
+        $total = (int) Process::query()
+            ->whereIn('id', $filteredIdsQuery)
+            ->distinct()
+            ->count('process_number');
 
-        $inactive = $total - $active;
+        $active = (int) Process::query()
+            ->whereIn('id', $filteredIdsQuery)
+            ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($organizationId): void {
+                $q->where('organizations.id', $organizationId)
+                    ->where('organization_processes.is_active', true);
+            })
+            ->distinct()
+            ->count('process_number');
+
+        $multipleInstances = (int) DB::table(
+            Process::query()
+                ->whereIn('id', $filteredIdsQuery)
+                ->select('process_number')
+                ->groupBy('process_number')
+                ->havingRaw('COUNT(*) > 1')
+                ->toBase(),
+            'grouped'
+        )->count();
 
         return [
             'total' => $total,
             'active' => $active,
-            'inactive' => $inactive,
+            'inactive' => $total - $active,
+            'multiple_instances' => $multipleInstances,
         ];
     }
 

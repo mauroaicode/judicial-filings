@@ -69,7 +69,7 @@ class ProcessDetailResource extends Resource
             filing_content: $process->filing_content,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
-            last_api_update: $process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null,
+            last_api_update: $process->last_api_update ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_api_update) : null,
             status_label: $status->getLabel(),
             created_at: DateFormatHelper::formatDateTime($createdAt),
             updated_at: DateFormatHelper::formatDateTime($process->updated_at),

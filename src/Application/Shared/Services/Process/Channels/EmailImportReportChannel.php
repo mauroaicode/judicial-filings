@@ -18,7 +18,8 @@ class EmailImportReportChannel implements ImportReportChannelInterface
         if (empty($to) || ! is_string($to)) {
             $to = $report->reportRecipientEmail;
         }
-        if (empty($to) || ! is_string($to)) {
+
+        if (in_array($to, [null, '', '0'], true)) {
             Log::channel(config('process-import.log_channel', 'process_import'))
                 ->warning('Process import report email skipped: PROCESS_IMPORT_REPORT_EMAIL not set and no requested_by user email');
 

@@ -31,6 +31,7 @@ beforeEach(function (): void {
         'Src\Application\AppUser\Chat\Services\OpenAIThreadManager',
         'Src\Application\AppUser\Chat\Services\OpenAIAssistantRunner',
         'Src\Application\Admin\Process\Services\ProcessImportExcelReader', // reader with parse() for Excel radicado list
+        'Src\Application\Admin\Process\Services\ProcessImportBatchService', // dispatch() is the public entry point for batch queuing
     ]);
 });
 

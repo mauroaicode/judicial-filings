@@ -70,7 +70,9 @@ readonly class ProcessController
             abort(404, __('process.not_found'));
         }
 
-        $subjects = $process->subjects->map(fn (ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
+        $subjects = $process->subjects
+            ->sortBy(fn (ProcessSubject $subject): int => $subject->subject_type === 'Demandante' ? 0 : 1)
+            ->map(fn (ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
 
         return response()->json([
             'process' => ProcessDetailResource::fromModel($process, $organization->id)->toArray(),

@@ -147,7 +147,7 @@ class ImportReportNotificationService
 
             $internalChannel = $this->findInternalChannel($organizationId);
 
-            if ($internalChannel) {
+            if ($internalChannel instanceof \Src\Domain\Notification\Models\OrganizationNotificationChannel) {
                 $this->recordHistory($orgNotification, $internalChannel, true);
             }
 

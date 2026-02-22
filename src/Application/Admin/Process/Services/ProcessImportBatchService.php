@@ -164,7 +164,7 @@ readonly class ProcessImportBatchService
     {
         return new ProcessImportReport(
             batchId: $importBatch->id,
-            organizationName: $importBatch->organization?->name ?? '',
+            organizationName: $importBatch->organization->name ?? '',
             excelTotalCount: $importBatch->excel_total_count,
             totalCount: $importBatch->total_count,
             multipleInstancesCount: $importBatch->multiple_instances_count,

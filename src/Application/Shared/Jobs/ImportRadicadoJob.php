@@ -231,7 +231,7 @@ class ImportRadicadoJob implements ShouldQueue
         DB::transaction(function () use ($reason): void {
             $batch = $this->findBatchForUpdate();
 
-            if (! $batch) {
+            if (! $batch instanceof \Src\Domain\Process\Models\ProcessImportBatch) {
                 return;
             }
 

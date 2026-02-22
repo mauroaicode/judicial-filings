@@ -36,8 +36,7 @@ class SendProcessImportReportJob implements ShouldQueue
 
     public function __construct(
         public string $processImportBatchId
-    ) {
-    }
+    ) {}
 
     /**
      * @throws \Throwable
@@ -55,7 +54,9 @@ class SendProcessImportReportJob implements ShouldQueue
         $report = new ProcessImportReport(
             batchId: $batch->id,
             organizationName: $batch->organization->name ?? '',
+            excelTotalCount: $batch->excel_total_count,
             totalCount: $batch->total_count,
+            multipleInstancesCount: $batch->multiple_instances_count,
             successCount: $batch->success_count,
             failedCount: $batch->failed_count,
             errors: $batch->errors ?? [],

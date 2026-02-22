@@ -93,9 +93,10 @@ it('rejects process registration when radicado does not exist in judicial branch
         ], 200),
     ]);
 
+    // Use a number never created by any test so the fast-path (DB lookup) is never triggered
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
-            'process_number' => '76001333301320170009301',
+            'process_number' => '00000000000000000000001',
         ]);
 
     $response->assertStatus(404);
@@ -210,9 +211,9 @@ it('rejects process registration when existing global process is private', funct
         ]);
 
     $response->assertStatus(422);
-    // When there's a single instance and the existing global process is private, return is_private message
+    // When the process already exists in DB and is private, the fast-path returns all_instances_are_private
     $response->assertJson([
-        'messages' => [__('process.is_private')],
+        'messages' => [__('process.all_instances_are_private')],
     ]);
 
     // Verify process was not attached to organization
@@ -256,19 +257,21 @@ it('rejects process registration when single instance is private', function (): 
 });
 
 it('registers a new process successfully', function (): void {
+    // Use process_id 2834511724 (distinct from 1834511724 used in other test runs)
+    // so whereProcessId() never finds a stale record from a previous DB run
     Http::fake([
         config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion*' => Http::response([
             'procesos' => [
                 [
-                    'idProceso' => 1834511724,
+                    'idProceso' => 2834511724,
                 ],
             ],
             'paginacion' => [
                 'cantidadPaginas' => 1,
             ],
         ], 200),
-        config('judicial-branch.api_url').'/Proceso/Detalle/1834511724' => Http::response([
-            'idProceso' => 1834511724,
+        config('judicial-branch.api_url').'/Proceso/Detalle/2834511724' => Http::response([
+            'idProceso' => 2834511724,
             'despacho' => 'DESPACHO 000 - TRIBUNAL ADMINISTRATIVO',
             'departamento' => 'VALLE DEL CAUCA',
             'tipoProceso' => 'Ordinario',
@@ -281,7 +284,7 @@ it('registers a new process successfully', function (): void {
             'contenidoRadicacion' => 'APELACION DE SENTENCIA',
             'esPrivado' => false,
         ], 200),
-        config('judicial-branch.api_url').'/Proceso/Actuaciones/1834511724*' => Http::response([
+        config('judicial-branch.api_url').'/Proceso/Actuaciones/2834511724*' => Http::response([
             'actuaciones' => [
                 [
                     'idRegActuacion' => 123456,
@@ -297,7 +300,7 @@ it('registers a new process successfully', function (): void {
                 'cantidadPaginas' => 1,
             ],
         ], 200),
-        config('judicial-branch.api_url').'/Proceso/Sujetos/1834511724*' => Http::response([
+        config('judicial-branch.api_url').'/Proceso/Sujetos/2834511724*' => Http::response([
             'sujetos' => [
                 [
                     'idRegSujeto' => 14585521,
@@ -318,9 +321,10 @@ it('registers a new process successfully', function (): void {
         ], 200),
     ]);
 
+    // Use a unique number exclusive to this test to avoid DB contamination across runs
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
-            'process_number' => '76001333301320170009301',
+            'process_number' => '76001333301320240000001',
         ]);
 
     $response->assertStatus(201);
@@ -339,7 +343,7 @@ it('registers a new process successfully', function (): void {
         ],
     ]);
 
-    expect($response->json('process.process_number'))->toBe('76001333301320170009301');
+    expect($response->json('process.process_number'))->toBe('76001333301320240000001');
     expect($response->json('message'))->toBe(__('process.registered_successfully'));
     expect($response->json('has_multiple_instances'))->toBeFalse();
     expect($response->json('total_processes'))->toBe(1);
@@ -351,7 +355,7 @@ it('registers a new process successfully', function (): void {
     $process = Process::query()->find($processUuid);
 
     expect($process)->not->toBeNull()
-        ->and($process->process_id)->toBe(1834511724)
+        ->and($process->process_id)->toBe(2834511724)
         ->and($process->court)->toContain('DESPACHO 000 - TRIBUNAL ADMINISTRATIVO')
         ->and($process->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
 });

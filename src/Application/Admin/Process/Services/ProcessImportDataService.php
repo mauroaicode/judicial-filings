@@ -16,11 +16,10 @@ readonly class ProcessImportDataService
     /**
      * Parses the Excel, filters already registered radicados and returns the result ready to enqueue.
      *
-     * @param string $organizationId Organization identifier
-     * @param UploadedFile $file Uploaded Excel file
-     * @param string $fileName Original file name for the batch record
-     * @param mixed $requestedById User ID who requested the import
-     * @return ProcessImportDataResult
+     * @param  string  $organizationId  Organization identifier
+     * @param  UploadedFile  $file  Uploaded Excel file
+     * @param  string  $fileName  Original file name for the batch record
+     * @param  mixed  $requestedById  User ID who requested the import
      */
     public function handle(
         string $organizationId,
@@ -76,8 +75,7 @@ readonly class ProcessImportDataService
     /**
      * Instantiates the reader and executes the parse.
      *
-     * @param UploadedFile $file Excel file to parse
-     * @return ProcessImportParseResult
+     * @param  UploadedFile  $file  Excel file to parse
      */
     private function parseExcel(UploadedFile $file): ProcessImportParseResult
     {
@@ -87,23 +85,23 @@ readonly class ProcessImportDataService
     /**
      * Queries the DB for process numbers already linked to the given organization.
      *
-     * @param array<int, string> $validNumbers Process numbers from the Excel
-     * @param string $organizationId Organization identifier
+     * @param  array<int, string>  $validNumbers  Process numbers from the Excel
+     * @param  string  $organizationId  Organization identifier
      * @return Collection<int, string>
      */
     private function findAlreadyRegistered(array $validNumbers, string $organizationId): Collection
     {
         return Process::query()
             ->whereIn('process_number', $validNumbers)
-            ->whereHas('organizations', fn ($q) => $q->where('organizations.id', $organizationId))
+            ->whereHas('organizations', fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q->where('organizations.id', $organizationId))
             ->pluck('process_number');
     }
 
     /**
      * Returns the difference between all valid numbers and the already registered ones.
      *
-     * @param array<int, string> $validNumbers All valid process numbers
-     * @param Collection<int, string> $alreadyRegistered Already registered numbers
+     * @param  array<int, string>  $validNumbers  All valid process numbers
+     * @param  Collection<int, string>  $alreadyRegistered  Already registered numbers
      * @return array<int, string>
      */
     private function resolveToEnqueue(array $validNumbers, Collection $alreadyRegistered): array
@@ -114,8 +112,8 @@ readonly class ProcessImportDataService
     /**
      * Writes an info log entry to the configured import channel.
      *
-     * @param string $message Log message
-     * @param array<string, mixed> $context Additional context data
+     * @param  string  $message  Log message
+     * @param  array<string, mixed>  $context  Additional context data
      */
     private function log(string $message, array $context = []): void
     {
