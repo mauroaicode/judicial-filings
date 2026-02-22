@@ -53,6 +53,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retry para respuesta vacía (200 pero sin procesos)
+    |--------------------------------------------------------------------------
+    |
+    | Rama Judicial puede devolver HTTP 200 con array vacío de forma transitoria
+    | cuando está bajo carga (comportamiento observado en logs). Un reintento
+    | corto resuelve el problema. Máximo 3 intentos con 120s de espera.
+    | Si tras todos los reintentos sigue vacío → fallo definitivo (radicado
+    | genuinamente no existe en Rama Judicial).
+    |
+    */
+    'retry_max_attempts_for_empty' => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_EMPTY', 3),
+    'retry_release_seconds_for_empty' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_SECONDS_EMPTY', 120),
+
+    /*
+    |--------------------------------------------------------------------------
     | Retry para rate limit real de la API (403/429 HTTP)
     |--------------------------------------------------------------------------
     |

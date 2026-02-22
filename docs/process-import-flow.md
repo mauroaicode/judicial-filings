@@ -69,8 +69,11 @@ ImportRadicadoJob::handle()
 |-----------|-----------|--------|
 | 403 / 429 real de la API | Sí, hasta `PROCESS_IMPORT_TRIES` | `PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT` + jitter 20 % |
 | Radicado no existe en Rama (transitorio) | Sí, hasta `PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_NOT_FOUND` | `PROCESS_IMPORT_RETRY_RELEASE_SECONDS_NOT_FOUND` |
+| 200 con procesos vacíos | Sí, hasta `PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_EMPTY` | `PROCESS_IMPORT_RETRY_RELEASE_SECONDS_EMPTY` |
 | Otro error | Sí, hasta `PROCESS_IMPORT_RETRY_MAX_ATTEMPTS` | `PROCESS_IMPORT_RETRY_RELEASE_SECONDS` |
-| 200 con procesos vacíos | No (fallo definitivo) | — |
+
+> **¿Por qué reintentar el 200 vacío?**  
+> Rama Judicial puede devolver HTTP 200 con array vacío de forma **transitoria** cuando está bajo carga (comportamiento observado en logs). Si tras todos los reintentos sigue vacío, se trata como fallo definitivo: el radicado genuinamente no existe en Rama Judicial.
 
 ### Completado del batch
 
@@ -132,11 +135,20 @@ PROCESS_IMPORT_DELAY_SECONDS=15            # delay escalonado entre jobs
 PROCESS_IMPORT_TRIES=30
 PROCESS_IMPORT_JOB_TIMEOUT=600            # debe ser > 60 / rate_limit
 
-# Reintentos
+# Reintentos — 403/429 real de la API
 PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT=180
+
+# Reintentos — otros errores genéricos
 PROCESS_IMPORT_RETRY_MAX_ATTEMPTS=2
+PROCESS_IMPORT_RETRY_RELEASE_SECONDS=120
+
+# Reintentos — radicado no encontrado en Rama Judicial (puede ser transitorio)
 PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_NOT_FOUND=10
 PROCESS_IMPORT_RETRY_RELEASE_SECONDS_NOT_FOUND=300
+
+# Reintentos — 200 OK con array vacío (Rama Judicial bajo carga devuelve vacío transitoriamente)
+PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_EMPTY=3
+PROCESS_IMPORT_RETRY_RELEASE_SECONDS_EMPTY=120
 
 # Notificaciones
 ADMIN_PROCESS_IMPORT_REPORT_EMAIL=admin@ejemplo.com

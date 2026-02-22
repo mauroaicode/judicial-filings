@@ -87,6 +87,7 @@ readonly class ProcessImportBatchService
             'organization_id' => $data->organizationId,
             'requested_by' => $data->requestedById,
             'file_name' => $data->fileName,
+            'excel_total_count' => count($data->toEnqueue) + $data->skippedAlreadyRegistered,
             'total_count' => count($data->toEnqueue),
             'enqueued_process_numbers' => $data->toEnqueue,
             'status' => ProcessImportBatch::STATUS_PROCESSING,
@@ -145,9 +146,11 @@ readonly class ProcessImportBatchService
 
         $this->log('Import batch completed', [
             'batch_id' => $importBatch->id,
+            'excel_total_count' => $importBatch->excel_total_count,
             'total_count' => $importBatch->total_count,
             'success_count' => $importBatch->success_count,
             'failed_count' => $importBatch->failed_count,
+            'multiple_instances_count' => $importBatch->multiple_instances_count,
             'errors_sample' => array_slice($importBatch->errors ?? [], 0, 5),
         ]);
     }
@@ -162,7 +165,9 @@ readonly class ProcessImportBatchService
         return new ProcessImportReport(
             batchId: $importBatch->id,
             organizationName: $importBatch->organization?->name ?? '',
+            excelTotalCount: $importBatch->excel_total_count,
             totalCount: $importBatch->total_count,
+            multipleInstancesCount: $importBatch->multiple_instances_count,
             successCount: $importBatch->success_count,
             failedCount: $importBatch->failed_count,
             errors: $importBatch->errors ?? [],

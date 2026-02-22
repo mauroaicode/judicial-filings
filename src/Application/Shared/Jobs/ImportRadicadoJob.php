@@ -59,7 +59,15 @@ class ImportRadicadoJob implements ShouldQueue
             $result = $registerProcessService->handle($this->processNumber, $this->organizationId);
 
             $this->incrementBatchSuccess($result->registeredCount);
-            $this->log('info', 'Import radicado finished successfully', ['registered_count' => $result->registeredCount]);
+
+            if ($result->hasMultipleInstances) {
+                $this->incrementMultipleInstancesCount();
+            }
+
+            $this->log('info', 'Import radicado finished successfully', [
+                'registered_count' => $result->registeredCount,
+                'has_multiple_instances' => $result->hasMultipleInstances,
+            ]);
         } catch (Throwable $e) {
             $this->handleException($e);
         }
@@ -67,6 +75,7 @@ class ImportRadicadoJob implements ShouldQueue
 
     /**
      * Records the failure in the batch when Laravel moves the job to failed_jobs.
+     *
      * @throws Throwable
      */
     public function failed(?Throwable $e = null): void
@@ -93,17 +102,14 @@ class ImportRadicadoJob implements ShouldQueue
     }
 
     /**
-     * Routes the exception: definitive failure, retry or final failure.
+     * Routes the exception: retryable (with release), or definitive failure.
+     *
+     * Empty-processes (ApiEmptyProcessesException) gets a limited number of retries because
+     * Rama Judicial occasionally returns HTTP 200 with an empty array under load. After all
+     * retries are exhausted it is treated as a genuine "radicado does not exist" failure.
      */
     private function handleException(Throwable $e): void
     {
-        if ($e instanceof ApiEmptyProcessesException) {
-            $this->log('info', 'Import radicado failed: empty processes, no retry', ['reason' => $e->getMessage()]);
-            $this->appendBatchError($e->getMessage());
-
-            return;
-        }
-
         [$releaseSeconds, $maxAttempts] = $this->resolveRetryConfig($e);
 
         if ($this->attempts() <= $maxAttempts) {
@@ -130,15 +136,25 @@ class ImportRadicadoJob implements ShouldQueue
     /**
      * Returns [releaseSeconds, maxAttempts] based on the exception type.
      *
+     * - Empty processes (200 + vacío): Rama Judicial returns empty transiently under load.
+     *   Small number of retries; if still empty after all retries → definitive failure.
      * - 403/429: jitter applied to spread simultaneous retries.
      * - Not found: longer wait; may be transient (timeout, API failure).
      * - Generic: shorter wait with fewer retries.
      *
      * @return array{int, int}
+     *
      * @throws RandomException
      */
     private function resolveRetryConfig(Throwable $e): array
     {
+        if ($e instanceof ApiEmptyProcessesException) {
+            return [
+                (int) config('process-import.retry_release_seconds_for_empty', 120),
+                (int) config('process-import.retry_max_attempts_for_empty', 3),
+            ];
+        }
+
         if ($e instanceof ApiForbiddenOrRateLimitException) {
             $base = (int) config('process-import.retry_release_seconds_for_rate_limit', 180);
             $jitter = (int) ceil($base * 0.20);
@@ -179,7 +195,8 @@ class ImportRadicadoJob implements ShouldQueue
 
     /**
      * Atomically increments success_count on the batch record.
-     * @throws Throwable
+     *
+     * @param  int  $count  Number of registered instances (may be > 1 for double-instance radicados)
      */
     private function incrementBatchSuccess(int $count = 1): void
     {
@@ -194,7 +211,19 @@ class ImportRadicadoJob implements ShouldQueue
     }
 
     /**
+     * Atomically increments multiple_instances_count when the radicado has more than one judicial instance.
+     */
+    private function incrementMultipleInstancesCount(): void
+    {
+        DB::transaction(function (): void {
+            $batch = $this->findBatchForUpdate();
+            $batch?->increment('multiple_instances_count');
+        });
+    }
+
+    /**
      * Atomically appends an error entry and increments failed_count on the batch record.
+     *
      * @throws Throwable
      */
     private function appendBatchError(string $reason): void

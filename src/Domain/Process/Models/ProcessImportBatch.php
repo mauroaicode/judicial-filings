@@ -17,10 +17,12 @@ use Src\Domain\User\Models\User;
  * @property-read string $organization_id
  * @property-read string|null $requested_by
  * @property-read string $file_name
- * @property-read int $total_count
+ * @property-read int $excel_total_count Total valid radicados in the uploaded Excel file
+ * @property-read int $total_count Radicados actually enqueued (after filtering already-registered for this org)
  * @property-read array<int, string>|null $enqueued_process_numbers
- * @property-read int $success_count
+ * @property-read int $success_count Judicial instances registered (may exceed total_count for double-instance radicados)
  * @property-read int $failed_count
+ * @property-read int $multiple_instances_count Radicados with more than one judicial instance
  * @property-read string $status
  * @property-read array<int, array{process_number: string, reason: string}> $errors
  * @property-read string|null $laravel_batch_id
@@ -49,10 +51,12 @@ class ProcessImportBatch extends Model
         'organization_id',
         'requested_by',
         'file_name',
+        'excel_total_count',
         'total_count',
         'enqueued_process_numbers',
         'success_count',
         'failed_count',
+        'multiple_instances_count',
         'status',
         'errors',
         'laravel_batch_id',
@@ -63,10 +67,12 @@ class ProcessImportBatch extends Model
     protected $casts = [
         'errors' => 'array',
         'completed_at' => 'datetime',
+        'excel_total_count' => 'integer',
         'total_count' => 'integer',
         'enqueued_process_numbers' => 'array',
         'success_count' => 'integer',
         'failed_count' => 'integer',
+        'multiple_instances_count' => 'integer',
     ];
 
     /**

@@ -24,7 +24,14 @@ readonly class RegisterProcessService
     ) {}
 
     /**
-     * Handle the process of registration.
+     * Registers a radicado for an organization.
+     *
+     * Fast path: if any instance of the radicado already exists in DB (registered by another org),
+     * all instances are attached directly without any API call.
+     * Full path: if the radicado is not in DB, the Rama Judicial API is consulted.
+     *
+     * @param  string  $processNumber  23-digit radicado number
+     * @param  string  $organizationId  Organization UUID
      *
      * @throws \Throwable
      */
@@ -32,6 +39,72 @@ readonly class RegisterProcessService
     {
         $this->validateProcessNotAlreadyRegistered($processNumber, $organizationId);
 
+        $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
+
+        if ($existingProcesses->isNotEmpty()) {
+            return $this->attachExistingProcesses($existingProcesses, $organizationId);
+        }
+
+        return $this->registerFromApi($processNumber, $organizationId);
+    }
+
+    /**
+     * Attaches all existing DB instances of a radicado to the organization (no API calls).
+     *
+     * Called when the radicado is already registered globally (by another organization).
+     * The daily sync guarantees all instances are up to date in the DB.
+     *
+     * @param  Collection<int, Process>  $processes  All DB instances of the radicado
+     * @param  string  $organizationId  Organization UUID
+     *
+     * @throws \Throwable
+     */
+    private function attachExistingProcesses(Collection $processes, string $organizationId): RegisterProcessResult
+    {
+        return DB::transaction(function () use ($processes, $organizationId): RegisterProcessResult {
+            /** @var Collection<int, Process> $attached */
+            $attached = collect();
+            $privateCount = 0;
+
+            foreach ($processes as $process) {
+                if ($process->is_private) {
+                    $privateCount++;
+
+                    continue;
+                }
+
+                $this->attachProcessToOrganization($process, $organizationId);
+                $attached->push($process);
+            }
+
+            if ($attached->isEmpty()) {
+                abort(422, __('process.all_instances_are_private'));
+            }
+
+            return new RegisterProcessResult(
+                processes: $attached,
+                hasMultipleInstances: $attached->count() > 1,
+                totalProcesses: $processes->count(),
+                registeredCount: $attached->count(),
+                privateCount: $privateCount,
+            );
+        });
+    }
+
+    /**
+     * Consults the Rama Judicial API to register a new radicado and sync its actions/subjects.
+     *
+     * Called only when no instance of the radicado exists in DB.
+     * For each API instance: if the process_id is already in DB (race condition), it attaches;
+     * otherwise it creates the record and syncs actuaciones and sujetos procesales.
+     *
+     * @param  string  $processNumber  23-digit radicado number
+     * @param  string  $organizationId  Organization UUID
+     *
+     * @throws \Throwable
+     */
+    private function registerFromApi(string $processNumber, string $organizationId): RegisterProcessResult
+    {
         $processesData = $this->validateAndGetProcessesFromJudicialBranch($processNumber);
 
         $hasMultipleInstances = count($processesData) > 1;
@@ -42,7 +115,6 @@ readonly class RegisterProcessService
         $privateCount = 0;
 
         return DB::transaction(function () use ($processNumber, $organizationId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
-
             foreach ($processesData as $processData) {
                 $isPrivate = $processData['esPrivado'] ?? false;
 
@@ -58,11 +130,7 @@ readonly class RegisterProcessService
                     continue;
                 }
 
-                $detailData = $this->validateAndGetProcessDetails($processId);
-
-                $globalProcess = Process::query()
-                    ->whereProcessId($processId)
-                    ->first();
+                $globalProcess = Process::query()->whereProcessId($processId)->first();
 
                 if ($globalProcess) {
                     if ($globalProcess->is_private) {
@@ -81,10 +149,11 @@ readonly class RegisterProcessService
                     continue;
                 }
 
+                $detailData = $this->validateAndGetProcessDetails($processId);
                 $fechaUltimaActuacion = $processData['fechaUltimaActuacion'] ?? null;
+
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
                 $this->attachProcessToOrganization($process, $organizationId);
-
                 $this->processSyncService->handle($process);
 
                 $registeredProcesses->push($process);
@@ -176,8 +245,9 @@ readonly class RegisterProcessService
     /**
      * Validate and get detailed process information from the judicial branch.
      *
-     * @param int $processId The API process ID.
+     * @param  int  $processId  The API process ID.
      * @return array<string, mixed> The detailed process data.
+     *
      * @throws ApiForbiddenOrRateLimitException
      */
     private function validateAndGetProcessDetails(int $processId): array
