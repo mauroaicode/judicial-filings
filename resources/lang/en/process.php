@@ -48,4 +48,6 @@ return [
     'api_rate_limit' => 'The Judicial Branch API responded 429 Too Many Requests (:context). Please retry later.',
     'sync_failed_actuaciones' => 'Could not fetch process actions. Please retry later.',
     'sync_failed_sujetos' => 'Could not fetch process subjects. Please retry later.',
+    'activated_successfully' => 'Process activated successfully.',
+    'deactivated_successfully' => 'Process deactivated successfully.',
 ];

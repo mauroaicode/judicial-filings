@@ -9,12 +9,14 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Src\Application\AppUser\Process\Data\RegisterProcessData;
+use Src\Application\AppUser\Process\Data\ToggleProcessStatusData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\AppUser\Process\Resources\ProcessDetailResource;
 use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
+use Src\Application\AppUser\Process\Services\ToggleProcessStatusService;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\Process;
@@ -26,7 +28,8 @@ readonly class ProcessController
     public function __construct(
         private RegisterProcessService $registerProcessService,
         private ProcessFinderService $processFinderService,
-        private ProcessDetailService $processDetailService
+        private ProcessDetailService $processDetailService,
+        private ToggleProcessStatusService $toggleProcessStatusService,
     ) {}
 
     /**
@@ -120,6 +123,29 @@ readonly class ProcessController
                 'term_end_date' => '-',
             ] : null,
         ], 201);
+    }
+
+    /**
+     * Activate or deactivate a process for the authenticated user's organization.
+     */
+    public function toggleStatus(ToggleProcessStatusData $data, string $id): JsonResponse
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        $this->toggleProcessStatusService->handle($id, $organization->id, $data->is_active);
+
+        $message = $data->is_active
+            ? __('process.activated_successfully')
+            : __('process.deactivated_successfully');
+
+        return response()->json(['message' => $message]);
     }
 
     /**

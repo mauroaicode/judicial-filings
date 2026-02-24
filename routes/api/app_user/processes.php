@@ -8,5 +8,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('processes', [ProcessController::class, 'index']);
     Route::post('processes', [ProcessController::class, 'store']);
     Route::get('processes/{id}', [ProcessController::class, 'show']);
+    Route::patch('processes/{id}/status', [ProcessController::class, 'toggleStatus']);
     Route::get('processes/{id}/instances', [ProcessInstancesController::class, 'index']);
 });

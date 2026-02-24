@@ -48,4 +48,6 @@ return [
     'api_rate_limit' => 'La API de la Rama Judicial respondió 429 Too Many Requests (:context). Reintente más tarde.',
     'sync_failed_actuaciones' => 'No se pudieron obtener las actuaciones del proceso. Reintente más tarde.',
     'sync_failed_sujetos' => 'No se pudieron obtener los sujetos procesales del proceso. Reintente más tarde.',
+    'activated_successfully' => 'Proceso activado exitosamente.',
+    'deactivated_successfully' => 'Proceso desactivado exitosamente.',
 ];
