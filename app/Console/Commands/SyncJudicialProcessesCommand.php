@@ -103,7 +103,7 @@ class SyncJudicialProcessesCommand extends Command
     private function syncProcessesByRadicado(string $processNumber): void
     {
         $result = $this->judicialService->fetchProcesses($processNumber);
-        if (! $result->isSuccessful || ! is_array($result->data)) {
+        if (! $result->isSuccessful) {
             return;
         }
 
@@ -144,7 +144,7 @@ class SyncJudicialProcessesCommand extends Command
         $apiProcessId = (int) ($apiProceso['idProceso'] ?? 0);
         $detail = $this->judicialService->fetchDetailProcess($apiProcessId);
 
-        if (! $detail->isSuccessful || ! is_array($detail->data)) {
+        if (! $detail->isSuccessful) {
             $court = (string) ($apiProceso['despacho'] ?? 'N/A');
             $department = (string) ($apiProceso['departamento'] ?? 'N/A');
             $processDate = $this->parseDate($apiProceso['fechaProceso'] ?? null);

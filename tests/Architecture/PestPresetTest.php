@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 arch()->preset()->php();
-arch()->preset()->security()->ignoring(['sha', 'md5']);
+arch()->preset()->security()->ignoring(['sha', 'md5', 'array_rand']);
 
 arch('No debugging functions in Src')
     ->expect('Src')

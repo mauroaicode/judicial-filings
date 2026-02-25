@@ -118,22 +118,118 @@ php artisan queue:work --queue=process-import --timeout=620 --max-time=7200
 php artisan queue:work --queue=emails_import_report
 ```
 
-> **Nota:** Un solo worker en `process-import` es suficiente y recomendado.
-> El throttle interno de `JudicialBranchConsultService` bloquea con `sleep()`
-> hasta liberar cupo, garantizando el ritmo máximo configurado sin generar
-> retries en cascada. Con múltiples workers se agota el rate limit más rápido.
+> **Sin proxies:** Un solo worker en `process-import` es suficiente y recomendado.
+> El throttle interno bloquea con `sleep()` hasta liberar cupo.
+> Con múltiples workers se agota el rate limit más rápido.
+>
+> **Con proxies activos:** Se pueden levantar múltiples workers ya que cada
+> request sale desde una IP diferente. Se recomienda 2–4 workers en paralelo.
+> `PROCESS_IMPORT_DELAY_SECONDS=3` garantiza tiempo para persistir en BD.
+
+---
+
+## 3.1 Proxy Pool — rotación de IPs
+
+El `ProxyPoolService` gestiona un pool de proxies HTTP que se rota aleatoriamente
+en cada request a Rama Judicial, eliminando el rate limit por IP.
+
+### Arquitectura
+
+```
+ImportRadicadoJob
+    └─► RegisterProcessService
+            └─► JudicialBranchConsultService
+                    ├─ throttle()         → sleep 3s (con proxy) o RateLimiter (sin proxy)
+                    ├─ buildHttpClient()  → inyecta proxy aleatorio del pool
+                    │       └─► ProxyPoolService::next()
+                    │               ├─ lee pool del caché (o lo carga)
+                    │               └─ array_rand($proxies) → ip:port aleatoria
+                    └─ request HTTP → Rama Judicial (vía proxy)
+```
+
+### Proveedores disponibles
+
+| Variable | Valor | Descripción |
+|----------|-------|-------------|
+| `JUDICIAL_BRANCH_PROXY_PROVIDER` | `proxyscrape` | Proxies HTTP datacenter. Respuesta: texto plano `ip:port` por línea. Soportan CONNECT tunneling (HTTPS puerto 448). **Recomendado.** |
+| `JUDICIAL_BRANCH_PROXY_PROVIDER` | `geonode` | Proxies HTTP gratuitos. Respuesta: JSON `{ data: [ { ip, port } ] }`. Calidad variable. |
+
+### Activar proxies (configuración rápida)
+
+```dotenv
+JUDICIAL_BRANCH_PROXY_ENABLED=true
+JUDICIAL_BRANCH_PROXY_PROVIDER=proxyscrape   # o geonode
+PROCESS_IMPORT_DELAY_SECONDS=3               # tiempo para persistir en BD entre requests
+```
+
+### Desactivar proxies (volver a rate limit interno)
+
+```dotenv
+JUDICIAL_BRANCH_PROXY_ENABLED=false
+PROCESS_IMPORT_DELAY_SECONDS=15              # delay escalonado sin proxies
+JUDICIAL_BRANCH_RATE_LIMIT_PER_MINUTE=8
+```
+
+### Comportamiento del throttle según modo
+
+| Modo | Throttle aplicado |
+|------|-------------------|
+| **Sin proxy** | `RateLimiter` interno: bloquea con `sleep()` hasta liberar slot. Requiere 1 solo worker. |
+| **Con proxy** | Sleep fijo de `PROCESS_IMPORT_DELAY_SECONDS` segundos (default 3s) para dar tiempo a la BD. Soporta múltiples workers. |
+
+### Selección de proxy
+
+Se usa `array_rand()` para seleccionar una IP aleatoria del pool en cada request.
+No requiere contadores compartidos (evita el bug de `Cache::increment` con driver `database`).
+
+### Caché del pool
+
+El listado de proxies se cachea `JUDICIAL_BRANCH_PROXY_CACHE_TTL_MINUTES` minutos
+(default: 60). Para forzar recarga: `php artisan cache:forget judicial_proxy_pool`.
+
+### Logs
+
+Cada request registra la IP usada (o "direct connection") en el canal `process_import`:
+
+```
+[ProxyPool]    Proxy pool loaded {"provider":"proxyscrape","count":1000}
+[JudicialBranch] Using proxy {"proxy":"http://104.207.46.209:3129","pool_count":1000}
+[JudicialBranch] HTTP 403 from Rama Judicial {"context":"fetchProcesses","proxy_mode":"proxy pool [1000 IPs]"}
+```
 
 ---
 
 ## 4. Variables de entorno relevantes
 
 ```dotenv
-# Rate limit y colas
-JUDICIAL_BRANCH_RATE_LIMIT_PER_MINUTE=8   # máx peticiones/min a Rama Judicial
+# ── Rama Judicial API ──────────────────────────────────────────────────────────
+JUDICIAL_BRANCH_API_URL=https://consultaprocesos.ramajudicial.gov.co:448/api/v2
+JUDICIAL_BRANCH_TIMEOUT_SECONDS=60
+JUDICIAL_BRANCH_LOG_CHANNEL=process_import
+
+# Rate limit interno (solo aplica cuando JUDICIAL_BRANCH_PROXY_ENABLED=false)
+JUDICIAL_BRANCH_RATE_LIMIT_PER_MINUTE=8   # máx peticiones HTTP/min a Rama Judicial
+
+# ── Proxy Pool ─────────────────────────────────────────────────────────────────
+JUDICIAL_BRANCH_PROXY_ENABLED=false        # true = activar rotación de IPs
+
+# Proveedor: "proxyscrape" o "geonode"
+JUDICIAL_BRANCH_PROXY_PROVIDER=proxyscrape
+
+# URL ProxyScrape (respuesta: texto plano ip:port por línea)
+# JUDICIAL_BRANCH_PROXY_PROXYSCRAPE_URL=https://api.proxyscrape.com/v2/account/...
+
+# URL Geonode (respuesta: JSON { data: [ { ip, port } ] })
+# JUDICIAL_BRANCH_PROXY_GEONODE_URL=https://proxylist.geonode.com/api/proxy-list?...
+
+# TTL de caché del pool (minutos)
+# JUDICIAL_BRANCH_PROXY_CACHE_TTL_MINUTES=60
+
+# ── Colas e importación ────────────────────────────────────────────────────────
 PROCESS_IMPORT_QUEUE=process-import
-PROCESS_IMPORT_DELAY_SECONDS=15            # delay escalonado entre jobs
+PROCESS_IMPORT_DELAY_SECONDS=3   # ≥3 con proxy; 15 sin proxy
 PROCESS_IMPORT_TRIES=30
-PROCESS_IMPORT_JOB_TIMEOUT=600            # debe ser > 60 / rate_limit
+PROCESS_IMPORT_JOB_TIMEOUT=600
 
 # Reintentos — 403/429 real de la API
 PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT=180
@@ -150,7 +246,7 @@ PROCESS_IMPORT_RETRY_RELEASE_SECONDS_NOT_FOUND=300
 PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_EMPTY=3
 PROCESS_IMPORT_RETRY_RELEASE_SECONDS_EMPTY=120
 
-# Notificaciones
+# ── Notificaciones ─────────────────────────────────────────────────────────────
 ADMIN_PROCESS_IMPORT_REPORT_EMAIL=admin@ejemplo.com
 ```
 

@@ -83,6 +83,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retry para fallo de proxy (cURL error 7 / cURL error 28)
+    |--------------------------------------------------------------------------
+    |
+    | Solo aplica cuando JUDICIAL_BRANCH_PROXY_ENABLED=true y el proxy
+    | seleccionado no pudo conectar (cURL 7 = proxy caído) o agotó el tiempo
+    | de espera (cURL 28 = proxy lento/bloqueado).
+    |
+    | El reintento es casi inmediato (5 s) porque en el siguiente intento
+    | array_rand() seleccionará una IP diferente del pool de 1000 proxies.
+    | Con 10 reintentos máx, el job prueba hasta 10 IPs distintas antes de
+    | marcarse como fallido.
+    |
+    */
+    'retry_release_seconds_for_proxy_failure' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_PROXY_FAILURE', 5),
+    'retry_max_attempts_for_proxy_failure' => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_PROXY_FAILURE', 10),
+
+    /*
+    |--------------------------------------------------------------------------
     | Report channels
     |--------------------------------------------------------------------------
     |

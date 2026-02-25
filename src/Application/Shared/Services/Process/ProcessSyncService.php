@@ -140,8 +140,8 @@ class ProcessSyncService
             return;
         }
 
-        $apiActuaciones = is_array($actionsResult->data) ? $actionsResult->data : [];
-        $apiSujetos = is_array($subjectsResult->data) ? $subjectsResult->data : [];
+        $apiActuaciones = $actionsResult->data;
+        $apiSujetos = $subjectsResult->data;
 
         $this->syncActuaciones($representative, $apiActuaciones);
         $this->syncSujetos($representative, $apiSujetos);

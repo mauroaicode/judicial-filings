@@ -16,6 +16,7 @@ use Random\RandomException;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Exceptions\ApiProxyFailureException;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
@@ -136,6 +137,8 @@ class ImportRadicadoJob implements ShouldQueue
     /**
      * Returns [releaseSeconds, maxAttempts] based on the exception type.
      *
+     * - Proxy failure (cURL 7/28): retry immediately (5 s) so array_rand picks
+     *   a different IP. High max_attempts because proxy failures are transient.
      * - Empty processes (200 + vacío): Rama Judicial returns empty transiently under load.
      *   Small number of retries; if still empty after all retries → definitive failure.
      * - 403/429: jitter applied to spread simultaneous retries.
@@ -148,6 +151,13 @@ class ImportRadicadoJob implements ShouldQueue
      */
     private function resolveRetryConfig(Throwable $e): array
     {
+        if ($e instanceof ApiProxyFailureException) {
+            return [
+                (int) config('process-import.retry_release_seconds_for_proxy_failure', 5),
+                (int) config('process-import.retry_max_attempts_for_proxy_failure', 10),
+            ];
+        }
+
         if ($e instanceof ApiEmptyProcessesException) {
             return [
                 (int) config('process-import.retry_release_seconds_for_empty', 120),
