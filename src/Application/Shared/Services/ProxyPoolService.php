@@ -82,11 +82,25 @@ class ProxyPoolService
 
         $ttlMinutes = (int) config('judicial-branch.proxy.cache_ttl_minutes', 60);
 
-        $this->proxies = Cache::remember(
-            self::CACHE_KEY,
-            now()->addMinutes($ttlMinutes),
-            fn (): array => $this->fetchProxies()
-        );
+        $cached = Cache::get(self::CACHE_KEY);
+
+        // Never use a cached empty list: it means a previous fetch failed.
+        // Retry the fetch and only cache when it returns proxies.
+        if (is_array($cached) && ! empty($cached)) {
+            $this->proxies = $cached;
+
+            return;
+        }
+
+        $fetched = $this->fetchProxies();
+
+        if (! empty($fetched)) {
+            Cache::put(self::CACHE_KEY, $fetched, now()->addMinutes($ttlMinutes));
+        } else {
+            $this->logWarning('Proxy fetch returned empty list — skipping cache, will retry on next request');
+        }
+
+        $this->proxies = $fetched;
     }
 
     /**

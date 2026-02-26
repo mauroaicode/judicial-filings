@@ -11,6 +11,7 @@ use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Shared\DTOs\ProcessImportReport;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
 use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
+use Src\Domain\Process\Events\ProcessImportFinished;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Throwable;
 
@@ -74,6 +75,8 @@ readonly class ProcessImportBatchService
 
         $this->notificationService->notifyAdmin($report);
         $this->notificationService->notifyOrganization($report, $importBatch->organization_id);
+
+        event(new ProcessImportFinished($importBatch));
     }
 
     /**

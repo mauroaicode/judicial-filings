@@ -9,6 +9,7 @@ use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Models\AlertActionKeyword;
+use Src\Domain\Process\Events\JudicialActionDetected;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessActionAlertHighlight;
@@ -117,5 +118,7 @@ readonly class ProcessActionAlertNotificationService
         );
 
         dispatch(SendOrganizationNotificationJob::fromNotification($notification));
+
+        event(new JudicialActionDetected($action, $organizationId, $notificationType));
     }
 }
