@@ -36,14 +36,21 @@ return [
     |--------------------------------------------------------------------------
     |
     | Cuando está habilitado, cada request HTTP a Rama Judicial sale desde
-    | una IP aleatoria del pool, eliminando el rate limit por IP.
+    | una IP del pool en rotación secuencial (round-robin), eliminando el
+    | rate limit por IP. El índice rotativo se guarda en Cache de forma
+    | atómica (compatible con Redis, Memcached y database driver).
     |
     | ACTIVAR:
     |   JUDICIAL_BRANCH_PROXY_ENABLED=true
-    |   JUDICIAL_BRANCH_PROXY_PROVIDER=proxyscrape   (o geonode)
+    |   JUDICIAL_BRANCH_PROXY_PROVIDER=webshare   (recomendado)
     |   PROCESS_IMPORT_DELAY_SECONDS=3
     |
     | PROVEEDORES disponibles:
+    |
+    |   webshare    → Proveedor recomendado. API REST con autenticación Bearer.
+    |                 Plan gratuito: 10 proxies. Desde $5/mes: 100+ proxies.
+    |                 KEY: JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY
+    |                 URL: JUDICIAL_BRANCH_PROXY_WEBSHARE_URL (opcional)
     |
     |   proxyscrape → Proxies HTTP de datacenter. Respuesta: texto plano ip:port
     |                 por línea. Soportan CONNECT tunneling (HTTPS puerto 448).
@@ -53,7 +60,6 @@ return [
     |                 cada item tiene "ip" y "port".
     |                 URL: JUDICIAL_BRANCH_PROXY_GEONODE_URL
     |
-    | La IP se selecciona con array_rand() en cada request (sin estado compartido).
     | El pool se cachea JUDICIAL_BRANCH_PROXY_CACHE_TTL_MINUTES minutos.
     |
     */
@@ -62,11 +68,20 @@ return [
 
         'provider' => env('JUDICIAL_BRANCH_PROXY_PROVIDER', 'proxyscrape'),
 
+        // --- Webshare (recomendado) ---
+        'webshare_api_key' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY'),
+        'webshare_url' => env(
+            'JUDICIAL_BRANCH_PROXY_WEBSHARE_URL',
+            'https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=100'
+        ),
+
+        // --- ProxyScrape ---
         'proxyscrape_url' => env(
             'JUDICIAL_BRANCH_PROXY_PROXYSCRAPE_URL',
             'https://api.proxyscrape.com/v2/account/datacenter_shared/proxy-list?auth=nd5mj9mbo93ezor333qi&type=getproxies&country[]=all&protocol=http&format=normal&status=all'
         ),
 
+        // --- Geonode ---
         'geonode_url' => env(
             'JUDICIAL_BRANCH_PROXY_GEONODE_URL',
             'https://proxylist.geonode.com/api/proxy-list?protocols=http&limit=500&page=1&sort_by=lastChecked&sort_type=desc'
