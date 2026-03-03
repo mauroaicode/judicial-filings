@@ -66,27 +66,33 @@ return [
     'proxy' => [
         'enabled' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
 
-        'provider' => env('JUDICIAL_BRANCH_PROXY_PROVIDER', 'proxyscrape'),
+        /*
+         * Proveedor activo. Actualmente solo "webshare" está soportado.
+         * Los proveedores anteriores (proxyscrape, geonode) han sido eliminados.
+         */
+        'provider' => env('JUDICIAL_BRANCH_PROXY_PROVIDER', 'webshare'),
 
-        // --- Webshare (recomendado) ---
+        // --- Webshare ---
+        // Obtener en: https://proxy.webshare.io/userapi/keys
         'webshare_api_key' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY'),
-        'webshare_url' => env(
-            'JUDICIAL_BRANCH_PROXY_WEBSHARE_URL',
-            'https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=100'
-        ),
+        // auth_mode: "ip" (ip:port) o "credentials" (user:pass@ip:port)
+        'webshare_auth_mode' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE', 'ip'),
 
-        // --- ProxyScrape ---
-        'proxyscrape_url' => env(
-            'JUDICIAL_BRANCH_PROXY_PROXYSCRAPE_URL',
-            'https://api.proxyscrape.com/v2/account/datacenter_shared/proxy-list?auth=nd5mj9mbo93ezor333qi&type=getproxies&country[]=all&protocol=http&format=normal&status=all'
-        ),
-
-        // --- Geonode ---
-        'geonode_url' => env(
-            'JUDICIAL_BRANCH_PROXY_GEONODE_URL',
-            'https://proxylist.geonode.com/api/proxy-list?protocols=http&limit=500&page=1&sort_by=lastChecked&sort_type=desc'
-        ),
-
-        'cache_ttl_minutes' => (int) env('JUDICIAL_BRANCH_PROXY_CACHE_TTL_MINUTES', 60),
+        /*
+        |----------------------------------------------------------------------
+        | Umbral mínimo de proxies activos antes de refrescar el pool
+        |----------------------------------------------------------------------
+        |
+        | Cuando el ratio active_count / total_count cae por debajo de este
+        | valor, el pool se refresca automáticamente desde Webshare.
+        |
+        | Recomendado: 0.20 → solo refrescar si más del 80% del pool está caído.
+        | Evita el loop de refresh durante importaciones donde proxies bloqueados
+        | por Rama Judicial reducen el ratio pero el pool sigue siendo usable.
+        |
+        | Usa proxy:validate-rama antes de importar para limpiar el pool manualmente.
+        |
+        */
+        'pool_min_active_ratio' => (float) env('JUDICIAL_BRANCH_PROXY_MIN_ACTIVE_RATIO', 0.20),
     ],
 ];

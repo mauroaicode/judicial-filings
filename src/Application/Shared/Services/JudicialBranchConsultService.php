@@ -16,6 +16,9 @@ use Throwable;
 
 class JudicialBranchConsultService
 {
+    /** Tracks the proxy URL used in the current HTTP call for failure reporting. */
+    private ?string $currentProxy = null;
+
     public function __construct(
         private readonly ProxyPoolService $proxyPool,
     ) {}
@@ -247,7 +250,7 @@ class JudicialBranchConsultService
 
     /**
      * Builds an HTTP client pre-configured with timeout and, when proxy is
-     * enabled, a randomly selected proxy from the pool.
+     * enabled, the next proxy from the round-robin pool.
      *
      * When proxies are active the timeout is capped at 15 s: datacenter proxies
      * typically fail within 10 s anyway (cURL 28), so waiting 60 s only delays
@@ -265,14 +268,13 @@ class JudicialBranchConsultService
             'Content-Type' => 'application/json',
         ]);
 
-        $proxy = $this->proxyPool->next();
+        $this->currentProxy = $this->proxyPool->next();
 
-        if ($proxy !== null) {
-            $client = $client->withOptions(['proxy' => $proxy]);
+        if ($this->currentProxy !== null) {
+            $client = $client->withOptions(['proxy' => $this->currentProxy]);
 
-            $this->logInfo('Using proxy', [
-                'proxy' => $proxy,
-                'pool_count' => $this->proxyPool->count(),
+            $this->logInfo('Using proxy (round-robin)', [
+                'pool_active' => $this->proxyPool->count(),
             ]);
         } else {
             $this->logInfo('Using direct connection (proxy disabled or pool empty)');
@@ -323,6 +325,12 @@ class JudicialBranchConsultService
     private function throwIfForbiddenOrRateLimit(int $status, string $context): void
     {
         if ($status === 403 || $status === 429) {
+            // In proxy mode, a 403 usually means the current egress IP is blocked.
+            // Mark it inactive so round-robin stops reusing it.
+            if ($status === 403 && $this->currentProxy !== null && config('judicial-branch.proxy.enabled', false)) {
+                $this->proxyPool->markFailed($this->currentProxy);
+            }
+
             $proxyMode = config('judicial-branch.proxy.enabled', false)
                 ? ('proxy pool ['.$this->proxyPool->count().' IPs]')
                 : 'direct connection';
@@ -330,6 +338,7 @@ class JudicialBranchConsultService
             $this->logWarning("HTTP {$status} from Rama Judicial", [
                 'context' => $context,
                 'proxy_mode' => $proxyMode,
+                'proxy_marked_failed' => $status === 403 && $this->currentProxy !== null,
             ]);
 
             $key = $status === 403 ? 'process.api_forbidden' : 'process.api_rate_limit';
@@ -342,7 +351,10 @@ class JudicialBranchConsultService
 
     /**
      * Converts cURL proxy errors into ApiProxyFailureException so the job
-     * retries immediately and array_rand() picks a different IP next time.
+     * retries immediately and the round-robin picks a different IP next time.
+     *
+     * Also marks the failed proxy as inactive in the pool so it is skipped
+     * in subsequent round-robin iterations.
      *
      * Detected errors:
      *   - cURL 7  (CURLE_COULDNT_CONNECT): proxy is dead or blocked.
@@ -370,10 +382,14 @@ class JudicialBranchConsultService
         $curlCode = $isCurlError7 ? 7 : 28;
         $label = $isCurlError7 ? 'proxy dead (CURLE_COULDNT_CONNECT)' : 'proxy timeout (CURLE_OPERATION_TIMEDOUT)';
 
-        $this->logWarning("Proxy failure — {$label}, will retry with different IP", [
+        if ($this->currentProxy !== null) {
+            $this->proxyPool->markFailed($this->currentProxy);
+        }
+
+        $this->logWarning("Proxy failure — {$label}, proxy marked inactive, will retry with next IP", [
             'context' => $context,
             'curl_error' => $curlCode,
-            'pool_count' => $this->proxyPool->count(),
+            'pool_active' => $this->proxyPool->count(),
         ]);
 
         throw new ApiProxyFailureException(

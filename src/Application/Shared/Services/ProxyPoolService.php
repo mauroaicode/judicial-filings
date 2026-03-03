@@ -4,36 +4,42 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Services;
 
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Manages a rotating pool of HTTP proxies from ProxyScrape or Geonode.
+ * Manages a rotating pool of HTTP proxies using a round-robin strategy
+ * persisted in the database.
  *
- * When proxy usage is enabled (JUDICIAL_BRANCH_PROXY_ENABLED=true), each HTTP
- * request to Rama Judicial is routed through a randomly selected proxy from the
- * pool, distributing requests across many IPs and bypassing per-IP rate limits.
+ * On each call to next(), the service atomically advances a pointer in
+ * proxy_pool_state and returns the proxy at that position from
+ * proxy_pool_entries. This guarantees sequential, non-repeating rotation
+ * across concurrent workers without relying on the cache driver.
  *
- * Provider selection is controlled by JUDICIAL_BRANCH_PROXY_PROVIDER:
- *   - "proxyscrape" → plain-text list (ip:port per line) from ProxyScrape datacenter API
- *   - "geonode"     → JSON list from Geonode free proxy API
+ * The proxy list is fetched from Webshare once and stored in the DB.
+ * It is only re-fetched when:
+ *   1. The pool is empty (first run or after a manual refresh).
+ *   2. The ratio of active proxies drops below the configured minimum
+ *      (proxy_pool_min_active_ratio, default 0.70).
+ *   3. A manual php artisan proxy:refresh is executed.
  *
- * Proxy selection uses array_rand() so each call gets a different IP without
- * requiring shared atomic counters (which fail with the database cache driver).
+ * Proxy format stored: "username:password@ip:port"
+ * Proxy format returned to cURL: "http://username:password@ip:port"
  */
 class ProxyPoolService
 {
-    private const CACHE_KEY = 'judicial_proxy_pool';
+    public function __construct() {}
 
-    /** @var list<string> Loaded pool of "ip:port" strings */
-    private array $proxies = [];
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
 
     /**
-     * Returns a random proxy URL from the pool, or null when proxies are
-     * disabled or the pool is empty.
+     * Returns the next proxy URL in round-robin order, or null when proxies
+     * are disabled or the pool is empty.
      *
-     * Format returned: "http://ip:port"
+     * Format returned: "http://user:pass@ip:port"
      */
     public function next(): ?string
     {
@@ -41,191 +47,312 @@ class ProxyPoolService
             return null;
         }
 
-        $this->ensurePoolLoaded();
+        $this->ensurePoolReady();
 
-        if ($this->proxies === []) {
-            return null;
-        }
+        return DB::transaction(function (): ?string {
+            $state = DB::table('proxy_pool_state')
+                ->where('id', 1)
+                ->lockForUpdate()
+                ->first();
 
-        return 'http://'.$this->proxies[array_rand($this->proxies)];
+            if (! $state || $state->active_count === 0) {
+                return null;
+            }
+
+            $totalCount = (int) $state->total_count;
+            $startPosition = (int) $state->current_position;
+
+            // Find the next active proxy starting from current_position,
+            // wrapping around if needed. Tries up to total_count positions.
+            $proxy = null;
+            $nextPosition = $startPosition;
+
+            for ($i = 0; $i < $totalCount; $i++) {
+                $candidate = DB::table('proxy_pool_entries')
+                    ->where('position', $nextPosition % $totalCount)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($candidate !== null) {
+                    $proxy = $candidate->proxy_address;
+                    $nextPosition = ($nextPosition % $totalCount) + 1;
+                    break;
+                }
+
+                $nextPosition++;
+            }
+
+            if ($proxy === null) {
+                return null;
+            }
+
+            DB::table('proxy_pool_state')
+                ->where('id', 1)
+                ->update(['current_position' => $nextPosition % $totalCount]);
+
+            $this->logInfo('Proxy selected (round-robin)', [
+                'proxy' => $this->maskProxy($proxy),
+                'position' => ($nextPosition - 1 + $totalCount) % $totalCount,
+                'active_count' => $state->active_count,
+                'total_count' => $totalCount,
+            ]);
+
+            return 'http://'.$proxy;
+        });
     }
 
     /**
-     * Returns how many proxies are currently loaded in the pool.
+     * Marks a proxy as inactive after a cURL 7 or cURL 28 failure.
+     * Also decrements active_count in proxy_pool_state.
      */
-    public function count(): int
+    public function markFailed(string $proxyUrl): void
     {
-        $this->ensurePoolLoaded();
+        // Strip only the exact "http://" prefix to match stored format.
+        $proxy = str_starts_with($proxyUrl, 'http://')
+            ? substr($proxyUrl, 7)
+            : $proxyUrl;
 
-        return count($this->proxies);
+        $updated = DB::table('proxy_pool_entries')
+            ->where('proxy_address', $proxy)
+            ->where('is_active', true)
+            ->update(['is_active' => false, 'updated_at' => now()]);
+
+        if ($updated > 0) {
+            DB::table('proxy_pool_state')
+                ->where('id', 1)
+                ->decrement('active_count');
+
+            $this->logWarning('Proxy marked as failed', [
+                'proxy' => $this->maskProxy($proxy),
+            ]);
+        }
     }
 
     /**
-     * Clears the cached pool and forces a fresh fetch on the next call.
+     * Forces a fresh fetch from the provider, truncates the pool and resets
+     * the round-robin pointer to 0.
      */
     public function refresh(): void
     {
-        Cache::forget(self::CACHE_KEY);
-        $this->proxies = [];
-        $this->ensurePoolLoaded();
+        $this->logInfo('Refreshing proxy pool from provider...');
+
+        $proxies = $this->fetchFromWebshare();
+
+        if (empty($proxies)) {
+            $this->logWarning('Webshare returned empty proxy list — pool not updated');
+
+            return;
+        }
+
+        $this->persistPool($proxies);
+
+        $this->logInfo('Proxy pool refreshed', ['count' => count($proxies)]);
+    }
+
+    /**
+     * Returns the number of active proxies currently in the pool.
+     */
+    public function count(): int
+    {
+        return (int) (DB::table('proxy_pool_state')->where('id', 1)->value('active_count') ?? 0);
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private function ensurePoolLoaded(): void
+    /**
+     * Ensures the pool has at least one active proxy.
+     *
+     * Only fetches from the provider when the pool is completely empty (first
+     * run or after a manual php artisan proxy:refresh that wiped entries).
+     *
+     * Auto-refresh by active-ratio is intentionally removed: calling the
+     * Webshare API (~10 s) inside every next() call during an import adds
+     * massive latency. Use php artisan proxy:validate-rama before importing
+     * to pre-clean the pool, and php artisan proxy:refresh to replenish IPs.
+     */
+    private function ensurePoolReady(): void
     {
-        if ($this->proxies !== []) {
-            return;
+        $state = DB::table('proxy_pool_state')->where('id', 1)->first();
+
+        if ($state === null || (int) $state->active_count === 0) {
+            $this->logInfo('Pool is empty — fetching from Webshare');
+            $this->refresh();
         }
-
-        $ttlMinutes = (int) config('judicial-branch.proxy.cache_ttl_minutes', 60);
-
-        $cached = Cache::get(self::CACHE_KEY);
-
-        // Never use a cached empty list: it means a previous fetch failed.
-        // Retry the fetch and only cache when it returns proxies.
-        if (is_array($cached) && ! empty($cached)) {
-            $this->proxies = $cached;
-
-            return;
-        }
-
-        $fetched = $this->fetchProxies();
-
-        if (! empty($fetched)) {
-            Cache::put(self::CACHE_KEY, $fetched, now()->addMinutes($ttlMinutes));
-        } else {
-            $this->logWarning('Proxy fetch returned empty list — skipping cache, will retry on next request');
-        }
-
-        $this->proxies = $fetched;
     }
 
     /**
-     * Fetches proxies from the configured provider.
+     * Fetches all proxies from Webshare API, iterating through all pages.
      *
-     * @return list<string>
+     * Response format per item:
+     * {
+     *   "id": "d-17329297559",
+     *   "username": "wfvehrrc",
+     *   "password": "ab7xwhoq3eip",
+     *   "proxy_address": "38.154.217.40",
+     *   "port": 7231,
+     *   "valid": true,
+     *   ...
+     * }
+     *
+     * Stored format: "username:password@proxy_address:port"
+     *
+     * @return list<array{id: string, proxy: string}>
      */
-    private function fetchProxies(): array
+    private function fetchFromWebshare(): array
     {
-        $provider = strtolower((string) config('judicial-branch.proxy.provider', 'proxyscrape'));
+        $apiKey = (string) config('judicial-branch.proxy.webshare_api_key');
+        $authMode = strtolower((string) config('judicial-branch.proxy.webshare_auth_mode', 'ip'));
 
-        $proxies = match ($provider) {
-            'geonode' => $this->fetchFromGeonode(),
-            'proxyscrape' => $this->fetchFromProxyScrape(),
-            default => $this->fetchFromProxyScrape(),
-        };
-
-        $this->logInfo('Proxy pool loaded', [
-            'provider' => $provider,
-            'count' => count($proxies),
-        ]);
-
-        return $proxies;
-    }
-
-    /**
-     * Fetches from ProxyScrape datacenter shared proxy API.
-     *
-     * Response format: plain text, one "ip:port" per line.
-     * These are HTTP datacenter proxies that support CONNECT tunneling,
-     * required for HTTPS on non-standard ports (e.g. port 448 of Rama Judicial).
-     *
-     * @return list<string>
-     */
-    private function fetchFromProxyScrape(): array
-    {
-        try {
-            $url = (string) config('judicial-branch.proxy.proxyscrape_url');
-
-            if ($url === '' || $url === '0') {
-                $this->logWarning('ProxyScrape URL not configured (judicial-branch.proxy.proxyscrape_url)');
-
-                return [];
-            }
-
-            $response = Http::timeout(20)->get($url);
-
-            if (! $response->successful()) {
-                $this->logWarning('ProxyScrape returned non-200', ['status' => $response->status()]);
-
-                return [];
-            }
-
-            $lines = preg_split('/\r?\n/', trim($response->body())) ?: [];
-
-            return array_values(array_filter(
-                array_map(trim(...), $lines),
-                static fn (string $line): bool => (bool) preg_match('/^\d{1,3}(?:\.\d{1,3}){3}:\d{2,5}$/', $line)
-            ));
-        } catch (\Throwable $e) {
-            $this->logWarning('Failed to fetch from ProxyScrape', ['error' => $e->getMessage()]);
+        if ($apiKey === '' || $apiKey === '0') {
+            $this->logWarning('Webshare API key not configured (JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY)');
 
             return [];
         }
+
+        $pageSize = 100;
+        $page = 1;
+        $allProxies = [];
+
+        try {
+            do {
+                $url = "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page={$page}&page_size={$pageSize}";
+
+                $response = Http::timeout(20)
+                    ->withHeaders(['Authorization' => "Token {$apiKey}"])
+                    ->get($url);
+
+                if (! $response->successful()) {
+                    $this->logWarning('Webshare API returned non-200', [
+                        'status' => $response->status(),
+                        'page' => $page,
+                    ]);
+
+                    break;
+                }
+
+                $data = $response->json();
+                $results = $data['results'] ?? [];
+
+                foreach ($results as $item) {
+                    if (! ($item['valid'] ?? false)) {
+                        continue;
+                    }
+
+                    $proxyId = $item['id'] ?? null;
+                    $username = $item['username'] ?? null;
+                    $password = $item['password'] ?? null;
+                    $ip = $item['proxy_address'] ?? null;
+                    $port = $item['port'] ?? null;
+
+                    if (! $proxyId || ! $ip || ! $port) {
+                        continue;
+                    }
+
+                    $proxyString = "{$ip}:{$port}";
+
+                    if ($authMode === 'credentials' && $username && $password) {
+                        $proxyString = "{$username}:{$password}@{$ip}:{$port}";
+                    }
+
+                    $allProxies[] = [
+                        'id' => $proxyId,
+                        'proxy' => $proxyString,
+                    ];
+                }
+
+                $hasNextPage = ! empty($data['next']);
+                $page++;
+
+            } while ($hasNextPage);
+
+            $this->logInfo('Webshare fetch complete', ['total' => count($allProxies)]);
+
+        } catch (\Throwable $e) {
+            $this->logWarning('Failed to fetch from Webshare', ['error' => $e->getMessage()]);
+        }
+
+        return $allProxies;
     }
 
     /**
-     * Fetches from Geonode free proxy list API.
+     * Persists the proxy list using upsert to preserve existing is_active state.
      *
-     * Response format: JSON with a "data" array; each item has "ip" and "port".
-     * Endpoint: https://proxylist.geonode.com/api/proxy-list?protocols=http&limit=500&...
+     * - New proxies from the provider are inserted as active.
+     * - Existing proxies keep their current is_active value (failed ones stay failed).
+     * - Proxies no longer returned by the provider are removed.
+     * - active_count is recalculated from the actual DB state after the upsert.
      *
-     * @return list<string>
+     * This prevents the auto-refresh loop where refreshing resets all failed
+     * proxies back to active, only to have them fail again immediately.
+     *
+     * @param  list<array{id: string, proxy: string}>  $proxies
      */
-    private function fetchFromGeonode(): array
+    private function persistPool(array $proxies): void
     {
-        try {
-            $url = (string) config('judicial-branch.proxy.geonode_url');
+        $now = now();
+        $incomingIds = array_column($proxies, 'id');
 
-            if ($url === '' || $url === '0') {
-                $this->logWarning('Geonode URL not configured (judicial-branch.proxy.geonode_url)');
+        DB::transaction(function () use ($proxies, $incomingIds, $now): void {
+            // Remove proxies no longer in the provider list
+            DB::table('proxy_pool_entries')
+                ->whereNotIn('proxy_id', $incomingIds)
+                ->delete();
 
-                return [];
+            // Upsert: insert new proxies as active, update address/position for existing ones
+            // but do NOT touch is_active so validated failures are preserved.
+            $rows = [];
+
+            foreach ($proxies as $position => $item) {
+                $rows[] = [
+                    'proxy_id' => $item['id'],
+                    'proxy_address' => $item['proxy'],
+                    'position' => $position,
+                    'is_active' => true,   // only applied on INSERT, not on UPDATE
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
 
-            $response = Http::timeout(20)
-                ->withHeaders(['User-Agent' => 'Mozilla/5.0 (compatible; curl/7.0)'])
-                ->get($url);
-
-            if (! $response->successful()) {
-                $this->logWarning('Geonode returned non-200', ['status' => $response->status()]);
-
-                return [];
+            foreach (array_chunk($rows, 500) as $chunk) {
+                DB::table('proxy_pool_entries')->upsert(
+                    $chunk,
+                    ['proxy_id'],                          // unique key
+                    ['proxy_address', 'position', 'updated_at'], // update these on conflict, NOT is_active
+                );
             }
 
-            $data = $response->json('data', []);
+            // Recalculate active_count from actual DB state
+            $totalCount = count($proxies);
+            $activeCount = DB::table('proxy_pool_entries')->where('is_active', true)->count();
 
-            if (empty($data) || ! is_array($data)) {
-                $this->logWarning('Geonode returned empty data array');
+            DB::table('proxy_pool_state')->upsert(
+                [
+                    'id' => 1,
+                    'current_position' => 0,
+                    'total_count' => $totalCount,
+                    'active_count' => $activeCount,
+                    'provider' => config('judicial-branch.proxy.provider', 'webshare'),
+                    'last_fetched_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ],
+                ['id'],
+                ['total_count', 'active_count', 'provider', 'last_fetched_at', 'updated_at'],
+                // current_position intentionally NOT reset so round-robin continues where it left off
+            );
+        });
+    }
 
-                return [];
-            }
-
-            $proxies = [];
-
-            foreach ($data as $item) {
-                $ip = $item['ip'] ?? null;
-                $port = $item['port'] ?? null;
-                if (! $ip) {
-                    continue;
-                }
-
-                if (! $port) {
-                    continue;
-                }
-
-                $proxies[] = "{$ip}:{$port}";
-            }
-
-            return $proxies;
-        } catch (\Throwable $e) {
-            $this->logWarning('Failed to fetch from Geonode', ['error' => $e->getMessage()]);
-
-            return [];
-        }
+    /**
+     * Masks the password portion of a proxy string for safe logging.
+     *
+     * "user:secret@1.2.3.4:8080" → "user:***@1.2.3.4:8080"
+     */
+    private function maskProxy(string $proxy): string
+    {
+        return preg_replace('/(:)[^@]+(@)/', '$1***$2', $proxy) ?? $proxy;
     }
 
     private function logInfo(string $message, array $context = []): void
