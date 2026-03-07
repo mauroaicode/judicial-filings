@@ -386,7 +386,7 @@ class ProcessQueryBuilder extends Builder
                 ]);
             } elseif ($from) {
                 $query->whereDate('organization_processes.created_at', '>=', Date::parse($from)->format('Y-m-d'));
-            } elseif ($to) {
+            } elseif ($to !== '' && $to !== '0') { // @phpstan-ignore-line
                 $query->whereDate('organization_processes.created_at', '<=', Date::parse($to)->format('Y-m-d'));
             }
         });

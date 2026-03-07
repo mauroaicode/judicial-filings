@@ -35,6 +35,7 @@ class AppUserFactory extends Factory
             'last_name' => $lastName,
             'slug' => Str::slug($fullName),
             'email' => $this->faker->unique()->safeEmail(),
+            'identification' => $this->faker->unique()->numerify('##########'),
             'password' => bcrypt('password1234'),
             'profile_image' => null,
             'email_verified_at' => now(),

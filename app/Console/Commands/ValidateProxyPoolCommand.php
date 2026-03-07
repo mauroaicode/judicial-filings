@@ -122,7 +122,7 @@ class ValidateProxyPoolCommand extends Command
                 ['Total probados', $total],
                 ['Exitosos (HTTP 200)', $ok],
                 ['Bloqueados (403/error)', $failed],
-                ['% usable', $total > 0 ? round($ok / $total * 100, 1).'%' : '0%'],
+                ['% usable', round($ok / $total * 100, 1).'%'],
             ]
         );
 

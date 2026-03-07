@@ -84,17 +84,17 @@ class ProxyPoolService
         }
 
         $this->logInfo('Proxy selected (round-robin)', [
-            'proxy'        => $this->maskProxy($candidate->proxy_address),
-            'position'     => $candidate->position,
+            'proxy' => $this->maskProxy($candidate->proxy_address),
+            'position' => $candidate->position,
             'active_count' => $this->count(),
-            'total_count'  => $total,
+            'total_count' => $total,
         ]);
 
         $proxyBase = $candidate->proxy_address;
 
         // If configured for IP auth but DB has credentials (out of sync), strip credentials
-        if (config('judicial-branch.proxy.webshare_auth_mode', 'ip') === 'ip' && str_contains($proxyBase, '@')) {
-            $proxyBase = explode('@', $proxyBase)[1] ?? $proxyBase;
+        if (config('judicial-branch.proxy.webshare_auth_mode', 'ip') === 'ip' && str_contains((string) $proxyBase, '@')) {
+            $proxyBase = explode('@', (string) $proxyBase)[1] ?? $proxyBase;
         }
 
         return 'http://'.$proxyBase;
@@ -137,7 +137,7 @@ class ProxyPoolService
 
         $proxies = $this->fetchFromWebshare();
 
-        if (empty($proxies)) {
+        if ($proxies === []) {
             $this->logWarning('Webshare returned empty proxy list — pool not updated');
 
             return;
@@ -185,7 +185,7 @@ class ProxyPoolService
      */
     private function fetchFromWebshare(): array
     {
-        $apiKey   = (string) config('judicial-branch.proxy.webshare_api_key', '');
+        $apiKey = (string) config('judicial-branch.proxy.webshare_api_key', '');
         $authMode = strtolower((string) config('judicial-branch.proxy.webshare_auth_mode', 'ip'));
 
         if ($apiKey === '') {
@@ -194,8 +194,8 @@ class ProxyPoolService
             return [];
         }
 
-        $pageSize   = 100;
-        $page       = 1;
+        $pageSize = 100;
+        $page = 1;
         $allProxies = [];
 
         try {
@@ -209,12 +209,12 @@ class ProxyPoolService
                 if (! $response->successful()) {
                     $this->logWarning('Webshare API returned non-200', [
                         'status' => $response->status(),
-                        'page'   => $page,
+                        'page' => $page,
                     ]);
                     break;
                 }
 
-                $data    = $response->json();
+                $data = $response->json();
                 $results = $data['results'] ?? [];
 
                 foreach ($results as $item) {
@@ -222,13 +222,20 @@ class ProxyPoolService
                         continue;
                     }
 
-                    $proxyId  = $item['id'] ?? null;
+                    $proxyId = $item['id'] ?? null;
                     $username = $item['username'] ?? null;
                     $password = $item['password'] ?? null;
-                    $ip       = $item['proxy_address'] ?? null;
-                    $port     = $item['port'] ?? null;
+                    $ip = $item['proxy_address'] ?? null;
+                    $port = $item['port'] ?? null;
+                    if (! $proxyId) {
+                        continue;
+                    }
 
-                    if (! $proxyId || ! $ip || ! $port) {
+                    if (! $ip) {
+                        continue;
+                    }
+
+                    if (! $port) {
                         continue;
                     }
 
@@ -262,7 +269,7 @@ class ProxyPoolService
      */
     private function persistPool(array $proxies): void
     {
-        $now        = now();
+        $now = now();
         $incomingIds = array_column($proxies, 'id');
 
         // Remove proxies no longer in Webshare (use delete, not truncate — avoids implicit commit)
@@ -275,12 +282,12 @@ class ProxyPoolService
 
         foreach ($proxies as $position => $item) {
             $rows[] = [
-                'proxy_id'      => $item['id'],
+                'proxy_id' => $item['id'],
                 'proxy_address' => $item['proxy'],
-                'position'      => $position,
-                'is_active'     => true,
-                'created_at'    => $now,
-                'updated_at'    => $now,
+                'position' => $position,
+                'is_active' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
         }
 
@@ -292,19 +299,19 @@ class ProxyPoolService
             );
         }
 
-        $totalCount  = count($proxies);
+        $totalCount = count($proxies);
         $activeCount = DB::table('proxy_pool_entries')->where('is_active', true)->count();
 
         DB::table('proxy_pool_state')->upsert(
             [
-                'id'               => 1,
+                'id' => 1,
                 'current_position' => 0,
-                'total_count'      => $totalCount,
-                'active_count'     => $activeCount,
-                'provider'         => 'webshare',
-                'last_fetched_at'  => $now,
-                'created_at'       => $now,
-                'updated_at'       => $now,
+                'total_count' => $totalCount,
+                'active_count' => $activeCount,
+                'provider' => 'webshare',
+                'last_fetched_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ],
             ['id'],
             ['total_count', 'active_count', 'provider', 'last_fetched_at', 'updated_at'],

@@ -19,9 +19,9 @@ class AuthController
      */
     public function login(LoginData $data): JsonResponse
     {
-        $appUser = AppUser::query()->where('email', $data->email)->first();
+        $appUser = AppUser::query()->where('identification', $data->identification)->first();
 
-        $token = $appUser->createToken($appUser->email)->plainTextToken;
+        $token = $appUser->createToken($appUser->identification)->plainTextToken;
 
         $authResource = AuthResource::fromModel($appUser, $token, false);
 

@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Log;
 use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Shared\DTOs\ProcessImportReport;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
-use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
 use Src\Application\Shared\Notifications\ProcessImportFinishedNotification;
+use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Throwable;
 
@@ -80,7 +80,7 @@ readonly class ProcessImportBatchService
             $importBatch->requestedByUser->notify(new ProcessImportFinishedNotification($importBatch));
         }
 
-        $importBatch->organization->appUsers->each(function ($appUser) use ($importBatch) {
+        $importBatch->organization->appUsers->each(function ($appUser) use ($importBatch): void {
             $appUser->notify(new ProcessImportFinishedNotification($importBatch));
         });
     }

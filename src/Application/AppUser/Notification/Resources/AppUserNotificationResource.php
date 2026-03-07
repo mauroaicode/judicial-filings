@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Notification\Resources;
 
-use Spatie\LaravelData\Resource;
 use Illuminate\Notifications\DatabaseNotification;
+use Spatie\LaravelData\Resource;
 
 class AppUserNotificationResource extends Resource
 {

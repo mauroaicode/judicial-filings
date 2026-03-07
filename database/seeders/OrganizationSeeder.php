@@ -81,6 +81,7 @@ class OrganizationSeeder extends Seeder
                 'last_name' => $ownerData['last_name'],
                 'slug' => Str::slug($ownerData['name'].' '.$ownerData['last_name']),
                 'email' => $ownerData['email'],
+                'identification' => $orgData['identification'],
                 'password' => $ownerData['password'],
                 'profile_image' => null,
                 'email_verified_at' => now(),

@@ -79,9 +79,9 @@ return [
     | Se aplica jitter del 20% para distribuir los reintentos simultáneos.
     |
     */
-    'retry_release_seconds_for_rate_limit'       => (int) env('PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT', 180),
+    'retry_release_seconds_for_rate_limit' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT', 180),
     'retry_release_seconds_for_rate_limit_proxy' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT_PROXY', 5),
-    'retry_max_attempts_for_rate_limit'          => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_RATE_LIMIT', 10),
+    'retry_max_attempts_for_rate_limit' => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_RATE_LIMIT', 10),
 
     /*
     |--------------------------------------------------------------------------

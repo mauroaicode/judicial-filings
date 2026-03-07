@@ -49,6 +49,7 @@ class OrganizationCreatorService
                 'last_name' => $ownerLastName,
                 'slug' => $appUserSlug,
                 'email' => $data->email,
+                'identification' => $data->identification,
                 'password' => Hash::make($password),
                 'email_verified_at' => now(),
             ]);

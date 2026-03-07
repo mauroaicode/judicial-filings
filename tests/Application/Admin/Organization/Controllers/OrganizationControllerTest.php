@@ -285,10 +285,10 @@ it('creates organization and owner app user and sends notification', function ()
     $payload = [
         'name' => 'Carlos López',
         'type' => 'natural',
-        'identification' => '98765432-1',
+        'identification' => '98765432-9',
         'address' => 'Av. Vitacura 789, Santiago',
         'phone' => '9876543210',
-        'email' => 'carlos.org@example.com',
+        'email' => 'carlos.org.test@example.com',
         'contact_person' => null,
     ];
 
@@ -299,13 +299,13 @@ it('creates organization and owner app user and sends notification', function ()
     $response->assertJsonFragment([
         'name' => 'Carlos López',
         'type' => 'natural',
-        'email' => 'carlos.org@example.com',
-        'identification' => '98765432-1',
+        'email' => 'carlos.org.test@example.com',
+        'identification' => '98765432-9',
         'address' => 'Av. Vitacura 789, Santiago',
         'is_active' => true,
     ]);
 
-    $org = Organization::query()->where('email', 'carlos.org@example.com')->first();
+    $org = Organization::query()->where('email', 'carlos.org.test@example.com')->first();
     expect($org)->not->toBeNull();
     expect($org->slug)->toContain('carlos-lopez');
     expect($org->phone)->toContain('+56');
@@ -314,7 +314,7 @@ it('creates organization and owner app user and sends notification', function ()
     expect($org->appUsers)->toHaveCount(1);
     $owner = $org->appUsers->first();
     expect((bool) $owner->pivot->is_owner)->toBeTrue();
-    expect($owner->email)->toBe('carlos.org@example.com');
+    expect($owner->email)->toBe('carlos.org.test@example.com');
 
     Notification::assertSentTo(
         $owner,
@@ -328,10 +328,10 @@ it('creates juridical organization with contact person', function (): void {
     $payload = [
         'name' => 'Empresa ABC Ltda.',
         'type' => 'juridical',
-        'identification' => '76.123.456-7',
+        'identification' => '76.123.456-9',
         'address' => 'Av. Las Condes 456',
         'phone' => '2234567890',
-        'email' => 'contacto@empresaabc.test',
+        'email' => 'contacto.test@empresaabc.test',
         'contact_person' => 'María García',
     ];
 
@@ -340,7 +340,7 @@ it('creates juridical organization with contact person', function (): void {
 
     $response->assertStatus(201);
 
-    $org = Organization::query()->where('email', 'contacto@empresaabc.test')->first();
+    $org = Organization::query()->where('email', 'contacto.test@empresaabc.test')->first();
     expect($org)->not->toBeNull();
     expect($org->contact_person)->toBe('María García');
     expect($org->is_active)->toBeTrue();

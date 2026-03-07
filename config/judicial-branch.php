@@ -45,10 +45,10 @@ return [
     |
     */
     'proxy' => [
-        'enabled'              => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
-        'webshare_api_key'     => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY', ''),
-        'webshare_auth_mode'   => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE', 'ip'),
-        'timeout'              => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 20),
+        'enabled' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
+        'webshare_api_key' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY', ''),
+        'webshare_auth_mode' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE', 'ip'),
+        'timeout' => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 20),
 
         /*
          * Milliseconds to sleep between every HTTP call to Rama Judicial when

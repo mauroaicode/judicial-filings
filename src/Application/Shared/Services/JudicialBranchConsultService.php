@@ -50,22 +50,22 @@ class JudicialBranchConsultService
      */
     public function fetchProcesses(string $code): object
     {
-        $data        = [];
+        $data = [];
         $isSuccessful = true;
 
         try {
             $this->throttle();
 
-            $baseUrl     = config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion';
+            $baseUrl = config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion';
             $allProcesses = [];
-            $currentPage  = 1;
-            $totalPages   = 1;
+            $currentPage = 1;
+            $totalPages = 1;
 
             do {
                 $params = [
-                    'numero'      => $code,
+                    'numero' => $code,
                     'SoloActivos' => 'false',
-                    'pagina'      => $currentPage,
+                    'pagina' => $currentPage,
                 ];
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
@@ -116,7 +116,7 @@ class JudicialBranchConsultService
      */
     public function fetchDetailProcess(int $processId): object
     {
-        $data        = [];
+        $data = [];
         $isSuccessful = true;
 
         try {
@@ -151,19 +151,19 @@ class JudicialBranchConsultService
      */
     public function fetchActionByProcess(int $processId): object
     {
-        $data        = [];
+        $data = [];
         $isSuccessful = true;
 
         try {
             $this->throttle();
 
-            $baseUrl    = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
+            $baseUrl = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
             $allActions = [];
             $currentPage = 1;
-            $totalPages  = 1;
+            $totalPages = 1;
 
             do {
-                $params   = ['pagina' => $currentPage];
+                $params = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
                 $httpResponse = $this->buildHttpClient()->get($endpoint);
@@ -209,19 +209,19 @@ class JudicialBranchConsultService
      */
     public function fetchSubjectsByProcess(int $processId): object
     {
-        $data        = [];
+        $data = [];
         $isSuccessful = true;
 
         try {
             $this->throttle();
 
-            $baseUrl     = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
+            $baseUrl = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
             $allSubjects = [];
-            $currentPage  = 1;
-            $totalPages   = 1;
+            $currentPage = 1;
+            $totalPages = 1;
 
             do {
-                $params   = ['pagina' => $currentPage];
+                $params = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
                 $httpResponse = $this->buildHttpClient()->get($endpoint);
@@ -277,7 +277,7 @@ class JudicialBranchConsultService
 
         $client = Http::timeout($timeout)->withHeaders([
             'Content-Type' => 'application/json',
-            'User-Agent'   => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         ]);
 
         if ($proxyEnabled) {
@@ -316,8 +316,8 @@ class JudicialBranchConsultService
             return;
         }
 
-        $key          = 'judicial-api-http-calls';
-        $limit        = (int) config('judicial-branch.rate_limit_per_minute', 8);
+        $key = 'judicial-api-http-calls';
+        $limit = (int) config('judicial-branch.rate_limit_per_minute', 8);
         $sleepSeconds = (int) ceil(60 / max(1, $limit));
 
         while (RateLimiter::tooManyAttempts($key, $limit)) {
@@ -343,7 +343,7 @@ class JudicialBranchConsultService
                 : 'direct connection';
 
             $this->logWarning("HTTP {$status} from Rama Judicial", [
-                'context'    => $context,
+                'context' => $context,
                 'proxy_mode' => $proxyMode,
             ]);
 
@@ -372,7 +372,7 @@ class JudicialBranchConsultService
 
         $message = $th->getMessage();
 
-        $isCurlError7  = str_contains($message, 'cURL error 7');
+        $isCurlError7 = str_contains($message, 'cURL error 7');
         $isCurlError28 = str_contains($message, 'cURL error 28');
         $isCurlError56 = str_contains($message, 'cURL error 56');
 
@@ -381,13 +381,13 @@ class JudicialBranchConsultService
         }
 
         $curlCode = match (true) {
-            $isCurlError7  => 7,
+            $isCurlError7 => 7,
             $isCurlError28 => 28,
-            default        => 56,
+            default => 56,
         };
 
         $label = match ($curlCode) {
-            7  => 'proxy unreachable (CURLE_COULDNT_CONNECT)',
+            7 => 'proxy unreachable (CURLE_COULDNT_CONNECT)',
             28 => 'proxy timeout (CURLE_OPERATION_TIMEDOUT)',
             56 => 'proxy tunnel failed 502/503 (CURLE_RECV_ERROR)',
         };
@@ -397,8 +397,8 @@ class JudicialBranchConsultService
         }
 
         $this->logWarning("Proxy failure — {$label}, proxy marked inactive, will retry with next IP", [
-            'context'     => $context,
-            'curl_error'  => $curlCode,
+            'context' => $context,
+            'curl_error' => $curlCode,
             'pool_active' => $this->proxyPool->count(),
         ]);
 
@@ -423,8 +423,8 @@ class JudicialBranchConsultService
     {
         Log::channel(config('judicial-branch.log_channel', 'process_import'))
             ->error("[JudicialBranch] {$message}", [
-                'file'    => $th->getFile(),
-                'line'    => $th->getLine(),
+                'file' => $th->getFile(),
+                'line' => $th->getLine(),
                 'message' => $th->getMessage(),
             ]);
     }

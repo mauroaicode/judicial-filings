@@ -8,6 +8,7 @@ use Src\Domain\AppUser\Models\AppUser;
 beforeEach(function (): void {
     $this->appUser = AppUser::factory()->create([
         'email' => 'test@example.com',
+        'identification' => '1234567890',
         'password' => Hash::make('password1234'),
         'email_verified_at' => now(),
     ]);
@@ -15,7 +16,7 @@ beforeEach(function (): void {
 
 it('allows user to login with valid credentials', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'test@example.com',
+        'identification' => '1234567890',
         'password' => 'password1234',
     ]);
 
@@ -28,9 +29,9 @@ it('allows user to login with valid credentials', function (): void {
     expect($response->json('token'))->not->toBeNull();
 });
 
-it('rejects login with invalid email', function (): void {
+it('rejects login with invalid identification', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'invalid@example.com',
+        'identification' => 'invalid-identification',
         'password' => 'password1234',
     ]);
 
@@ -42,7 +43,7 @@ it('rejects login with invalid email', function (): void {
 
 it('rejects login with invalid password', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'test@example.com',
+        'identification' => '1234567890',
         'password' => 'wrongpassword',
     ]);
 
@@ -56,7 +57,7 @@ it('rejects login with unverified email', function (): void {
     $this->appUser->update(['email_verified_at' => null]);
 
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'test@example.com',
+        'identification' => '1234567890',
         'password' => 'password1234',
     ]);
 
@@ -66,37 +67,37 @@ it('rejects login with unverified email', function (): void {
     ]);
 });
 
-it('requires email field', function (): void {
+it('requires identification field', function (): void {
     $response = $this->postJson('/api/app-user/login', [
         'password' => 'password1234',
     ]);
 
     $response->assertStatus(422);
-    $response->assertJsonValidationErrors(['email']);
+    $response->assertJsonValidationErrors(['identification']);
 });
 
 it('requires password field', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'test@example.com',
+        'identification' => '1234567890',
     ]);
 
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['password']);
 });
 
-it('requires valid email format', function (): void {
+it('requires string format for identification', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'invalid-email',
+        'identification' => ['array'],
         'password' => 'password1234',
     ]);
 
     $response->assertStatus(422);
-    $response->assertJsonValidationErrors(['email']);
+    $response->assertJsonValidationErrors(['identification']);
 });
 
 it('returns requires_2fa as false when 2fa is not enabled', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'test@example.com',
+        'identification' => '1234567890',
         'password' => 'password1234',
     ]);
 
@@ -106,7 +107,7 @@ it('returns requires_2fa as false when 2fa is not enabled', function (): void {
 
 it('returns is_first_login as false by default', function (): void {
     $response = $this->postJson('/api/app-user/login', [
-        'email' => 'test@example.com',
+        'identification' => '1234567890',
         'password' => 'password1234',
     ]);
 

@@ -17,7 +17,7 @@ class AppUserNotificationController
         $notifications = $request->user()
             ->notifications()
             ->paginate(20)
-            ->through(fn ($notification) => \Src\Application\AppUser\Notification\Resources\AppUserNotificationResource::fromModel($notification));
+            ->through(fn (\Illuminate\Notifications\DatabaseNotification $notification): \Src\Application\AppUser\Notification\Resources\AppUserNotificationResource => \Src\Application\AppUser\Notification\Resources\AppUserNotificationResource::fromModel($notification));
 
         return response()->json($notifications);
     }
@@ -48,7 +48,9 @@ class AppUserNotificationController
      */
     public function markAllAsRead(Request $request): JsonResponse
     {
-        $request->user()->unreadNotifications->each(fn($n) => $n->markAsRead());
+        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        $user = $request->user();
+        $user->unreadNotifications()->update(['read_at' => now()]);
 
         return response()->json(['success' => true]);
     }

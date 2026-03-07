@@ -53,6 +53,7 @@ class AppUser extends Model implements Authenticatable
         'last_name',
         'slug',
         'email',
+        'identification',
         'password',
         'profile_image',
         'email_verified_at',
