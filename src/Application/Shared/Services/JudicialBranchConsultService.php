@@ -16,12 +16,27 @@ use Throwable;
 
 class JudicialBranchConsultService
 {
-    /** Tracks the proxy URL used in the current HTTP call for failure reporting. */
+    /** Proxy URL used in the current HTTP call, for failure reporting. */
     private ?string $currentProxy = null;
+
+    /** Seed used to select a proxy — set per job via withSeed(). */
+    private string $proxySeed = '';
 
     public function __construct(
         private readonly ProxyPoolService $proxyPool,
     ) {}
+
+    /**
+     * Sets the proxy seed for this service instance.
+     * Call this once per job with a unique value (e.g. processNumber:attempt)
+     * so each job/retry maps to a different IP in the pool.
+     */
+    public function withSeed(string $seed): static
+    {
+        $this->proxySeed = $seed;
+
+        return $this;
+    }
 
     // -------------------------------------------------------------------------
     // Public API methods
@@ -35,22 +50,22 @@ class JudicialBranchConsultService
      */
     public function fetchProcesses(string $code): object
     {
-        $data = [];
+        $data        = [];
         $isSuccessful = true;
 
         try {
             $this->throttle();
 
-            $baseUrl = config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion';
+            $baseUrl     = config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion';
             $allProcesses = [];
-            $currentPage = 1;
-            $totalPages = 1;
+            $currentPage  = 1;
+            $totalPages   = 1;
 
             do {
                 $params = [
-                    'numero' => $code,
+                    'numero'      => $code,
                     'SoloActivos' => 'false',
-                    'pagina' => $currentPage,
+                    'pagina'      => $currentPage,
                 ];
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
@@ -101,7 +116,7 @@ class JudicialBranchConsultService
      */
     public function fetchDetailProcess(int $processId): object
     {
-        $data = [];
+        $data        = [];
         $isSuccessful = true;
 
         try {
@@ -136,19 +151,19 @@ class JudicialBranchConsultService
      */
     public function fetchActionByProcess(int $processId): object
     {
-        $data = [];
+        $data        = [];
         $isSuccessful = true;
 
         try {
             $this->throttle();
 
-            $baseUrl = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
+            $baseUrl    = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
             $allActions = [];
             $currentPage = 1;
-            $totalPages = 1;
+            $totalPages  = 1;
 
             do {
-                $params = ['pagina' => $currentPage];
+                $params   = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
                 $httpResponse = $this->buildHttpClient()->get($endpoint);
@@ -194,19 +209,19 @@ class JudicialBranchConsultService
      */
     public function fetchSubjectsByProcess(int $processId): object
     {
-        $data = [];
+        $data        = [];
         $isSuccessful = true;
 
         try {
             $this->throttle();
 
-            $baseUrl = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
+            $baseUrl     = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
             $allSubjects = [];
-            $currentPage = 1;
-            $totalPages = 1;
+            $currentPage  = 1;
+            $totalPages   = 1;
 
             do {
-                $params = ['pagina' => $currentPage];
+                $params   = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
                 $httpResponse = $this->buildHttpClient()->get($endpoint);
@@ -249,66 +264,60 @@ class JudicialBranchConsultService
     // -------------------------------------------------------------------------
 
     /**
-     * Builds an HTTP client pre-configured with timeout and, when proxy is
-     * enabled, the next proxy from the round-robin pool.
-     *
-     * When proxies are active the timeout is capped at 15 s: datacenter proxies
-     * typically fail within 10 s anyway (cURL 28), so waiting 60 s only delays
-     * the retry unnecessarily.
+     * Builds an HTTP client with timeout and, when proxy is enabled, the next
+     * proxy from the pool selected by the current seed.
      */
     private function buildHttpClient(): PendingRequest
     {
         $proxyEnabled = config('judicial-branch.proxy.enabled', false);
 
         $timeout = $proxyEnabled
-            ? (int) config('judicial-branch.proxy_timeout_seconds', 15)
+            ? (int) config('judicial-branch.proxy.timeout', 20)
             : (int) config('judicial-branch.timeout_seconds', 60);
 
         $client = Http::timeout($timeout)->withHeaders([
             'Content-Type' => 'application/json',
+            'User-Agent'   => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         ]);
 
-        $this->currentProxy = $this->proxyPool->next();
+        if ($proxyEnabled) {
+            $this->currentProxy = $this->proxyPool->next($this->proxySeed);
 
-        if ($this->currentProxy !== null) {
-            $client = $client->withOptions(['proxy' => $this->currentProxy]);
+            if ($this->currentProxy !== null) {
+                $client = $client->withOptions(['proxy' => $this->currentProxy]);
 
-            $this->logInfo('Using proxy (round-robin)', [
-                'pool_active' => $this->proxyPool->count(),
-            ]);
+                $this->logInfo('Using proxy (round-robin)', [
+                    'pool_active' => $this->proxyPool->count(),
+                ]);
+            } else {
+                $this->logInfo('Proxy pool empty — using direct connection');
+            }
         } else {
-            $this->logInfo('Using direct connection (proxy disabled or pool empty)');
+            $this->logInfo('Using direct connection (proxy disabled)');
         }
 
         return $client;
     }
 
     /**
-     * Applies internal rate limiting when proxies are disabled.
-     *
-     * When proxies are enabled each request exits from a different IP, so the
-     * per-IP rate limit of Rama Judicial does not apply and the throttle is
-     * skipped. Instead, a fixed 3-second sleep is used between requests to give
-     * the database enough time to persist the previous result before the next
-     * job is picked up.
-     *
-     * Without proxies, a single worker is required so the sleep-based bucket
-     * works correctly.
+     * Paces HTTP calls per worker using a fixed sleep.
+     * With proxy enabled: 500ms between calls (configurable).
+     * Without proxy: Laravel RateLimiter enforces a per-minute cap.
      */
     private function throttle(): void
     {
         if (config('judicial-branch.proxy.enabled', false)) {
-            $delaySecs = (int) config('process-import.delay_between_radicados_seconds', 3);
+            $delayMs = (int) config('judicial-branch.proxy.call_delay_ms', 500);
 
-            if ($delaySecs > 0) {
-                Sleep::sleep($delaySecs);
+            if ($delayMs > 0) {
+                Sleep::usleep($delayMs * 1000);
             }
 
             return;
         }
 
-        $key = 'judicial-api-http-calls';
-        $limit = (int) config('judicial-branch.rate_limit_per_minute', 8);
+        $key          = 'judicial-api-http-calls';
+        $limit        = (int) config('judicial-branch.rate_limit_per_minute', 8);
         $sleepSeconds = (int) ceil(60 / max(1, $limit));
 
         while (RateLimiter::tooManyAttempts($key, $limit)) {
@@ -319,26 +328,23 @@ class JudicialBranchConsultService
     }
 
     /**
-     * Throws an exception when Rama Judicial returns 403 or 429 so the job
-     * can retry with exponential back-off instead of silently failing.
+     * Throws ApiForbiddenOrRateLimitException on HTTP 403 or 429.
+     *
+     * With proxy pool: 403 = that specific IP is blocked by Rama Judicial.
+     * The next retry will use a different IP (different seed position).
+     * We do NOT mark the proxy as failed — 403 is temporary per IP, not a
+     * dead proxy. Only cURL errors 7/28/56 justify permanent deactivation.
      */
     private function throwIfForbiddenOrRateLimit(int $status, string $context): void
     {
         if ($status === 403 || $status === 429) {
-            // In proxy mode, a 403 usually means the current egress IP is blocked.
-            // Mark it inactive so round-robin stops reusing it.
-            if ($status === 403 && $this->currentProxy !== null && config('judicial-branch.proxy.enabled', false)) {
-                $this->proxyPool->markFailed($this->currentProxy);
-            }
-
             $proxyMode = config('judicial-branch.proxy.enabled', false)
                 ? ('proxy pool ['.$this->proxyPool->count().' IPs]')
                 : 'direct connection';
 
             $this->logWarning("HTTP {$status} from Rama Judicial", [
-                'context' => $context,
+                'context'    => $context,
                 'proxy_mode' => $proxyMode,
-                'proxy_marked_failed' => $status === 403 && $this->currentProxy !== null,
             ]);
 
             $key = $status === 403 ? 'process.api_forbidden' : 'process.api_rate_limit';
@@ -350,19 +356,13 @@ class JudicialBranchConsultService
     }
 
     /**
-     * Converts cURL proxy errors into ApiProxyFailureException so the job
-     * retries immediately and the round-robin picks a different IP next time.
-     *
-     * Also marks the failed proxy as inactive in the pool so it is skipped
-     * in subsequent round-robin iterations.
+     * Converts cURL proxy errors into ApiProxyFailureException and marks the
+     * proxy as permanently inactive in the pool.
      *
      * Detected errors:
-     *   - cURL 7  (CURLE_COULDNT_CONNECT): proxy is dead or blocked.
-     *   - cURL 28 (CURLE_OPERATION_TIMEDOUT): proxy timed out before the
-     *     server responded (typically ~10 s with datacenter proxies).
-     *
-     * Only triggers when proxy is enabled; without proxy these errors indicate
-     * a real connectivity problem and should be treated as generic failures.
+     *   - cURL 7  (CURLE_COULDNT_CONNECT): proxy is dead or unreachable.
+     *   - cURL 28 (CURLE_OPERATION_TIMEDOUT): proxy timed out.
+     *   - cURL 56 (CURLE_RECV_ERROR): proxy returned 502/503 mid-tunnel.
      */
     private function throwIfProxyFailure(Throwable $th, string $context): void
     {
@@ -372,23 +372,33 @@ class JudicialBranchConsultService
 
         $message = $th->getMessage();
 
-        $isCurlError7 = str_contains($message, 'cURL error 7');
+        $isCurlError7  = str_contains($message, 'cURL error 7');
         $isCurlError28 = str_contains($message, 'cURL error 28');
+        $isCurlError56 = str_contains($message, 'cURL error 56');
 
-        if (! $isCurlError7 && ! $isCurlError28) {
+        if (! $isCurlError7 && ! $isCurlError28 && ! $isCurlError56) {
             return;
         }
 
-        $curlCode = $isCurlError7 ? 7 : 28;
-        $label = $isCurlError7 ? 'proxy dead (CURLE_COULDNT_CONNECT)' : 'proxy timeout (CURLE_OPERATION_TIMEDOUT)';
+        $curlCode = match (true) {
+            $isCurlError7  => 7,
+            $isCurlError28 => 28,
+            default        => 56,
+        };
+
+        $label = match ($curlCode) {
+            7  => 'proxy unreachable (CURLE_COULDNT_CONNECT)',
+            28 => 'proxy timeout (CURLE_OPERATION_TIMEDOUT)',
+            56 => 'proxy tunnel failed 502/503 (CURLE_RECV_ERROR)',
+        };
 
         if ($this->currentProxy !== null) {
             $this->proxyPool->markFailed($this->currentProxy);
         }
 
         $this->logWarning("Proxy failure — {$label}, proxy marked inactive, will retry with next IP", [
-            'context' => $context,
-            'curl_error' => $curlCode,
+            'context'     => $context,
+            'curl_error'  => $curlCode,
             'pool_active' => $this->proxyPool->count(),
         ]);
 
@@ -413,8 +423,8 @@ class JudicialBranchConsultService
     {
         Log::channel(config('judicial-branch.log_channel', 'process_import'))
             ->error("[JudicialBranch] {$message}", [
-                'file' => $th->getFile(),
-                'line' => $th->getLine(),
+                'file'    => $th->getFile(),
+                'line'    => $th->getLine(),
                 'message' => $th->getMessage(),
             ]);
     }

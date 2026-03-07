@@ -14,7 +14,10 @@ class AppUserNotificationController
      */
     public function index(Request $request): JsonResponse
     {
-        $notifications = $request->user()->notifications()->paginate(20);
+        $notifications = $request->user()
+            ->notifications()
+            ->paginate(20)
+            ->through(fn ($notification) => \Src\Application\AppUser\Notification\Resources\AppUserNotificationResource::fromModel($notification));
 
         return response()->json($notifications);
     }

@@ -114,7 +114,7 @@ ProcessImportBatchService::onBatchCompleted()
 
 ```bash
 # Levantar ambas colas (workers separados recomendado en producción)
-php artisan queue:work --queue=process-import --timeout=620 --max-time=7200
+php artisan queue:work --queue=process-import --sleep=1 --tries=120
 php artisan queue:work --queue=emails_import_report
 ```
 

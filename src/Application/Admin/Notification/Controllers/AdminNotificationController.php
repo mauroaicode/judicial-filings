@@ -6,6 +6,7 @@ namespace Src\Application\Admin\Notification\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Src\Application\Admin\Notification\Resources\AdminNotificationResource;
 
 class AdminNotificationController
 {
@@ -14,7 +15,10 @@ class AdminNotificationController
      */
     public function index(Request $request): JsonResponse
     {
-        $notifications = $request->user()->notifications()->paginate(20);
+        $notifications = $request->user()
+            ->notifications()
+            ->paginate(20)
+            ->through(fn ($notification) => AdminNotificationResource::fromModel($notification));
 
         return response()->json($notifications);
     }

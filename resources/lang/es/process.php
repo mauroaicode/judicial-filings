@@ -51,5 +51,5 @@ return [
     'activated_successfully' => 'Proceso activado exitosamente.',
     'deactivated_successfully' => 'Proceso desactivado exitosamente.',
     'import_finished_title' => 'Importación de radicados finalizada',
-    'import_finished_description' => 'La importación del archivo ":filename" ha finalizado. Haz clic para ver el detalle.',
+    'import_finished_description' => 'La importación del archivo ":filename" ha finalizado.',
 ];

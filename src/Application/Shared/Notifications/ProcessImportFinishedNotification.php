@@ -16,9 +16,7 @@ class ProcessImportFinishedNotification extends Notification implements ShouldQu
 
     public function __construct(
         private readonly ProcessImportBatch $batch
-    ) {
-        $this->onQueue('notifications');
-    }
+    ) {}
 
     /**
      * @return array<int, string>
@@ -26,6 +24,17 @@ class ProcessImportFinishedNotification extends Notification implements ShouldQu
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function viaQueues(): array
+    {
+        return [
+            'database' => 'notifications',
+            'broadcast' => 'notifications',
+        ];
     }
 
     /**
@@ -49,13 +58,13 @@ class ProcessImportFinishedNotification extends Notification implements ShouldQu
      */
     public function toBroadcast(object $notifiable): BroadcastMessage
     {
-        return new BroadcastMessage([
+        return (new BroadcastMessage([
             'title' => __('process.import_finished_title'),
             'description' => __('process.import_finished_description', ['filename' => $this->batch->file_name]),
             'type' => 'import-report',
             'id' => $this->batch->id,
             'status' => $this->batch->status,
-        ]);
+        ]))->onQueue('notifications');
     }
 
     /**

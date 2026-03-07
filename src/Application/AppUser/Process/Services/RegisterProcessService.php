@@ -33,11 +33,16 @@ readonly class RegisterProcessService
      *
      * @param  string  $processNumber  23-digit radicado number
      * @param  string  $organizationId  Organization UUID
+     * @param  string  $proxySeed  Seed for proxy pool selection (e.g. processNumber:attempt)
      *
      * @throws \Throwable
      */
-    public function handle(string $processNumber, string $organizationId): RegisterProcessResult
+    public function handle(string $processNumber, string $organizationId, string $proxySeed = ''): RegisterProcessResult
     {
+        if ($proxySeed !== '') {
+            $this->judicialBranchConsultService->withSeed($proxySeed);
+        }
+
         $this->validateProcessNotAlreadyRegistered($processNumber, $organizationId);
 
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();

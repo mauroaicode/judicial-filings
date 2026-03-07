@@ -68,18 +68,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Retry para rate limit real de la API (403/429 HTTP)
+    | Retry para 403/429 de Rama Judicial
     |--------------------------------------------------------------------------
     |
-    | Solo aplica cuando la API de Rama Judicial devuelve un 403 o 429 real.
-    | El throttle interno ya NO lanza excepción: bloquea el job con sleep hasta
-    | que el cupo se libere (máx 60s). Por tanto, este retry es solo para
-    | cuando el servidor externo rechaza la petición directamente.
-    | El log muestra que la API tarda 3-5 min en recuperarse; se aplica jitter
-    | del 20% (ej. 180 → espera 180-216s).
+    | Con proxy rotatorio: el 403 significa que esa IP egress está bloqueada,
+    | pero Webshare asigna una IP nueva en el siguiente intento. Reintento
+    | casi inmediato (5s), igual que los errores de proxy cURL.
+    |
+    | Sin proxy: 403 = rate limit real de la IP del servidor. Esperar más tiempo.
+    | Se aplica jitter del 20% para distribuir los reintentos simultáneos.
     |
     */
-    'retry_release_seconds_for_rate_limit' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT', 180),
+    'retry_release_seconds_for_rate_limit'       => (int) env('PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT', 180),
+    'retry_release_seconds_for_rate_limit_proxy' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT_PROXY', 5),
+    'retry_max_attempts_for_rate_limit'          => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_RATE_LIMIT', 10),
 
     /*
     |--------------------------------------------------------------------------

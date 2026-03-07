@@ -9,39 +9,42 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Manages a rotating pool of HTTP proxies using a round-robin strategy
- * persisted in the database.
+ * Manages a rotating pool of HTTP proxies persisted in the database.
  *
- * On each call to next(), the service atomically advances a pointer in
- * proxy_pool_state and returns the proxy at that position from
- * proxy_pool_entries. This guarantees sequential, non-repeating rotation
- * across concurrent workers without relying on the cache driver.
+ * Rotation strategy: lock-free, seed-based.
+ *   next($seed) computes a starting position from crc32($seed) % total,
+ *   then scans forward for the first active proxy. Each worker uses the
+ *   process number as seed, so different radicados naturally spread across
+ *   different IPs without needing a shared counter or DB lock.
  *
- * The proxy list is fetched from Webshare once and stored in the DB.
- * It is only re-fetched when:
- *   1. The pool is empty (first run or after a manual refresh).
- *   2. The ratio of active proxies drops below the configured minimum
- *      (proxy_pool_min_active_ratio, default 0.70).
- *   3. A manual php artisan proxy:refresh is executed.
+ * Failure handling:
+ *   markFailed() sets is_active=false for proxies that return cURL 7, 28 or 56.
+ *   These are permanent failures (proxy dead/unreachable). 403 from Rama Judicial
+ *   is NOT treated as a permanent failure — it is transient and the next retry
+ *   will pick a different IP via the seed rotation.
  *
- * Proxy format stored: "username:password@ip:port"
- * Proxy format returned to cURL: "http://username:password@ip:port"
+ * Pool refresh:
+ *   Only triggered manually via php artisan proxy:refresh, or automatically
+ *   on first run when the pool is empty. Never auto-refreshed during imports
+ *   to avoid adding latency to queue workers.
  */
 class ProxyPoolService
 {
-    public function __construct() {}
-
     // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
 
     /**
-     * Returns the next proxy URL in round-robin order, or null when proxies
-     * are disabled or the pool is empty.
+     * Returns the next proxy URL for the given seed, or null when proxies
+     * are disabled or the pool is completely exhausted.
      *
-     * Format returned: "http://user:pass@ip:port"
+     * Uses crc32($seed) % total to deterministically pick a starting position,
+     * then scans forward for the first active proxy. Different seeds (process
+     * numbers) map to different starting positions, spreading load across IPs.
+     *
+     * Format returned: "http://ip:port" or "http://user:pass@ip:port"
      */
-    public function next(): ?string
+    public function next(string $seed = ''): ?string
     {
         if (! config('judicial-branch.proxy.enabled', false)) {
             return null;
@@ -49,65 +52,61 @@ class ProxyPoolService
 
         $this->ensurePoolReady();
 
-        return DB::transaction(function (): ?string {
-            $state = DB::table('proxy_pool_state')
-                ->where('id', 1)
-                ->lockForUpdate()
+        $total = (int) DB::table('proxy_pool_state')->value('total_count');
+
+        if ($total === 0) {
+            return null;
+        }
+
+        $startPosition = $seed !== ''
+            ? (abs(crc32($seed)) % $total)
+            : random_int(0, $total - 1);
+
+        // Scan forward from startPosition for the first active proxy
+        $candidate = DB::table('proxy_pool_entries')
+            ->where('is_active', true)
+            ->where('position', '>=', $startPosition)
+            ->orderBy('position')
+            ->first();
+
+        // Wrap around to beginning if nothing found from startPosition onward
+        if ($candidate === null) {
+            $candidate = DB::table('proxy_pool_entries')
+                ->where('is_active', true)
+                ->orderBy('position')
                 ->first();
+        }
 
-            if (! $state || $state->active_count === 0) {
-                return null;
-            }
+        if ($candidate === null) {
+            $this->logWarning('All proxies exhausted — pool has no active entries');
 
-            $totalCount = (int) $state->total_count;
-            $startPosition = (int) $state->current_position;
+            return null;
+        }
 
-            // Find the next active proxy starting from current_position,
-            // wrapping around if needed. Tries up to total_count positions.
-            $proxy = null;
-            $nextPosition = $startPosition;
+        $this->logInfo('Proxy selected (round-robin)', [
+            'proxy'        => $this->maskProxy($candidate->proxy_address),
+            'position'     => $candidate->position,
+            'active_count' => $this->count(),
+            'total_count'  => $total,
+        ]);
 
-            for ($i = 0; $i < $totalCount; $i++) {
-                $candidate = DB::table('proxy_pool_entries')
-                    ->where('position', $nextPosition % $totalCount)
-                    ->where('is_active', true)
-                    ->first();
+        $proxyBase = $candidate->proxy_address;
 
-                if ($candidate !== null) {
-                    $proxy = $candidate->proxy_address;
-                    $nextPosition = ($nextPosition % $totalCount) + 1;
-                    break;
-                }
+        // If configured for IP auth but DB has credentials (out of sync), strip credentials
+        if (config('judicial-branch.proxy.webshare_auth_mode', 'ip') === 'ip' && str_contains($proxyBase, '@')) {
+            $proxyBase = explode('@', $proxyBase)[1] ?? $proxyBase;
+        }
 
-                $nextPosition++;
-            }
-
-            if ($proxy === null) {
-                return null;
-            }
-
-            DB::table('proxy_pool_state')
-                ->where('id', 1)
-                ->update(['current_position' => $nextPosition % $totalCount]);
-
-            $this->logInfo('Proxy selected (round-robin)', [
-                'proxy' => $this->maskProxy($proxy),
-                'position' => ($nextPosition - 1 + $totalCount) % $totalCount,
-                'active_count' => $state->active_count,
-                'total_count' => $totalCount,
-            ]);
-
-            return 'http://'.$proxy;
-        });
+        return 'http://'.$proxyBase;
     }
 
     /**
-     * Marks a proxy as inactive after a cURL 7 or cURL 28 failure.
-     * Also decrements active_count in proxy_pool_state.
+     * Marks a proxy as permanently inactive after a cURL 7, 28 or 56 failure.
+     * These errors mean the proxy itself is dead or unreachable — not a
+     * temporary block by Rama Judicial.
      */
     public function markFailed(string $proxyUrl): void
     {
-        // Strip only the exact "http://" prefix to match stored format.
         $proxy = str_starts_with($proxyUrl, 'http://')
             ? substr($proxyUrl, 7)
             : $proxyUrl;
@@ -122,15 +121,15 @@ class ProxyPoolService
                 ->where('id', 1)
                 ->decrement('active_count');
 
-            $this->logWarning('Proxy marked as failed', [
+            $this->logWarning('Proxy marked as failed (cURL error)', [
                 'proxy' => $this->maskProxy($proxy),
             ]);
         }
     }
 
     /**
-     * Forces a fresh fetch from the provider, truncates the pool and resets
-     * the round-robin pointer to 0.
+     * Forces a fresh fetch from Webshare, upserts entries preserving
+     * is_active state, and recalculates counts.
      */
     public function refresh(): void
     {
@@ -150,7 +149,7 @@ class ProxyPoolService
     }
 
     /**
-     * Returns the number of active proxies currently in the pool.
+     * Returns the number of currently active proxies.
      */
     public function count(): int
     {
@@ -162,57 +161,41 @@ class ProxyPoolService
     // -------------------------------------------------------------------------
 
     /**
-     * Ensures the pool has at least one active proxy.
-     *
-     * Only fetches from the provider when the pool is completely empty (first
-     * run or after a manual php artisan proxy:refresh that wiped entries).
-     *
-     * Auto-refresh by active-ratio is intentionally removed: calling the
-     * Webshare API (~10 s) inside every next() call during an import adds
-     * massive latency. Use php artisan proxy:validate-rama before importing
-     * to pre-clean the pool, and php artisan proxy:refresh to replenish IPs.
+     * Initializes the pool on first run. Only fetches from Webshare when the
+     * pool is completely empty — never during normal import operation.
      */
     private function ensurePoolReady(): void
     {
-        $state = DB::table('proxy_pool_state')->where('id', 1)->first();
+        $activeCount = (int) (DB::table('proxy_pool_state')->where('id', 1)->value('active_count') ?? 0);
 
-        if ($state === null || (int) $state->active_count === 0) {
+        if ($activeCount === 0) {
             $this->logInfo('Pool is empty — fetching from Webshare');
             $this->refresh();
         }
     }
 
     /**
-     * Fetches all proxies from Webshare API, iterating through all pages.
+     * Fetches all proxies from Webshare API (all pages).
      *
-     * Response format per item:
-     * {
-     *   "id": "d-17329297559",
-     *   "username": "wfvehrrc",
-     *   "password": "ab7xwhoq3eip",
-     *   "proxy_address": "38.154.217.40",
-     *   "port": 7231,
-     *   "valid": true,
-     *   ...
-     * }
-     *
-     * Stored format: "username:password@proxy_address:port"
+     * Supports two auth modes:
+     *   "ip"          → stored as "ip:port"          (IP Authorization in Webshare)
+     *   "credentials" → stored as "user:pass@ip:port" (Username/Password in Webshare)
      *
      * @return list<array{id: string, proxy: string}>
      */
     private function fetchFromWebshare(): array
     {
-        $apiKey = (string) config('judicial-branch.proxy.webshare_api_key');
+        $apiKey   = (string) config('judicial-branch.proxy.webshare_api_key', '');
         $authMode = strtolower((string) config('judicial-branch.proxy.webshare_auth_mode', 'ip'));
 
-        if ($apiKey === '' || $apiKey === '0') {
+        if ($apiKey === '') {
             $this->logWarning('Webshare API key not configured (JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY)');
 
             return [];
         }
 
-        $pageSize = 100;
-        $page = 1;
+        $pageSize   = 100;
+        $page       = 1;
         $allProxies = [];
 
         try {
@@ -226,13 +209,12 @@ class ProxyPoolService
                 if (! $response->successful()) {
                     $this->logWarning('Webshare API returned non-200', [
                         'status' => $response->status(),
-                        'page' => $page,
+                        'page'   => $page,
                     ]);
-
                     break;
                 }
 
-                $data = $response->json();
+                $data    = $response->json();
                 $results = $data['results'] ?? [];
 
                 foreach ($results as $item) {
@@ -240,26 +222,21 @@ class ProxyPoolService
                         continue;
                     }
 
-                    $proxyId = $item['id'] ?? null;
+                    $proxyId  = $item['id'] ?? null;
                     $username = $item['username'] ?? null;
                     $password = $item['password'] ?? null;
-                    $ip = $item['proxy_address'] ?? null;
-                    $port = $item['port'] ?? null;
+                    $ip       = $item['proxy_address'] ?? null;
+                    $port     = $item['port'] ?? null;
 
                     if (! $proxyId || ! $ip || ! $port) {
                         continue;
                     }
 
-                    $proxyString = "{$ip}:{$port}";
+                    $proxyString = ($authMode === 'credentials' && $username && $password)
+                        ? "{$username}:{$password}@{$ip}:{$port}"
+                        : "{$ip}:{$port}";
 
-                    if ($authMode === 'credentials' && $username && $password) {
-                        $proxyString = "{$username}:{$password}@{$ip}:{$port}";
-                    }
-
-                    $allProxies[] = [
-                        'id' => $proxyId,
-                        'proxy' => $proxyString,
-                    ];
+                    $allProxies[] = ['id' => $proxyId, 'proxy' => $proxyString];
                 }
 
                 $hasNextPage = ! empty($data['next']);
@@ -277,79 +254,63 @@ class ProxyPoolService
     }
 
     /**
-     * Persists the proxy list using upsert to preserve existing is_active state.
-     *
-     * - New proxies from the provider are inserted as active.
-     * - Existing proxies keep their current is_active value (failed ones stay failed).
-     * - Proxies no longer returned by the provider are removed.
-     * - active_count is recalculated from the actual DB state after the upsert.
-     *
-     * This prevents the auto-refresh loop where refreshing resets all failed
-     * proxies back to active, only to have them fail again immediately.
+     * Upserts the proxy list preserving is_active state for existing entries.
+     * New proxies are inserted as active=true.
+     * Proxies no longer in the provider list are deleted.
      *
      * @param  list<array{id: string, proxy: string}>  $proxies
      */
     private function persistPool(array $proxies): void
     {
-        $now = now();
+        $now        = now();
         $incomingIds = array_column($proxies, 'id');
 
-        DB::transaction(function () use ($proxies, $incomingIds, $now): void {
-            // Remove proxies no longer in the provider list
-            DB::table('proxy_pool_entries')
-                ->whereNotIn('proxy_id', $incomingIds)
-                ->delete();
+        // Remove proxies no longer in Webshare (use delete, not truncate — avoids implicit commit)
+        DB::table('proxy_pool_entries')
+            ->whereNotIn('proxy_id', $incomingIds)
+            ->delete();
 
-            // Upsert: insert new proxies as active, update address/position for existing ones
-            // but do NOT touch is_active so validated failures are preserved.
-            $rows = [];
+        // Upsert: insert new as active, update address/position for existing (preserve is_active)
+        $rows = [];
 
-            foreach ($proxies as $position => $item) {
-                $rows[] = [
-                    'proxy_id' => $item['id'],
-                    'proxy_address' => $item['proxy'],
-                    'position' => $position,
-                    'is_active' => true,   // only applied on INSERT, not on UPDATE
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
+        foreach ($proxies as $position => $item) {
+            $rows[] = [
+                'proxy_id'      => $item['id'],
+                'proxy_address' => $item['proxy'],
+                'position'      => $position,
+                'is_active'     => true,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ];
+        }
 
-            foreach (array_chunk($rows, 500) as $chunk) {
-                DB::table('proxy_pool_entries')->upsert(
-                    $chunk,
-                    ['proxy_id'],                          // unique key
-                    ['proxy_address', 'position', 'updated_at'], // update these on conflict, NOT is_active
-                );
-            }
-
-            // Recalculate active_count from actual DB state
-            $totalCount = count($proxies);
-            $activeCount = DB::table('proxy_pool_entries')->where('is_active', true)->count();
-
-            DB::table('proxy_pool_state')->upsert(
-                [
-                    'id' => 1,
-                    'current_position' => 0,
-                    'total_count' => $totalCount,
-                    'active_count' => $activeCount,
-                    'provider' => config('judicial-branch.proxy.provider', 'webshare'),
-                    'last_fetched_at' => $now,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ],
-                ['id'],
-                ['total_count', 'active_count', 'provider', 'last_fetched_at', 'updated_at'],
-                // current_position intentionally NOT reset so round-robin continues where it left off
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('proxy_pool_entries')->upsert(
+                $chunk,
+                ['proxy_id'],
+                ['proxy_address', 'position', 'updated_at'], // is_active NOT updated on conflict
             );
-        });
+        }
+
+        $totalCount  = count($proxies);
+        $activeCount = DB::table('proxy_pool_entries')->where('is_active', true)->count();
+
+        DB::table('proxy_pool_state')->upsert(
+            [
+                'id'               => 1,
+                'current_position' => 0,
+                'total_count'      => $totalCount,
+                'active_count'     => $activeCount,
+                'provider'         => 'webshare',
+                'last_fetched_at'  => $now,
+                'created_at'       => $now,
+                'updated_at'       => $now,
+            ],
+            ['id'],
+            ['total_count', 'active_count', 'provider', 'last_fetched_at', 'updated_at'],
+        );
     }
 
-    /**
-     * Masks the password portion of a proxy string for safe logging.
-     *
-     * "user:secret@1.2.3.4:8080" → "user:***@1.2.3.4:8080"
-     */
     private function maskProxy(string $proxy): string
     {
         return preg_replace('/(:)[^@]+(@)/', '$1***$2', $proxy) ?? $proxy;

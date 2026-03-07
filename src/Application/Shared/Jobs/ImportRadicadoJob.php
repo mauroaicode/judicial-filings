@@ -57,7 +57,8 @@ class ImportRadicadoJob implements ShouldQueue
         $this->log('info', 'Import radicado job started', ['attempt' => $this->attempts()]);
 
         try {
-            $result = $registerProcessService->handle($this->processNumber, $this->organizationId);
+            $seed = $this->processNumber.':'.$this->attempts();
+            $result = $registerProcessService->handle($this->processNumber, $this->organizationId, $seed);
 
             $this->incrementBatchSuccess($result->registeredCount);
 
@@ -166,10 +167,20 @@ class ImportRadicadoJob implements ShouldQueue
         }
 
         if ($e instanceof ApiForbiddenOrRateLimitException) {
+            // With rotating proxy: 403 = that egress IP is blocked, but the next
+            // attempt gets a fresh IP from Webshare automatically. Retry quickly.
+            // Without proxy: 403 = real rate limit, wait longer.
+            if (config('judicial-branch.proxy.enabled', false)) {
+                return [
+                    (int) config('process-import.retry_release_seconds_for_rate_limit_proxy', 5),
+                    (int) config('process-import.retry_max_attempts_for_rate_limit', 10),
+                ];
+            }
+
             $base = (int) config('process-import.retry_release_seconds_for_rate_limit', 180);
             $jitter = (int) ceil($base * 0.20);
 
-            return [random_int($base, $base + $jitter), (int) config('process-import.retry_max_attempts_for_not_found', 10)];
+            return [random_int($base, $base + $jitter), (int) config('process-import.retry_max_attempts_for_rate_limit', 5)];
         }
 
         if ($this->isNotFoundError($e)) {
