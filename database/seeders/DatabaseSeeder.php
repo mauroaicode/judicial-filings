@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             ProcessSubjectSeeder::class,
             MultipleInstanceProcessSeeder::class,
             OrganizationNotificationChannelSeeder::class,
+            KeywordSeeder::class,
         ]);
     }
 }

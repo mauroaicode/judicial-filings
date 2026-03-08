@@ -366,7 +366,7 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Apply date range filter for organization_processes pivot table.
+     * Apply the date range filter for the organization_processes pivot table.
      * Filters by when the organization registered the process.
      *
      * @param  string|null  $from  Start date.

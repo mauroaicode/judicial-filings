@@ -23,4 +23,8 @@ return [
         'active' => 'Active',
         'inactive' => 'Inactive',
     ],
+    'keyword_status' => [
+        'active' => 'Active',
+        'inactive' => 'Inactive',
+    ],
 ];
