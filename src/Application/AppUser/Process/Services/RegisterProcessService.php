@@ -194,6 +194,7 @@ readonly class RegisterProcessService
             'process_id' => $processId,
             'process_number' => $processNumber,
             'court' => $detailData['despacho'] ?? '',
+            'speaker' => $detailData['ponente'] ?? null,
             'department' => $detailData['departamento'] ?? '',
             'process_type' => $detailData['tipoProceso'] ?? '',
             'process_class' => $detailData['claseProceso'] ?? '',

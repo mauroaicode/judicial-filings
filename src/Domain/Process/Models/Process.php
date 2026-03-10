@@ -22,6 +22,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read int $process_id
  * @property-read string $process_number
  * @property-read string $court
+ * @property-read string|null $speaker
  * @property-read string $department
  * @property-read string $process_type
  * @property-read string $process_class
@@ -70,6 +71,7 @@ class Process extends Model
         'process_id',
         'process_number',
         'court',
+        'speaker',
         'department',
         'process_type',
         'process_class',

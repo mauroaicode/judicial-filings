@@ -26,6 +26,7 @@ class ProcessFactory extends Factory
                 'JUZGADO 020 PENAL',
                 'TRIBUNAL ADMINISTRATIVO',
             ]),
+            'speaker' => $this->faker->optional(0.8)->name(),
             'department' => $this->faker->randomElement([
                 'VALLE DEL CAUCA',
                 'ANTIOQUIA',

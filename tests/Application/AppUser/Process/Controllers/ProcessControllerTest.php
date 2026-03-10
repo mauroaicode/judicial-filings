@@ -277,6 +277,7 @@ it('registers a new process successfully', function (): void {
             'tipoProceso' => 'Ordinario',
             'claseProceso' => 'ACCION DE REPARACION DIRECTA',
             'subclaseProceso' => 'Sin Subclase de Proceso',
+            'ponente' => 'DR. TEST SPEAKER',
             'sujetosProcesales' => 'Test litigants',
             'fechaProceso' => '2024-12-06',
             'fechaUltimaActuacion' => '2025-04-30',
@@ -338,6 +339,7 @@ it('registers a new process successfully', function (): void {
             'id',
             'process_number',
             'court',
+            'speaker',
             'term_start_date',
             'term_end_date',
         ],
@@ -357,6 +359,7 @@ it('registers a new process successfully', function (): void {
     expect($process)->not->toBeNull()
         ->and($process->process_id)->toBe(2834511724)
         ->and($process->court)->toContain('DESPACHO 000 - TRIBUNAL ADMINISTRATIVO')
+        ->and($process->speaker)->toBe('DR. TEST SPEAKER')
         ->and($process->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
 });
 
