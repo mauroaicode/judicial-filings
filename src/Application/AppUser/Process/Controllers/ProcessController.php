@@ -119,6 +119,7 @@ readonly class ProcessController
                 'id' => $firstProcess->id,
                 'process_number' => $firstProcess->process_number,
                 'court' => $firstProcess->court,
+                'speaker' => $firstProcess->speaker,
                 'term_start_date' => '-',
                 'term_end_date' => '-',
             ] : null,

@@ -13,6 +13,8 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\AppUser\QueryBuilders\AppUserQueryBuilder;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Shared\Traits\Uuid;
 
@@ -178,5 +180,16 @@ class AppUser extends Model implements Authenticatable
     public function getGuardName(): string
     {
         return 'app_user';
+    }
+
+    /**
+     * Create a new Eloquent query builder for the model.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @return AppUserQueryBuilder<AppUser>
+     */
+    public function newEloquentBuilder($query): AppUserQueryBuilder
+    {
+        return new AppUserQueryBuilder($query);
     }
 }

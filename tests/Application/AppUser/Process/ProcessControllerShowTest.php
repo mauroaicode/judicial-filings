@@ -80,6 +80,7 @@ it('returns process detail with subjects', function (): void {
             'process_id',
             'process_number',
             'court',
+            'speaker',
             'department',
             'process_type',
             'process_class',
@@ -180,6 +181,7 @@ it('returns empty subjects array when process has no subjects', function (): voi
 it('converts process fields to title case', function (): void {
     $process = Process::factory()->create([
         'court' => 'JUZGADO 017 ADMINISTRATIVO DE CALI',
+        'speaker' => 'MARIA CONSUELO ARAUJO',
         'department' => 'VALLE DEL CAUCA',
         'process_type' => 'ORDINARIO',
         'process_class' => 'ACCION DE REPARACION DIRECTA',
@@ -197,6 +199,7 @@ it('converts process fields to title case', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('process.court'))->toBe('Juzgado 017 Administrativo de Cali');
+    expect($response->json('process.speaker'))->toBe('Maria Consuelo Araujo');
     expect($response->json('process.department'))->toBe('Valle del Cauca');
     expect($response->json('process.process_type'))->toBe('Ordinario');
     expect($response->json('process.process_class'))->toBe('Accion de Reparacion Directa');
