@@ -8,11 +8,13 @@ use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Src\Application\AppUser\Process\Data\RegisterProcessData;
+use Src\Application\AppUser\Process\Data\StoreProcessData;
 use Src\Application\AppUser\Process\Data\ToggleProcessStatusData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\AppUser\Process\Resources\ProcessDetailResource;
+use Src\Application\AppUser\Process\Resources\ProcessResource;
 use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
+use Src\Application\AppUser\Process\Services\DispatchProcessRegistrationService;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
@@ -30,6 +32,7 @@ readonly class ProcessController
         private ProcessFinderService $processFinderService,
         private ProcessDetailService $processDetailService,
         private ToggleProcessStatusService $toggleProcessStatusService,
+        private DispatchProcessRegistrationService $dispatchProcessRegistrationService,
     ) {}
 
     /**
@@ -85,11 +88,8 @@ readonly class ProcessController
 
     /**
      * Register a new process.
-     *
-     * @throws Exception
-     * @throws Throwable
      */
-    public function store(RegisterProcessData $data): JsonResponse
+    public function store(StoreProcessData $data): JsonResponse
     {
         /** @var AppUser $appUser */
         $appUser = auth()->user();
@@ -100,29 +100,14 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $result = $this->registerProcessService->handle(
-            $data->process_number,
-            $organization->id
+        $this->dispatchProcessRegistrationService->handle(
+            $data,
+            $organization,
+            $appUser
         );
 
-        $message = $this->buildRegistrationMessage($result);
-
-        $firstProcess = $result->getFirstProcess();
-
         return response()->json([
-            'message' => $message,
-            'has_multiple_instances' => $result->hasMultipleInstances,
-            'total_processes' => $result->totalProcesses,
-            'registered_count' => $result->registeredCount,
-            'private_count' => $result->privateCount,
-            'process' => $firstProcess instanceof Process ? [
-                'id' => $firstProcess->id,
-                'process_number' => $firstProcess->process_number,
-                'court' => $firstProcess->court,
-                'speaker' => $firstProcess->speaker,
-                'term_start_date' => '-',
-                'term_end_date' => '-',
-            ] : null,
+            'message' => __('process.registration_dispatched'),
         ], 201);
     }
 

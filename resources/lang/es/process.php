@@ -52,4 +52,11 @@ return [
     'deactivated_successfully' => 'Proceso desactivado exitosamente.',
     'import_finished_title' => 'Importación de radicados finalizada',
     'import_finished_description' => 'La importación del archivo ":filename" ha finalizado.',
+    'data_imported_title' => 'Radicado importado',
+    'data_imported_description' => 'Los datos del radicado :number han sido importados exitosamente.',
+    'ai_summary_ready_title' => 'Resumen de IA listo',
+    'ai_summary_ready_description' => 'El resumen de IA para el radicado :number ya está disponible.',
+    'import_failed_title' => 'Error de importación',
+    'import_failed_description' => 'No se pudo importar el radicado :number: :error',
+    'registration_dispatched' => 'El registro del proceso ha sido iniciado y se procesará en segundo plano.',
 ];
