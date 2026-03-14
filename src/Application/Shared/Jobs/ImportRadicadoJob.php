@@ -138,13 +138,17 @@ class ImportRadicadoJob implements ShouldQueue
     /**
      * Returns [releaseSeconds, maxAttempts] based on the exception type.
      *
-     * - Proxy failure (cURL 7/28): retry immediately (5 s) so array_rand picks
-     *   a different IP. High max_attempts because proxy failures are transient.
-     * - Empty processes (200 + vacío): Rama Judicial returns empty transiently under load.
-     *   Small number of retries; if still empty after all retries → definitive failure.
-     * - 403/429: jitter applied to spread simultaneous retries.
+     * - Proxy failure (cURL 7/28/56): retry quickly so the pool selects a
+     *   different IP. High max_attempts because proxy failures are transient.
+     * - Empty processes (200 + vacío): Rama Judicial returns empty transiently
+     *   under load. Small retries; if still empty → definitive failure.
+     * - 403/429 with Retry-After header: honour the server-mandated wait exactly.
+     * - 403/429 with proxy pool: exponential backoff per attempt (fresh IP each time).
+     * - 403/429 without proxy: exponential backoff with longer base.
      * - Not found: longer wait; may be transient (timeout, API failure).
      * - Generic: shorter wait with fewer retries.
+     *
+     * Exponential backoff formula: (2 ** attempt) + random_int(1, 3) seconds.
      *
      * @return array{int, int}
      *
@@ -167,20 +171,33 @@ class ImportRadicadoJob implements ShouldQueue
         }
 
         if ($e instanceof ApiForbiddenOrRateLimitException) {
-            // With rotating proxy: 403 = that egress IP is blocked, but the next
-            // attempt gets a fresh IP from Webshare automatically. Retry quickly.
-            // Without proxy: 403 = real rate limit, wait longer.
-            if (config('judicial-branch.proxy.enabled', false)) {
-                return [
-                    (int) config('process-import.retry_release_seconds_for_rate_limit_proxy', 5),
-                    (int) config('process-import.retry_max_attempts_for_rate_limit', 10),
-                ];
+            $maxAttempts = (int) config('process-import.retry_max_attempts_for_rate_limit', 10);
+
+            // Honour Retry-After header when the server provides it explicitly
+            if ($e->retryAfter !== null && $e->retryAfter > 0) {
+                $this->log('warning', 'Retry-After header received — honouring server wait', [
+                    'retry_after_seconds' => $e->retryAfter,
+                    'attempt'             => $this->attempts(),
+                ]);
+
+                return [$e->retryAfter, $maxAttempts];
             }
 
-            $base = (int) config('process-import.retry_release_seconds_for_rate_limit', 180);
-            $jitter = (int) ceil($base * 0.20);
+            // With rotating proxy: exponential backoff per attempt.
+            // Each retry gets a fresh IP, so the base delay is short.
+            if (config('judicial-branch.proxy.enabled', false)) {
+                $base = (int) config('process-import.retry_release_seconds_for_rate_limit_proxy', 5);
+                $delay = $this->exponentialBackoff($this->attempts(), $base);
 
-            return [random_int($base, $base + $jitter), (int) config('process-import.retry_max_attempts_for_rate_limit', 5)];
+                return [$delay, $maxAttempts];
+            }
+
+            // Without proxy: exponential backoff with a longer base to avoid
+            // hammering the API from the same IP.
+            $base = (int) config('process-import.retry_release_seconds_for_rate_limit', 60);
+            $delay = $this->exponentialBackoff($this->attempts(), $base);
+
+            return [$delay, (int) config('process-import.retry_max_attempts_for_rate_limit', 5)];
         }
 
         if ($this->isNotFoundError($e)) {
@@ -194,6 +211,21 @@ class ImportRadicadoJob implements ShouldQueue
             (int) config('process-import.retry_release_seconds', 120),
             (int) config('process-import.retry_max_attempts', 2),
         ];
+    }
+
+    /**
+     * Computes an exponential backoff delay with jitter.
+     *
+     * Formula: max($base, (2 ** $attempt)) + random_int(1, 3) seconds.
+     * Capped at 3600 seconds (1 hour) to prevent unbounded waits.
+     *
+     * @throws RandomException
+     */
+    private function exponentialBackoff(int $attempt, int $base = 5): int
+    {
+        $exponential = (int) min(3600, max($base, 2 ** $attempt));
+
+        return $exponential + random_int(1, 3);
     }
 
     /**

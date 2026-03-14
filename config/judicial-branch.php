@@ -20,44 +20,45 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Pool de Proxies (Webshare Proxy Server — Direct Connection)
+    | Proxy Residencial Rotativo (Webshare Rotating Residential)
     |--------------------------------------------------------------------------
     |
-    | Cuando está habilitado, cada request a Rama Judicial usa una IP diferente
-    | del pool de 250 IPs de Webshare. La selección es seed-based (round-robin
-    | sin locks): cada radicado usa su número como seed para mapear a una IP
-    | distinta, distribuyendo la carga naturalmente entre workers.
+    | Un único endpoint rotativo. Webshare asigna automáticamente una IP
+    | residencial colombiana diferente en cada nueva conexión TCP.
+    | No se necesita pool en BD ni comando proxy:refresh.
     |
     | Configuración en Webshare:
-    |   - Authentication Method: IP Authentication (sin usuario/contraseña)
-    |   - Connection Method: Direct Connection (cada IP tiene su propio puerto)
+    |   - Producto: Rotating Residential
+    |   - Authentication Method: Username/Password
+    |   - Connection Method: Rotating Proxy Endpoint
+    |   - Country filter: Colombia (CO)
     |
     | Variables .env requeridas:
     |   JUDICIAL_BRANCH_PROXY_ENABLED=true
-    |   JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY=tu-api-key
-    |   JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE=ip   (o "credentials")
-    |
-    | Flujo:
-    |   1. php artisan proxy:refresh  → carga las 250 IPs en la BD
-    |   2. Cada job llama next(seed)  → obtiene una IP por posición
-    |   3. cURL 7/28/56              → markFailed() desactiva esa IP
-    |   4. HTTP 403                  → reintento con diferente seed/IP
+    |   JUDICIAL_BRANCH_PROXY_HOST=p.webshare.io
+    |   JUDICIAL_BRANCH_PROXY_PORT=80
+    |   JUDICIAL_BRANCH_PROXY_USERNAME=wfvehrrcresidential-CO-rotate
+    |   JUDICIAL_BRANCH_PROXY_PASSWORD=ab7xwhoq3eip
     |
     */
     'proxy' => [
-        'enabled' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
-        'webshare_api_key' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY', ''),
-        'webshare_auth_mode' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE', 'ip'),
-        'timeout' => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 20),
+        'enabled'  => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
+        'host'     => env('JUDICIAL_BRANCH_PROXY_HOST', 'p.webshare.io'),
+        'port'     => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 80),
+        'username' => env('JUDICIAL_BRANCH_PROXY_USERNAME', ''),
+        'password' => env('JUDICIAL_BRANCH_PROXY_PASSWORD', ''),
+        'timeout'  => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 20),
 
         /*
-         * Milliseconds to sleep between every HTTP call to Rama Judicial when
-         * proxy is active. Applies per worker independently (no shared lock).
+         * Jitter aleatorio entre peticiones a Rama Judicial.
+         * Emula el tiempo de lectura/clic de un humano para evitar
+         * la detección de patrones robóticos por Cloudflare WAF.
          *
-         * 500 ms  → safe, ~3 radicados/min with 3 workers
-         * 200 ms  → faster, ~7 radicados/min with 3 workers
-         * 0       → no delay (not recommended with multiple workers)
+         * Rango recomendado: 1500–3500 ms (~2.5 s promedio)
+         *   → ~4 peticiones / 10 s por radicado
+         *   → ~6 radicados / minuto por worker
          */
-        'call_delay_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MS', 500),
+        'call_delay_min_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MIN_MS', 1500),
+        'call_delay_max_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MAX_MS', 3500),
     ],
 ];
