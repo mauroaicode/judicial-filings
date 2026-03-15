@@ -22,7 +22,7 @@ class NotificationDispatcherService
      * @var array<string, class-string<NotificationChannelDriverInterface>>
      */
     private const CHANNEL_DRIVERS = [
-        'email' => EmailNotificationChannelDriver::class,
+//        'email' => EmailNotificationChannelDriver::class,
         'sms' => SmsNotificationChannelDriver::class,
         'whatsapp' => WhatsAppNotificationChannelDriver::class,
         'internal' => InternalNotificationChannelDriver::class,

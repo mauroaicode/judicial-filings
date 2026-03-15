@@ -58,4 +58,24 @@ return [
     'import_failed_title' => 'Import failed',
     'import_failed_description' => 'Could not import filing :number: :error',
     'registration_dispatched' => 'Process registration has been started and will be processed in the background.',
+    
+    // Notifications
+    'action_detected_subject' => 'New action detected: :number',
+    'alert_detected_subject' => '⚠️ Keyword alert: :number',
+    'action_detected_title' => 'New Judicial Action',
+    'alert_detected_title' => 'Judicial Action Alert',
+    'new_action_intro' => 'A new action has been recorded in one of your followed processes.',
+    'keyword_alert_intro' => 'Attention! An action containing keywords of interest has been detected.',
+    'view_process' => 'View Full Process',
+    'process_number' => 'Radicado',
+    'action_date' => 'Action Date',
+    'action_text' => 'Action',
+    'annotation_text' => 'Annotation',
+    'matched_keywords' => 'Detected Keywords',
+    
+    // Internal/Websocket
+    'internal_action_title' => 'New action',
+    'internal_alert_title' => '⚠️ Keyword alert',
+    'internal_action_description' => 'New action in radicado :number',
+    'internal_alert_description' => 'Alert! Keyword detected in radicado :number',
 ];

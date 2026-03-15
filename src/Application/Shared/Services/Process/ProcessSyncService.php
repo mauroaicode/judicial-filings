@@ -20,7 +20,6 @@ class ProcessSyncService
 
     public function __construct(
         private readonly JudicialBranchConsultService $judicialService,
-        /** @phpstan-ignore property.onlyWritten (used when processActionAlertNotificationService->handle is uncommented in syncActuaciones) */
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService
     ) {}
 
@@ -32,7 +31,8 @@ class ProcessSyncService
 
         $this->judicialService->withSeed($process->process_number);
 
-        $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId);
+        $onlyFirstPage = $process->actions()->exists();
+        $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
 
         if (! $actionsResult->isSuccessful) {
             Log::channel($logChannel)->error('ProcessSyncService: failed to fetch actuaciones', [
@@ -74,7 +74,7 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
 
-            //                        $this->processActionAlertNotificationService->handle($action, $process);
+            $this->processActionAlertNotificationService->handle($action, $process);
         }
     }
 
@@ -125,7 +125,11 @@ class ProcessSyncService
         foreach ($processes as $process) {
             $apiProcessId = (int) $process->process_id;
 
-            $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId);
+            // Optimización: si ya tenemos actuaciones, solo consultamos la página 1 para detectar novedades.
+            // Si es un proceso nuevo (instancia recién detectada), traemos todo el historial.
+            $onlyFirstPage = $process->actions()->exists();
+
+            $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
             if (! $actionsResult->isSuccessful) {
                 Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
                     'process_number' => $processNumber,

@@ -12,6 +12,10 @@ return [
     |
     */
 
+    'enabled' => env('IA_RAG_ENABLED', true),
+
+    'keyword_detection_enabled' => env('IA_KEYWORD_DETECTION_ENABLED', false),
+
     'base_url' => env('IA_RAG_BASE_URL', 'http://localhost:8000'),
 
     'timeout' => env('IA_RAG_TIMEOUT', 120),

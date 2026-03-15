@@ -170,9 +170,10 @@ class JudicialBranchConsultService
      * Fetches all actions for a specific process, handling pagination.
      *
      * @param  int  $processId  Unique ID of the process.
+     * @param  bool  $onlyFirstPage  If true, only the first page will be fetched.
      * @return object{isSuccessful: bool, data: array<mixed>}
      */
-    public function fetchActionByProcess(int $processId): object
+    public function fetchActionByProcess(int $processId, bool $onlyFirstPage = false): object
     {
         $data = [];
         $isSuccessful = true;
@@ -204,6 +205,10 @@ class JudicialBranchConsultService
 
                 if (isset($response['paginacion'])) {
                     $totalPages = (int) ($response['paginacion']['cantidadPaginas'] ?? 1);
+                }
+
+                if ($onlyFirstPage) {
+                    break;
                 }
 
                 $currentPage++;

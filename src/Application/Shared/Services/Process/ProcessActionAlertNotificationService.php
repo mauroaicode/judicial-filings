@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Services\Process;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
-use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
+use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Events\JudicialActionDetected;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
@@ -17,90 +19,128 @@ use Src\Domain\Process\Models\ProcessActionAlertHighlight;
 readonly class ProcessActionAlertNotificationService
 {
     public function __construct(
-        private AnnotationAlertDetectionInterface $alertDetection
+        private ProcessActionKeywordDetectionService $keywordDetection
     ) {}
 
+    /**
+     * Entry point to process notifications and alerts for a new judicial action.
+     *
+     * @param ProcessAction $action
+     * @param Process $process
+     * @return void
+     */
     public function handle(ProcessAction $action, Process $process): void
     {
-        $annotation = $action->annotation ?? '';
-        $actionText = $action->action ?? '';
-        $anno = trim($annotation);
-        $act = trim($actionText);
-        // Buscar palabras/frases en anotación Y en actuación (texto concatenado).
-        $searchText = $anno === '' && $act === '' ? '' : trim($anno.' '.$act);
-        $spans = $this->alertDetection->getDetectedAlertSpans($searchText);
-
-        // Límite para saber si el span está en anotación o actuación al guardar en ProcessActionAlertHighlight.
-        $annotationBoundary = mb_strlen($anno) + ($anno !== '' && $act !== '' ? 1 : 0);
-        $this->saveHighlights($action, $spans, $annotationBoundary);
-        $this->createNotificationsAndDispatch($process, $action, $spans);
-    }
-
-    /**
-     * Guarda en ProcessActionAlertHighlight la posición (start, end) y el origen (annotation|action|both)
-     * de cada fragmento detectado en el texto concatenado anotación + actuación.
-     *
-     * @param  array<int, array{start: int, end: int, text: string}>  $spans
-     */
-    private function saveHighlights(ProcessAction $action, array $spans, int $annotationBoundary): void
-    {
-        $keywordIds = [];
-        foreach ($spans as $span) {
-            $source = $this->computeSource($span['start'], $span['end'], $annotationBoundary);
-            ProcessActionAlertHighlight::query()->create([
-                'process_action_id' => $action->id,
-                'start' => $span['start'],
-                'end' => $span['end'],
-                'detected_text' => $span['text'],
-                'source' => $source,
-            ]);
-            $keyword = AlertActionKeyword::matchFragment($span['text']);
-            if ($keyword instanceof AlertActionKeyword) {
-                $keywordIds[$keyword->id] = [];
-            }
-        }
-
-        if ($keywordIds !== []) {
-            $action->alertActionKeywords()->syncWithoutDetaching(array_keys($keywordIds));
-        }
-    }
-
-    /**
-     * Donde se encontró el fragmento en el texto concatenado (anotación + actuación).
-     */
-    private function computeSource(int $start, int $end, int $annotationBoundary): string
-    {
-        if ($annotationBoundary <= 0) {
-            return 'action';
-        }
-
-        if ($end <= $annotationBoundary) {
-            return 'annotation';
-        }
-
-        if ($start >= $annotationBoundary) {
-            return 'action';
-        }
-
-        return 'both';
-    }
-
-    /**
-     * @param  array<int, array{start: int, end: int, text: string}>  $spans
-     */
-    private function createNotificationsAndDispatch(Process $process, ProcessAction $action, array $spans): void
-    {
-        $organizations = $process->organizations()->wherePivot('is_active', true)->get();
+        $organizations = $this->getInterestedOrganizations($process);
 
         foreach ($organizations as $organization) {
-            $this->createNotificationAndDispatch($action, $organization->id, 'actuacion');
+            $this->notifyNewAction($action, $organization->id);
 
-            if ($spans !== []) {
-                $this->createNotificationAndDispatch($action, $organization->id, 'actuacion_alerta');
-            }
+            $this->processAlertsForOrganization($action, $organization);
         }
     }
 
+    /**
+     * Fetch active organizations interested in the process with their keywords.
+     *
+     * @param Process $process
+     * @return Collection
+     */
+    private function getInterestedOrganizations(Process $process): Collection
+    {
+        return $process->organizations()
+            ->wherePivot('is_active', true)
+            ->with(['keywords' => fn ($q) => $q->where('status', KeywordStatus::ACTIVE)])
+            ->get();
+    }
+
+    /**
+     * Execute keyword detection and coordinate highlighting for a specific organization.
+     *
+     * @param ProcessAction $action
+     * @param Organization $organization
+     * @return void
+     */
+    private function processAlertsForOrganization(ProcessAction $action, Organization $organization): void
+    {
+        $detectionResults = $this->keywordDetection->handle($action, $organization->keywords);
+
+        if ($detectionResults->isEmpty()) {
+            return;
+        }
+
+        $this->notifyAlertDetected($action, $organization->id);
+
+        $this->registerHighlightsAndGlobalKeywords($action, $organization->id, $detectionResults);
+    }
+
+    /**
+     * Persist position-based highlights and map hits to global alert categories.
+     *
+     * @param ProcessAction $action
+     * @param string $organizationId
+     * @param \Illuminate\Support\Collection $detectionResults
+     * @return void
+     */
+    private function registerHighlightsAndGlobalKeywords(ProcessAction $action, string $organizationId, \Illuminate\Support\Collection $detectionResults): void
+    {
+        $globalKeywordIds = [];
+
+        foreach ($detectionResults as $result) {
+            foreach ($result['matches'] as $match) {
+                ProcessActionAlertHighlight::query()->create([
+                    'process_action_id' => $action->id,
+                    'organization_id' => $organizationId,
+                    'start' => $match['start'],
+                    'end' => $match['end'],
+                    'detected_text' => $match['text'],
+                    'source' => $match['source'],
+                ]);
+
+                $globalKeyword = AlertActionKeyword::matchFragment($match['text']);
+                if ($globalKeyword) {
+                    $globalKeywordIds[$globalKeyword->id] = true;
+                }
+            }
+        }
+
+        if (! empty($globalKeywordIds)) {
+            $action->alertActionKeywords()->syncWithoutDetaching(array_keys($globalKeywordIds));
+        }
+    }
+
+    /**
+     * Dispatch a standard "new action" notification.
+     *
+     * @param ProcessAction $action
+     * @param string $organizationId
+     * @return void
+     */
+    private function notifyNewAction(ProcessAction $action, string $organizationId): void
+    {
+        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion');
+    }
+
+    /**
+     * Dispatch a keyword-triggered "alert" notification.
+     *
+     * @param ProcessAction $action
+     * @param string $organizationId
+     * @return void
+     */
+    private function notifyAlertDetected(ProcessAction $action, string $organizationId): void
+    {
+        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta');
+    }
+
+    /**
+     * Create a notification record and dispatch the notification job.
+     *
+     * @param ProcessAction $action
+     * @param string $organizationId
+     * @param string $notificationType
+     * @return void
+     */
     private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType): void
     {
         $notification = OrganizationNotification::query()->firstOrCreate(

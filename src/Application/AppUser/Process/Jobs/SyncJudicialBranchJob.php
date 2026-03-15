@@ -50,8 +50,10 @@ class SyncJudicialBranchJob implements ShouldQueue
 
                 $this->appUser->notify(new ProcessDataImportedNotification($process));
 
-                GenerateProcessAiSummaryJob::dispatch($process, $this->organizationId, $this->appUser)
-                    ->onQueue(config('ia-rag.queues.ai'));
+                if (config('ia-rag.enabled')) {
+                    GenerateProcessAiSummaryJob::dispatch($process, $this->organizationId, $this->appUser)
+                        ->onQueue(config('ia-rag.queues.ai'));
+                }
             } else {
                 $this->updateLogStatus('failed', 'No process was imported.');
             }
