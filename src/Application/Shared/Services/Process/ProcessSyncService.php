@@ -23,7 +23,7 @@ class ProcessSyncService
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService
     ) {}
 
-    public function handle(Process $process): void
+    public function handle(Process $process, bool $notify = true): void
     {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
@@ -49,14 +49,14 @@ class ProcessSyncService
             throw new \RuntimeException(__('process.sync_failed_sujetos'));
         }
 
-        $this->syncActuaciones($process, $actionsResult->data);
+        $this->syncActuaciones($process, $actionsResult->data, $notify);
         $this->syncSujetos($process, $subjectsResult->data);
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $apiActuaciones
      */
-    private function syncActuaciones(Process $process, array $apiActuaciones): void
+    private function syncActuaciones(Process $process, array $apiActuaciones, bool $notify = true): void
     {
 
         foreach ($apiActuaciones as $apiActuacion) {
@@ -74,7 +74,9 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
 
-            $this->processActionAlertNotificationService->handle($action, $process);
+            if ($notify) {
+                $this->processActionAlertNotificationService->handle($action, $process);
+            }
         }
     }
 
@@ -103,7 +105,7 @@ class ProcessSyncService
      * Sync actuaciones and sujetos for all process instances of a radicado with one API call.
      * Only processes that are active in at least one organization are synced.
      */
-    public function syncByProcessNumber(string $processNumber): void
+    public function syncByProcessNumber(string $processNumber, bool $notify = true): void
     {
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
@@ -149,7 +151,7 @@ class ProcessSyncService
                 continue;
             }
 
-            $this->syncActuaciones($process, $actionsResult->data);
+            $this->syncActuaciones($process, $actionsResult->data, $notify);
             $this->syncSujetos($process, $subjectsResult->data);
         }
     }

@@ -10,7 +10,6 @@ use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
-use Src\Domain\Process\Events\JudicialActionDetected;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
@@ -159,6 +158,6 @@ readonly class ProcessActionAlertNotificationService
 
         dispatch(SendOrganizationNotificationJob::fromNotification($notification));
 
-        event(new JudicialActionDetected($action, $organizationId, $notificationType));
+//        event(new JudicialActionDetected($action, $organizationId, $notificationType));
     }
 }

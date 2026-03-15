@@ -160,7 +160,7 @@ readonly class RegisterProcessService
 
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
                 $this->attachProcessToOrganization($process, $organizationId);
-                $this->processSyncService->handle($process);
+                $this->processSyncService->handle($process, false);
 
                 $registeredProcesses->push($process);
             }

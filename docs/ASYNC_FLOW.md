@@ -10,7 +10,8 @@ Para que el sistema funcione correctamente, se deben ejecutar los siguientes ser
 | :--- | :--- | :--- |
 | **Sincronización Judicial** | `php artisan queue:work --queue=judicial-sync` | Procesa la importación inicial del radicado desde la API de la Rama Judicial. |
 | **Resumen de IA** | `php artisan queue:work --queue=process-ai` | Envía los datos al motor RAG y genera el resumen ejecutivo. |
-| **Notificaciones** | `php artisan queue:work --queue=notifications` | Gestiona el envío de notificaciones (Base de Datos y WebSockets). |
+| **Notificaciones Internas** | `php artisan queue:work --queue=notifications` | Gestiona alertas internas y WebSockets. |
+| **Notificaciones Email** | `php artisan queue:work --queue=notifications-email` | Procesa el envío de correos electrónicos oficiales. |
 | **WebSockets (Reverb)** | `php artisan reverb:start` | Habilita la comunicación en tiempo real con el frontend. |
 
 ---

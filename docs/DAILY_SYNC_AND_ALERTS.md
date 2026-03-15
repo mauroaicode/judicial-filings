@@ -9,7 +9,10 @@ Para que el flujo de sincronización y alertas funcione, deben estar activos los
 | Cola | Comando | Función |
 | :--- | :--- | :--- |
 | **Sincronización** | `php artisan queue:work --queue=judicial-sync` | Consulta la API para buscar nuevas actuaciones y sincronizarlas. |
-| **Notificaciones** | `php artisan queue:work --queue=notifications` | Despacha correos, alertas internas y registros de logs (SMS/WA). |
+| **Notificaciones Internas** | `php artisan queue:work --queue=notifications` | Despacha alertas internas y WebSockets. |
+| **Correos (Emails)** | `php artisan queue:work --queue=notifications-email` | Procesa el envío de correos electrónicos. |
+| **SMS (Futuro)** | `php artisan queue:work --queue=notifications-sms` | Encola mensajes SMS (actualmente logs). |
+| **WhatsApp (Futuro)** | `php artisan queue:work --queue=notifications-whatsapp` | Encola mensajes WhatsApp (actualmente logs). |
 
 ## ⚙️ Variables de Entorno (.env)
 
@@ -19,6 +22,10 @@ Para que el flujo de sincronización y alertas funcione, deben estar activos los
 | `JUDICIAL_BRANCH_TIMEOUT` | Tiempo de espera para la API de la Rama Judicial (segundos). |
 | `IA_KEYWORD_DETECTION_ENABLED` | (true/false) Activa la IA como árbitro final en la detección de palabras clave. |
 | `LOG_JUDICIAL_NOTIFICATIONS` | Canal de log para histórico de alertas (default: `judicial_sync_notifications`). |
+| `NOTIFICATION_INTERNAL_QUEUE` | Cola específica para WebSockets y notificaciones internas. |
+| `NOTIFICATION_EMAIL_QUEUE` | Cola para el envío de correos electrónicos. |
+| `NOTIFICATION_SMS_QUEUE` | Cola específica para mensajes SMS. |
+| `NOTIFICATION_WHATSAPP_QUEUE` | Cola específica para mensajes de WhatsApp. |
 
 ---
 
@@ -46,6 +53,7 @@ Por cada nueva actuación, el `ProcessActionKeywordDetectionService` analiza el 
 El `ProcessActionAlertNotificationService` ejecuta la lógica por organización:
 - **Notificación Obligatoria**: Se envía una alerta de "Nueva Actuación" a todos los interesados.
 - **Alerta de Palabra Clave**: Solo se envía si la actuación coincide con las palabras que ese abogado configuró.
+- **Arquitectura de Canales**: El sistema usa el job orquestador `DeliverNotificationChannelJob` para despachar cada canal de forma independiente a su propia "autopista" (cola), evitando que un fallo en correos detenga las notificaciones internas.
 - **Highlights**: Se guardan las coordenadas (`start`, `end`) en la tabla `process_action_alert_highlights` asociadas a la organización para que el frontend las subraye en amarillo.
 
 ---
