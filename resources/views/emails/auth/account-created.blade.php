@@ -102,8 +102,8 @@
 
     <div class="credentials-section">
         <div class="credential-row">
-            <div class="credential-label">{{ __('data.email') }}</div>
-            <div class="credential-value">{{ $email }}</div>
+            <div class="credential-label">{{ __('data.identification') }}</div>
+            <div class="credential-value">{{ $identification }}</div>
         </div>
         <div class="credential-row">
             <div class="credential-label">{{ __('data.password') }}</div>

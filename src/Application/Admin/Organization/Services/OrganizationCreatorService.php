@@ -10,12 +10,13 @@ use Illuminate\Support\Str;
 use Src\Application\Admin\Organization\Data\StoreOrganizationData;
 use Src\Application\Shared\Notifications\AccountCreatedNotification;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Organization\Models\Organization;
 use Throwable;
 
 class OrganizationCreatorService
 {
-    private const PHONE_PREFIX = '+56';
+    private const PHONE_PREFIX = '+53';
 
     /**
      * Create a new organization and its first owner (AppUser), then send account email.
@@ -55,6 +56,8 @@ class OrganizationCreatorService
             ]);
 
             $organization->appUsers()->attach($appUser->id, ['is_owner' => true]);
+
+            $this->createDefaultNotificationChannel($organization, $appUser);
 
             DB::afterCommit(function () use ($appUser, $password): void {
                 $appUser->notify(new AccountCreatedNotification($password));
@@ -128,5 +131,15 @@ class OrganizationCreatorService
         }
 
         return $slug;
+    }
+
+    private function createDefaultNotificationChannel(Organization $organization, AppUser $appUser): void
+    {
+        $organization->notificationChannels()->create([
+            'channel_type' => 'email',
+            'channel_value' => $appUser->email,
+            'is_active' => true,
+            'priority' => 1,
+        ]);
     }
 }

@@ -33,6 +33,7 @@ class StoreOrganizationData extends Data
         #[Required, Email]
         public readonly string $email,
 
+        #[Required, StringType]
         public readonly ?string $identification = null,
 
         public readonly ?string $address = null,
@@ -53,21 +54,35 @@ class StoreOrganizationData extends Data
             'email.email' => __('validation.organization.email.email'),
             'email.unique' => __('validation.organization.email.unique'),
             'contact_person.required_if' => __('validation.organization.contact_person.required_if'),
+            'identification.required' => __('validation.organization.identification.required'),
         ]);
 
         $validator->after(function (Validator $validator): void {
             $data = $validator->getData();
 
-            if (! isset($data['email'])) {
-                return;
+            if (isset($data['email'])) {
+                $emailExists = \Src\Domain\Organization\Models\Organization::query()
+                    ->where('email', $data['email'])
+                    ->exists();
+
+                if ($emailExists) {
+                    $validator->errors()->add('email', __('validation.organization.email.unique'));
+                }
             }
 
-            $exists = \Src\Domain\Organization\Models\Organization::query()
-                ->where('email', $data['email'])
-                ->exists();
+            if (isset($data['identification'])) {
+                $identificationExists = \Src\Domain\Organization\Models\Organization::query()
+                    ->where('identification', $data['identification'])
+                    ->exists();
 
-            if ($exists) {
-                $validator->errors()->add('email', __('validation.organization.email.unique'));
+                if ($identificationExists) {
+                    $type = $data['type'] ?? null;
+                    $messageKey = $type === OrganizationType::JURIDICAL->value
+                        ? 'validation.organization.identification.unique_nit'
+                        : 'validation.organization.identification.unique_cedula';
+
+                    $validator->errors()->add('identification', __($messageKey));
+                }
             }
         });
     }

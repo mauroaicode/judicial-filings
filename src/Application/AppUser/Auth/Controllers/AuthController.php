@@ -23,7 +23,7 @@ class AuthController
 
         $token = $appUser->createToken($appUser->identification)->plainTextToken;
 
-        $authResource = AuthResource::fromModel($appUser, $token, false);
+        $authResource = AuthResource::fromModel($appUser, $token, false, $appUser->must_change_password);
 
         return response()->json($authResource->toArray());
     }

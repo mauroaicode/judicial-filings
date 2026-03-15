@@ -37,7 +37,7 @@ class AccountCreatedNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject(__('auth.account_created_subject'))
             ->view('emails.auth.account-created', [
-                'email' => $notifiable->email,
+                'identification' => $notifiable->identification,
                 'temporaryPassword' => $this->temporaryPassword,
             ]);
     }

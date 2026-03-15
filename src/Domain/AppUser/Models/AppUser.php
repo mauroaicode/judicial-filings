@@ -57,6 +57,7 @@ class AppUser extends Model implements Authenticatable
         'email',
         'identification',
         'password',
+        'must_change_password',
         'profile_image',
         'email_verified_at',
     ];
@@ -81,6 +82,7 @@ class AppUser extends Model implements Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 

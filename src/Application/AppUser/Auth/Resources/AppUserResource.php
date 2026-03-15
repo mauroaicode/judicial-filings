@@ -20,6 +20,7 @@ class AppUserResource extends Resource
         public string $identification,
         public ?string $slug = null,
         public ?string $profile_image = null,
+        public bool $must_change_password = true,
         public ?array $roles = null,
     ) {}
 
@@ -41,6 +42,7 @@ class AppUserResource extends Resource
             identification: $appUser->identification,
             slug: $appUser->slug,
             profile_image: $appUser->profile_image,
+            must_change_password: $appUser->must_change_password,
             roles: $roles,
         );
     }
