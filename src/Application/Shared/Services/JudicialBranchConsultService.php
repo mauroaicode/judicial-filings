@@ -43,16 +43,13 @@ class JudicialBranchConsultService
     private string $radicadoSeed = '';
 
     /**
-     * Cookie jar compartido entre las 4 peticiones del mismo radicado.
-     * Permite que cf_clearance y otras cookies de sesión persistan durante
-     * todo el ciclo de vida del servicio, evitando re-desafíos de Cloudflare.
+     * Cookie jar persistente por ciclo de vida de un radicado.
      */
-    private CookieJar $cookieJar;
+    private ?CookieJar $cookieJar = null;
 
     public function __construct(
         private readonly ProxyPoolService $proxyPool,
     ) {
-        $this->cookieJar = new CookieJar;
     }
 
     /**
@@ -63,6 +60,7 @@ class JudicialBranchConsultService
     public function withSeed(string $seed): static
     {
         $this->radicadoSeed = $seed;
+        $this->cookieJar = new CookieJar;
 
         return $this;
     }
@@ -83,14 +81,18 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
-            $this->throttle();
-
             $baseUrl = config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion';
             $allProcesses = [];
             $currentPage = 1;
             $totalPages = 1;
 
+            $client = $this->buildHttpClient();
+
             do {
+                // Apply jitter before each page request (including the first one to avoid rapid fire)
+                // Usamos delay normal para la p1, y rápido para las siguientes (clic de paginación)
+                $this->applyJitter($currentPage > 1);
+
                 $params = [
                     'numero' => $code,
                     'SoloActivos' => 'false',
@@ -99,9 +101,7 @@ class JudicialBranchConsultService
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
-                $httpResponse = $this->buildHttpClient()->get($endpoint);
-
-                $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchProcesses', $httpResponse);
+                $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchProcesses');
 
                 $response = $httpResponse->json();
                 if (! is_array($response)) {
@@ -113,7 +113,7 @@ class JudicialBranchConsultService
                 }
 
                 if (isset($response['paginacion'])) {
-                    $totalPages = $response['paginacion']['cantidadPaginas'];
+                    $totalPages = (int) ($response['paginacion']['cantidadPaginas'] ?? 1);
                 }
 
                 $currentPage++;
@@ -127,10 +127,7 @@ class JudicialBranchConsultService
         } catch (ApiEmptyProcessesException|ApiForbiddenOrRateLimitException|ApiProxyFailureException $e) {
             throw $e;
         } catch (Throwable $th) {
-            $this->throwIfProxyFailure($th, 'fetchProcesses');
-
             $isSuccessful = false;
-
             $this->logError('Error fetching processes', $th);
         }
 
@@ -149,23 +146,20 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
-            $this->throttle();
+            $this->applyJitter();
 
             $endpoint = config('judicial-branch.api_url')."/Proceso/Detalle/{$processId}";
 
-            $httpResponse = $this->buildHttpClient()->get($endpoint);
+            $client = $this->buildHttpClient();
 
-            $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchDetailProcess', $httpResponse);
+            $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchDetailProcess');
 
             $data = $httpResponse->json() ?? [];
 
         } catch (ApiForbiddenOrRateLimitException|ApiProxyFailureException $e) {
             throw $e;
         } catch (Throwable $th) {
-            $this->throwIfProxyFailure($th, 'fetchDetailProcess');
-
             $isSuccessful = false;
-
             $this->logError('Error fetching process detail', $th);
         }
 
@@ -184,20 +178,20 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
-            $this->throttle();
-
             $baseUrl = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
             $allActions = [];
             $currentPage = 1;
             $totalPages = 1;
 
+            $client = $this->buildHttpClient();
+
             do {
+                $this->applyJitter($currentPage > 1);
+
                 $params = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
-                $httpResponse = $this->buildHttpClient()->get($endpoint);
-
-                $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchActionByProcess', $httpResponse);
+                $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchActionByProcess');
 
                 $response = $httpResponse->json();
                 if (! is_array($response)) {
@@ -209,7 +203,7 @@ class JudicialBranchConsultService
                 }
 
                 if (isset($response['paginacion'])) {
-                    $totalPages = $response['paginacion']['cantidadPaginas'];
+                    $totalPages = (int) ($response['paginacion']['cantidadPaginas'] ?? 1);
                 }
 
                 $currentPage++;
@@ -220,10 +214,7 @@ class JudicialBranchConsultService
         } catch (ApiForbiddenOrRateLimitException|ApiProxyFailureException $e) {
             throw $e;
         } catch (Throwable $th) {
-            $this->throwIfProxyFailure($th, 'fetchActionByProcess');
-
             $isSuccessful = false;
-
             $this->logError('Error fetching process actions', $th);
         }
 
@@ -242,20 +233,20 @@ class JudicialBranchConsultService
         $isSuccessful = true;
 
         try {
-            $this->throttle();
-
             $baseUrl = config('judicial-branch.api_url')."/Proceso/Sujetos/{$processId}";
             $allSubjects = [];
             $currentPage = 1;
             $totalPages = 1;
 
+            $client = $this->buildHttpClient();
+
             do {
+                $this->applyJitter($currentPage > 1);
+
                 $params = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
-                $httpResponse = $this->buildHttpClient()->get($endpoint);
-
-                $this->throwIfForbiddenOrRateLimit($httpResponse->status(), 'fetchSubjectsByProcess', $httpResponse);
+                $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchSubjectsByProcess');
 
                 $response = $httpResponse->json();
                 if (! is_array($response)) {
@@ -267,7 +258,7 @@ class JudicialBranchConsultService
                 }
 
                 if (isset($response['paginacion'])) {
-                    $totalPages = $response['paginacion']['cantidadPaginas'];
+                    $totalPages = (int) ($response['paginacion']['cantidadPaginas'] ?? 1);
                 }
 
                 $currentPage++;
@@ -278,10 +269,7 @@ class JudicialBranchConsultService
         } catch (ApiForbiddenOrRateLimitException|ApiProxyFailureException $e) {
             throw $e;
         } catch (Throwable $th) {
-            $this->throwIfProxyFailure($th, 'fetchSubjectsByProcess');
-
             $isSuccessful = false;
-
             $this->logError('Error fetching process subjects', $th);
         }
 
@@ -294,18 +282,15 @@ class JudicialBranchConsultService
 
     /**
      * Builds an HTTP client with:
-     *  - User-Agent determinístico por radicado (mismo UA en las 4 peticiones)
+     *  - User-Agent determinístico por radicado (mismo UA en todas las peticiones)
      *  - Cabeceras humanas realistas para reducir huella ante Cloudflare
      *  - CookieJar compartido para persistir cf_clearance entre peticiones
-     *  - Proxy residencial rotativo de Webshare (http://user:pass@p.webshare.io:80)
+     *  - Proxy SOCKS5 (o configurado) para puerto 448
      */
     private function buildHttpClient(): PendingRequest
     {
         $proxyEnabled = config('judicial-branch.proxy.enabled', false);
-
-        $timeout = $proxyEnabled
-            ? (int) config('judicial-branch.proxy.timeout', 20)
-            : (int) config('judicial-branch.timeout_seconds', 60);
+        $timeout = (int) config('judicial-branch.proxy.timeout', 45);
 
         $client = Http::timeout($timeout)
             ->withHeaders([
@@ -320,32 +305,107 @@ class JudicialBranchConsultService
                 'Sec-Ch-Ua-Mobile' => '?0',
                 'DNT'              => '1',
             ])
-            ->withOptions(['cookies' => $this->cookieJar]);
+            ->withOptions(['cookies' => $this->cookieJar ?? new CookieJar]);
 
         if ($proxyEnabled) {
-            $proxyUrl = $this->proxyPool->next();
+            // Pass the radicadoSeed to next() to enable Sticky Sessions (same IP for all requests of this radicado)
+            $proxyUrl = $this->proxyPool->next($this->radicadoSeed);
 
             if ($proxyUrl !== null) {
                 $client = $client->withOptions([
                     'proxy'   => $proxyUrl,
-                    'cookies' => $this->cookieJar,
                 ]);
 
-                $this->logInfo('Using Webshare rotating residential proxy');
-            } else {
-                $this->logInfo('Proxy credentials not set — using direct connection');
+                $this->logInfo('Using rotating residential proxy (Rotating per request)');
             }
-        } else {
-            $this->logInfo('Using direct connection (proxy disabled)');
         }
 
         return $client;
     }
 
     /**
-     * Selects a User-Agent deterministically from the radicado seed so that
-     * all 4 requests of the same radicado always present the same browser
-     * fingerprint to Cloudflare. Falls back to random when no seed is set.
+     * Executes an HTTP request with exponential backoff and Retry-After handling.
+     *
+     * @param  callable  $request  A closure that returns the Response.
+     */
+    private function performRequestWithRetries(callable $request, string $context): Response
+    {
+        $maxRetries = 6; // Aumentamos reintentos internos para proxies residenciales inestables
+        $attempt = 0;
+
+        while (true) {
+            try {
+                /** @var Response $response */
+                $response = $request();
+
+                $status = $response->status();
+
+                // If successful (or not a retryable error like 404), return immediately
+                if ($status < 400 || $status === 404) {
+                    return $response;
+                }
+
+                // Handle 403 (Forbidden) or 429 (Too Many Requests)
+                if ($status === 403 || $status === 429) {
+                    if ($attempt >= $maxRetries) {
+                        $this->throwIfForbiddenOrRateLimit($status, $context, $response);
+                    }
+
+                    $this->handleCooldown($response, $attempt);
+                    $attempt++;
+
+                    continue;
+                }
+
+                // For other errors, just return the response and let the caller handle it
+                return $response;
+
+            } catch (Throwable $th) {
+                // Handle raw connection errors (proxy failures, timeouts)
+                if ($attempt >= $maxRetries) {
+                    $this->throwIfProxyFailure($th, $context);
+                    throw $th;
+                }
+
+                $this->logWarning("Request attempt {$attempt} failed, retrying...", [
+                    'context' => $context,
+                    'error'   => $th->getMessage(),
+                ]);
+
+                $this->handleCooldown(null, $attempt);
+                $attempt++;
+            }
+        }
+    }
+
+    /**
+     * Handles waiting before a retry, using Retry-After header or exponential backoff.
+     */
+    private function handleCooldown(?Response $response, int $attempt): void
+    {
+        $seconds = 0;
+
+        // 1. Check for Retry-After header
+        if ($response !== null) {
+            $retryAfter = $response->header('Retry-After');
+            if ($retryAfter !== '' && $retryAfter !== null) {
+                $seconds = is_numeric($retryAfter)
+                    ? (int) $retryAfter
+                    : (int) max(0, strtotime($retryAfter) - time());
+            }
+        }
+
+        // 2. If no Retry-After, apply exponential backoff (2s, 4s, 8s)
+        if ($seconds <= 0) {
+            $seconds = (int) pow(2, $attempt + 1);
+        }
+
+        $this->logInfo("Pausing for {$seconds}s before retry...", ['attempt' => $attempt]);
+        Sleep::sleep($seconds);
+    }
+
+    /**
+     * Selects a User-Agent deterministically from the radicado seed.
      */
     private function resolveUserAgent(): string
     {
@@ -359,64 +419,36 @@ class JudicialBranchConsultService
     }
 
     /**
-     * Paces HTTP calls per worker using a random jitter delay (human-like).
+     * Paces HTTP calls using a random jitter delay.
      *
-     * With proxy enabled: random delay between call_delay_min_ms and
-     * call_delay_max_ms (default 1500–3500 ms) to emulate human reading time.
-     * Without proxy: Laravel RateLimiter enforces a per-minute cap.
+     * @param bool $fast If true, uses a shorter delay suitable for pagination clicks.
      */
-    private function throttle(): void
+    private function applyJitter(bool $fast = false): void
     {
-        if (config('judicial-branch.proxy.enabled', false)) {
-            $minMs = (int) config('judicial-branch.proxy.call_delay_min_ms', 1500);
-            $maxMs = (int) config('judicial-branch.proxy.call_delay_max_ms', 3500);
+        $minMs = (int) config('judicial-branch.proxy.call_delay_min_ms', 1000);
+        $maxMs = (int) config('judicial-branch.proxy.call_delay_max_ms', 2500);
 
-            // Ensure valid range even if config values are inverted or equal
-            if ($minMs >= $maxMs) {
-                $maxMs = $minMs + 1000;
-            }
-
-            $jitterMs = random_int($minMs, $maxMs);
-
-            $this->logInfo('Throttle jitter applied', ['delay_ms' => $jitterMs]);
-
-            Sleep::usleep($jitterMs * 1000);
-
-            return;
+        if ($fast) {
+            $minMs = (int) floor($minMs * 0.4); // 60% más rápido para clics de página
+            $maxMs = (int) floor($maxMs * 0.6);
         }
 
-        $key = 'judicial-api-http-calls';
-        $limit = (int) config('judicial-branch.rate_limit_per_minute', 8);
-        $sleepSeconds = (int) ceil(60 / max(1, $limit));
-
-        while (RateLimiter::tooManyAttempts($key, $limit)) {
-            Sleep::sleep($sleepSeconds);
+        if ($minMs >= $maxMs) {
+            $maxMs = $minMs + 500;
         }
 
-        RateLimiter::hit($key, 60);
+        $jitterMs = random_int($minMs, $maxMs);
+
+        $this->logInfo('Applying jitter delay', ['delay_ms' => $jitterMs, 'mode' => $fast ? 'fast' : 'normal']);
+
+        Sleep::usleep($jitterMs * 1000);
     }
 
     /**
      * Throws ApiForbiddenOrRateLimitException on HTTP 403 or 429.
-     *
-     * Reads the Retry-After response header (if present) and passes it into
-     * the exception so the job can honour the server-mandated wait time.
-     *
-     * With proxy pool: 403 = that specific IP is blocked by Rama Judicial.
-     * The next retry will use a different IP (different seed position).
-     * We do NOT mark the proxy as failed — 403 is temporary per IP, not a
-     * dead proxy. Only cURL errors 7/28/56 justify permanent deactivation.
      */
     private function throwIfForbiddenOrRateLimit(int $status, string $context, ?Response $httpResponse = null): void
     {
-        if ($status !== 403 && $status !== 429) {
-            return;
-        }
-
-        $proxyMode = config('judicial-branch.proxy.enabled', false)
-            ? ('proxy pool ['.$this->proxyPool->count().' IPs]')
-            : 'direct connection';
-
         $retryAfter = null;
 
         if ($httpResponse !== null) {
@@ -429,9 +461,8 @@ class JudicialBranchConsultService
             }
         }
 
-        $this->logWarning("HTTP {$status} from Rama Judicial", [
+        $this->logWarning("HTTP {$status} from Rama Judicial — Max retries reached", [
             'context'     => $context,
-            'proxy_mode'  => $proxyMode,
             'retry_after' => $retryAfter,
         ]);
 
@@ -445,22 +476,9 @@ class JudicialBranchConsultService
 
     /**
      * Detects cURL proxy connection errors and throws ApiProxyFailureException.
-     *
-     * With Webshare rotating residential, there are no individual IPs to
-     * deactivate. The exception signals the job to retry — on the next attempt
-     * Webshare will automatically assign a different residential exit IP.
-     *
-     * Detected errors:
-     *   - cURL 7  (CURLE_COULDNT_CONNECT): proxy gateway unreachable.
-     *   - cURL 28 (CURLE_OPERATION_TIMEDOUT): proxy timed out.
-     *   - cURL 56 (CURLE_RECV_ERROR): proxy tunnel failed mid-response.
      */
     private function throwIfProxyFailure(Throwable $th, string $context): void
     {
-        if (! config('judicial-branch.proxy.enabled', false)) {
-            return;
-        }
-
         $message = $th->getMessage();
 
         $isCurlError7  = str_contains($message, 'cURL error 7');
@@ -471,27 +489,18 @@ class JudicialBranchConsultService
             return;
         }
 
-        $curlCode = match (true) {
-            $isCurlError7  => 7,
-            $isCurlError28 => 28,
-            default        => 56,
+        $label = match (true) {
+            $isCurlError7  => 'proxy gateway unreachable (CURLE_COULDNT_CONNECT)',
+            $isCurlError28 => 'proxy timeout (CURLE_OPERATION_TIMEDOUT)',
+            default        => 'proxy tunnel failed (CURLE_RECV_ERROR)',
         };
 
-        $label = match ($curlCode) {
-            7  => 'proxy gateway unreachable (CURLE_COULDNT_CONNECT)',
-            28 => 'proxy timeout (CURLE_OPERATION_TIMEDOUT)',
-            56 => 'proxy tunnel failed (CURLE_RECV_ERROR)',
-        };
-
-        $this->proxyPool->markFailed('rotating-residential');
-
-        $this->logWarning("Proxy error — {$label} — Webshare will rotate to a new IP on retry", [
-            'context'    => $context,
-            'curl_error' => $curlCode,
+        $this->logWarning("Proxy fatal error — {$label}", [
+            'context' => $context,
         ]);
 
         throw new ApiProxyFailureException(
-            "Proxy error on {$context}: {$label}. Webshare will assign a new residential IP on retry."
+            "Proxy error on {$context}: {$label}. Max retries reached."
         );
     }
 

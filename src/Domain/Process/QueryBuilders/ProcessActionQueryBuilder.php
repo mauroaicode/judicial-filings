@@ -35,11 +35,13 @@ class ProcessActionQueryBuilder extends Builder
     }
 
     /**
-     * Verifica si ya existe una actuación con el action_registration_id dado.
+     * Verifica si ya existe una actuación con el action_registration_id dado para un proceso específico.
      */
-    public function existsByActionRegistrationId(int $actionRegistrationId): bool
+    public function existsByActionRegistrationId(string $processId, int $actionRegistrationId): bool
     {
-        return $this->where('action_registration_id', $actionRegistrationId)->exists();
+        return $this->whereProcess($processId)
+            ->whereActionRegistrationId($actionRegistrationId)
+            ->exists();
     }
 
     /**

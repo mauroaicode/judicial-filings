@@ -20,45 +20,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Proxy Residencial Rotativo (Webshare Rotating Residential)
+    | Proxy Residencial Rotativo (ProxyScrape / Webshare)
     |--------------------------------------------------------------------------
-    |
-    | Un único endpoint rotativo. Webshare asigna automáticamente una IP
-    | residencial colombiana diferente en cada nueva conexión TCP.
-    | No se necesita pool en BD ni comando proxy:refresh.
-    |
-    | Configuración en Webshare:
-    |   - Producto: Rotating Residential
-    |   - Authentication Method: Username/Password
-    |   - Connection Method: Rotating Proxy Endpoint
-    |   - Country filter: Colombia (CO)
     |
     | Variables .env requeridas:
     |   JUDICIAL_BRANCH_PROXY_ENABLED=true
-    |   JUDICIAL_BRANCH_PROXY_HOST=p.webshare.io
-    |   JUDICIAL_BRANCH_PROXY_PORT=80
-    |   JUDICIAL_BRANCH_PROXY_USERNAME=wfvehrrcresidential-CO-rotate
-    |   JUDICIAL_BRANCH_PROXY_PASSWORD=ab7xwhoq3eip
+    |   JUDICIAL_BRANCH_PROXY_PROTOCOL=socks5h (recomendado para puerto 448)
+    |   JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
+    |   JUDICIAL_BRANCH_PROXY_PORT=6060
+    |   JUDICIAL_BRANCH_PROXY_USERNAME=...
+    |   JUDICIAL_BRANCH_PROXY_PASSWORD=...
     |
     */
     'proxy' => [
         'enabled'  => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
-        'host'     => env('JUDICIAL_BRANCH_PROXY_HOST', 'p.webshare.io'),
-        'port'     => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 80),
+        'protocol' => env('JUDICIAL_BRANCH_PROXY_PROTOCOL', 'socks5h'),
+        'host'     => env('JUDICIAL_BRANCH_PROXY_HOST', 'rp.scrapegw.com'),
+        'port'     => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 6060),
         'username' => env('JUDICIAL_BRANCH_PROXY_USERNAME', ''),
         'password' => env('JUDICIAL_BRANCH_PROXY_PASSWORD', ''),
-        'timeout'  => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 20),
+        'timeout'  => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 30),
 
         /*
          * Jitter aleatorio entre peticiones a Rama Judicial.
          * Emula el tiempo de lectura/clic de un humano para evitar
          * la detección de patrones robóticos por Cloudflare WAF.
          *
-         * Rango recomendado: 1500–3500 ms (~2.5 s promedio)
-         *   → ~4 peticiones / 10 s por radicado
-         *   → ~6 radicados / minuto por worker
+         * Rango solicitado: 2500–5500 ms (2.5s - 5.5s)
          */
-        'call_delay_min_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MIN_MS', 1500),
-        'call_delay_max_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MAX_MS', 3500),
+        'call_delay_min_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MIN_MS', 2500),
+        'call_delay_max_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MAX_MS', 5500),
     ],
 ];

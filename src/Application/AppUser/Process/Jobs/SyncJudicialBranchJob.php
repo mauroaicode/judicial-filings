@@ -38,7 +38,8 @@ class SyncJudicialBranchJob implements ShouldQueue
 
             $result = $registerProcessService->handle(
                 $this->processNumber,
-                $this->organizationId
+                $this->organizationId,
+                $this->processNumber
             );
 
             $process = $result->getFirstProcess();

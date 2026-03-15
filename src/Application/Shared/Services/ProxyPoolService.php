@@ -37,8 +37,9 @@ class ProxyPoolService
             return null;
         }
 
-        $host     = (string) config('judicial-branch.proxy.host', 'p.webshare.io');
-        $port     = (int)    config('judicial-branch.proxy.port', 80);
+        $protocol = (string) config('judicial-branch.proxy.protocol', 'http');
+        $host     = (string) config('judicial-branch.proxy.host', 'rp.scrapegw.com');
+        $port     = (int)    config('judicial-branch.proxy.port', 6060);
         $username = (string) config('judicial-branch.proxy.username', '');
         $password = (string) config('judicial-branch.proxy.password', '');
 
@@ -48,7 +49,7 @@ class ProxyPoolService
             return null;
         }
 
-        return "http://{$username}:{$password}@{$host}:{$port}";
+        return "{$protocol}://{$username}:{$password}@{$host}:{$port}";
     }
 
     /**

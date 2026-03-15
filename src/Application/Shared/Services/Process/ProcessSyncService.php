@@ -30,6 +30,8 @@ class ProcessSyncService
 
         $apiProcessId = $process->process_id;
 
+        $this->judicialService->withSeed($process->process_number);
+
         $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId);
 
         if (! $actionsResult->isSuccessful) {
@@ -63,7 +65,7 @@ class ProcessSyncService
                 continue;
             }
 
-            if (ProcessAction::query()->existsByActionRegistrationId($idReg)) {
+            if (ProcessAction::query()->existsByActionRegistrationId($process->id, $idReg)) {
                 continue;
             }
 
@@ -118,32 +120,33 @@ class ProcessSyncService
             return;
         }
 
-        $representative = $processes->first();
-        $apiProcessId = (int) $representative->process_id;
+        $this->judicialService->withSeed($processNumber);
 
-        $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId);
+        foreach ($processes as $process) {
+            $apiProcessId = (int) $process->process_id;
 
-        if (! $actionsResult->isSuccessful) {
-            Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
-                'process_number' => $processNumber,
-            ]);
+            $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId);
+            if (! $actionsResult->isSuccessful) {
+                Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
+                    'process_number' => $processNumber,
+                    'process_id' => $process->id,
+                ]);
 
-            return;
+                continue;
+            }
+
+            $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
+            if (! $subjectsResult->isSuccessful) {
+                Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
+                    'process_number' => $processNumber,
+                    'process_id' => $process->id,
+                ]);
+
+                continue;
+            }
+
+            $this->syncActuaciones($process, $actionsResult->data);
+            $this->syncSujetos($process, $subjectsResult->data);
         }
-
-        $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
-        if (! $subjectsResult->isSuccessful) {
-            Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
-                'process_number' => $processNumber,
-            ]);
-
-            return;
-        }
-
-        $apiActuaciones = $actionsResult->data;
-        $apiSujetos = $subjectsResult->data;
-
-        $this->syncActuaciones($representative, $apiActuaciones);
-        $this->syncSujetos($representative, $apiSujetos);
     }
 }
