@@ -4,65 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', config('app.name'))</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #2d3748;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 24px;
-            background-color: #f7fafc;
-        }
-        .container {
-            background-color: #ffffff;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-            border: 1px solid #e2e8f0;
-        }
-        .header {
-            background-color: #2d3748;
-            color: #ffffff;
-            padding: 24px 30px;
-            text-align: left;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 20px;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-        }
-        .header p {
-            margin: 6px 0 0 0;
-            font-size: 14px;
-            color: #a0aec0;
-        }
-        .content {
-            padding: 32px 30px;
-        }
-        .footer {
-            background-color: #f7fafc;
-            padding: 20px 30px;
-            text-align: center;
-            border-top: 1px solid #e2e8f0;
-            color: #718096;
-            font-size: 13px;
-        }
-        @stack('styles')
-    </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{{ config('app.name') }}</h1>
-            <p>Sistema de monitoreo judicial</p>
+<body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1F2937; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #F3F0F9;">
+    <div style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 12px rgba(36, 22, 62, 0.05); overflow: hidden; border: 1px solid #E5E7EB;">
+        <!-- Header -->
+        <div style="background-color: #24163E; color: #FFFFFF; padding: 40px 30px; text-align: center;">
+            <img src="{{ config('app.url') }}/images/logo-notijudicial-grande.png" alt="{{ config('app.name') }}" style="height: 70px; width: auto; display: block; margin-left: auto; margin-right: auto;">
         </div>
-        <div class="content">
+        
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
             @yield('content')
         </div>
-        <div class="footer">
-            <p>&copy; {{ date('Y') }} {{ config('app.name') }}. Todos los derechos reservados.</p>
+
+        <!-- Footer -->
+        <div style="background-color: #F9FAFB; padding: 25px 30px; text-align: center; border-top: 1px solid #E5E7EB; color: #9CA3AF; font-size: 12px;">
+            <div style="margin-bottom: 15px;">
+                <img src="{{ config('app.url') }}/images/logo-notijudicial.png" alt="NotiJudicial" style="height: 24px; opacity: 0.8;">
+            </div>
+            <p style="margin: 0; color: #4A4A4A; font-weight: 600;">{{ config('app.name') }} &copy; {{ date('Y') }}</p>
+            <p style="margin: 5px 0 0 0;">Todos los derechos reservados. Este es un correo automático, por favor no respondas a esta dirección.</p>
         </div>
     </div>
 </body>

@@ -2,58 +2,60 @@
 
 @section('title', $notificationType === 'actuacion_alerta' ? __('process.alert_detected_title') : __('process.action_detected_title'))
 
-@push('styles')
-<style>
-    .title-section { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
-    .title { font-size: 20px; font-weight: 600; color: #1a202c; margin: 0; }
-    .alert-title { color: #c53030; }
-    .meta-box { background: #f7fafc; padding: 16px; border-radius: 8px; margin: 20px 0; border: 1px solid #e2e8f0; }
-    .meta-item { margin: 8px 0; font-size: 14px; color: #4a5568; }
-    .label { font-weight: 600; color: #2d3748; min-width: 120px; display: inline-block; }
-    .content-section { margin-top: 24px; }
-    .section-label { font-size: 14px; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-    .text-content { font-size: 15px; color: #2d3748; line-height: 1.6; background: #ffffff; padding: 12px; border-left: 4px solid #e2e8f0; }
-    .alert-border { border-left-color: #fc8181; background: #fff5f5; }
-    .button-container { margin-top: 32px; text-align: center; }
-    .btn { background: #3182ce; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block; }
-</style>
-@endpush
-
 @section('content')
-    <div class="title-section">
-        <h1 class="title {{ $notificationType === 'actuacion_alerta' ? 'alert-title' : '' }}">
+    <div style="margin-bottom: 30px;">
+        <h1 style="font-size: 22px; font-weight: 700; color: #24163E; margin: 0 0 10px 0;">
             {{ $notificationType === 'actuacion_alerta' ? __('process.alert_detected_title') : __('process.action_detected_title') }}
         </h1>
+        <p style="font-size: 15px; color: #6B7280; margin: 0;">
+            {{ $notificationType === 'actuacion_alerta' ? __('process.keyword_alert_intro') : __('process.new_action_intro') }}
+        </p>
     </div>
 
-    <p>{{ $notificationType === 'actuacion_alerta' ? __('process.keyword_alert_intro') : __('process.new_action_intro') }}</p>
-
-    <div class="meta-box">
-        <div class="meta-item"><span class="label">{{ __('process.process_number') }}:</span> {{ $process->process_number }}</div>
-        <div class="meta-item"><span class="label">{{ __('process.action_date') }}:</span> {{ $action->action_date->format('d/m/Y') }}</div>
-        @if($notificationType === 'actuacion_alerta')
-            <div class="meta-item"><span class="label">{{ __('process.matched_keywords') }}:</span> 
-                <span style="color: #c53030; font-weight: bold;">{{ $matchedKeywords ?? '---' }}</span>
-            </div>
-        @endif
+    <!-- Process Info Card -->
+    <div style="background-color: #FFFFFF; border-radius: 12px; border: 1px solid #E5E7EB; overflow: hidden; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+        <div style="background-color: #F3F0F9; padding: 12px 20px; border-bottom: 1px solid #E5E7EB;">
+            <p style="margin: 0; color: #4B2A7D; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Detalles del Proceso</p>
+        </div>
+        <div style="padding: 20px;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #6B7280; width: 40%;">{{ __('process.process_number') }}:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{ $process->process_number }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_date') }}:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->action_date->format('d/m/Y') }}</td>
+                </tr>
+                @if($notificationType === 'actuacion_alerta')
+                <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #EF4444; font-weight: 600;">Palabras Clave:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #EF4444; font-weight: bold; background-color: #FEF2F2; padding-left: 10px; border-radius: 4px;">{{ $matchedKeywords ?? '---' }}</td>
+                </tr>
+                @endif
+            </table>
+        </div>
     </div>
 
-    <div class="content-section">
-        <div class="section-label">{{ __('process.action_text') }}</div>
-        <div class="text-content">{{ $action->action }}</div>
+    <!-- Action Content -->
+    <div style="margin-bottom: 30px;">
+        <p style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px;">{{ __('process.action_text') }}</p>
+        <div style="background-color: #FFFFFF; border: 1px solid #E5E7EB; border-left: 4px solid #4B2A7D; padding: 20px; border-radius: 0 8px 8px 0; font-size: 15px; color: #374151; line-height: 1.6;">
+            {{ $action->action }}
+        </div>
     </div>
 
     @if($action->annotation)
-        <div class="content-section">
-            <div class="section-label">{{ __('process.annotation_text') }}</div>
-            <div class="text-content {{ $notificationType === 'actuacion_alerta' ? 'alert-border' : '' }}">
-                {{ $action->annotation }}
-            </div>
+    <div style="margin-bottom: 35px;">
+        <p style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px;">{{ __('process.annotation_text') }}</p>
+        <div style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-left: 4px solid {{ $notificationType === 'actuacion_alerta' ? '#EF4444' : '#9CA3AF' }}; padding: 18px; border-radius: 0 8px 8px 0; font-size: 14px; color: #4B5563; font-style: italic;">
+            {{ $action->annotation }}
         </div>
+    </div>
     @endif
 
-    <div class="button-container">
-        <a href="{{ config('app.url') }}/processes/{{ $process->id }}" class="btn">
+    <div style="text-align: center; margin-top: 40px;">
+        <a href="{{ config('app.url') }}/processes/{{ $process->id }}" style="background-color: #24163E; color: #FFFFFF; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block;">
             {{ __('process.view_process') }}
         </a>
     </div>

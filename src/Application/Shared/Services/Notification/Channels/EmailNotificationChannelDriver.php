@@ -36,7 +36,7 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
         $type = $notification->notification_type;
 
         try {
-            Mail::to($to)->send(new JudicialActionDetectedMailable(
+            Mail::mailer('mailgun')->to($to)->send(new JudicialActionDetectedMailable(
                 $action,
                 $process,
                 $notification->organization_id,

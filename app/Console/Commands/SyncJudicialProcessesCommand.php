@@ -44,31 +44,39 @@ class SyncJudicialProcessesCommand extends Command
         $radicado = $this->option('radicado');
 
         $processNumbers = $this->getProcessNumbersToSync($radicado);
+        $total = $processNumbers->count();
 
-        if ($processNumbers->isEmpty()) {
+        if ($total === 0) {
             $this->info('No radicados to sync.');
 
             return self::SUCCESS;
         }
 
+        $this->info("Found {$total} radicados to sync.");
+
         Log::channel($channel)->info('SyncJudicialProcessesCommand started', [
-            'radicados_count' => $processNumbers->count(),
+            'radicados_count' => $total,
             'radicado_filter' => $radicado,
         ]);
 
+        $bar = $this->output->createProgressBar($total);
+        $bar->start();
+
         $jobsDispatched = 0;
         foreach ($processNumbers as $processNumber) {
-            $processNumber = (string) $processNumber;
-            $this->syncProcessesByRadicado($processNumber);
-            SyncProcessJob::dispatch($processNumber);
+            SyncProcessJob::dispatch((string) $processNumber);
             $jobsDispatched++;
+            $bar->advance();
         }
+
+        $bar->finish();
+        $this->newLine();
 
         Log::channel($channel)->info('SyncJudicialProcessesCommand finished', [
             'jobs_dispatched' => $jobsDispatched,
         ]);
 
-        $this->info("Dispatched {$jobsDispatched} sync jobs (one per radicado).");
+        $this->info("Dispatched {$jobsDispatched} sync jobs to the queue.");
 
         return self::SUCCESS;
     }
@@ -93,177 +101,5 @@ class SyncJudicialProcessesCommand extends Command
         }
 
         return $query->pluck('processes.process_number');
-    }
-
-    /**
-     * Sync processes from API for one radicado: create new processes, link orgs, mark multiple instances, create notifications.
-     *
-     * @return void Number of new processes created (for logging)
-     */
-    private function syncProcessesByRadicado(string $processNumber): void
-    {
-        $result = $this->judicialService->fetchProcesses($processNumber);
-        if (! $result->isSuccessful) {
-            return;
-        }
-
-        $apiProcesos = $result->data;
-        $created = 0;
-
-        foreach ($apiProcesos as $apiProceso) {
-            $apiProcessId = (int) ($apiProceso['idProceso'] ?? 0);
-            if ($apiProcessId === 0) {
-                continue;
-            }
-
-            $process = Process::query()->where('process_id', $apiProcessId)->first();
-
-            if ($process === null) {
-                $process = $this->createProcessFromApi($apiProceso);
-                $this->linkOrganizationsToNewProcess($process);
-                $created++;
-            }
-        }
-
-        $processesForRadicado = Process::query()->where('process_number', $processNumber)->get();
-
-        if ($processesForRadicado->count() > 1) {
-            Process::query()->where('process_number', $processNumber)->update(['has_multiple_instances' => true]);
-            if ($created > 0) {
-                $this->createMultipleInstancesNotifications($processesForRadicado);
-            }
-        }
-
-    }
-
-    /**
-     * @param  array<string, mixed>  $apiProceso
-     */
-    private function createProcessFromApi(array $apiProceso): Process
-    {
-        $apiProcessId = (int) ($apiProceso['idProceso'] ?? 0);
-        $detail = $this->judicialService->fetchDetailProcess($apiProcessId);
-
-        if (! $detail->isSuccessful) {
-            $court = (string) ($apiProceso['despacho'] ?? 'N/A');
-            $department = (string) ($apiProceso['departamento'] ?? 'N/A');
-            $processDate = $this->parseDate($apiProceso['fechaProceso'] ?? null);
-            $lastActivity = $this->parseDate($apiProceso['fechaUltimaActuacion'] ?? null);
-
-            return Process::query()->create([
-                'process_id' => $apiProcessId,
-                'process_number' => (string) ($apiProceso['llaveProceso'] ?? ''),
-                'court' => $court,
-                'speaker' => (string) ($apiProceso['ponente'] ?? null),
-                'department' => $department,
-                'process_type' => 'N/A',
-                'process_class' => 'N/A',
-                'subclass_process' => null,
-                'litigants' => $apiProceso['sujetosProcesales'] ?? null,
-                'process_date' => $processDate ?? now()->format('Y-m-d'),
-                'last_activity_date' => $lastActivity,
-                'location' => null,
-                'filing_content' => null,
-                'is_private' => (bool) ($apiProceso['esPrivado'] ?? false),
-                'has_multiple_instances' => false,
-                'last_api_update' => now(),
-            ]);
-        }
-
-        $data = $detail->data;
-
-        return Process::query()->create([
-            'process_id' => $apiProcessId,
-            'process_number' => (string) ($data['llaveProceso'] ?? $apiProceso['llaveProceso'] ?? ''),
-            'court' => (string) ($data['despacho'] ?? $apiProceso['despacho'] ?? 'N/A'),
-            'speaker' => (string) ($data['ponente'] ?? $apiProceso['ponente'] ?? null),
-            'department' => (string) ($data['departamento'] ?? $apiProceso['departamento'] ?? 'N/A'),
-            'process_type' => (string) ($data['tipoProceso'] ?? 'N/A'),
-            'process_class' => (string) ($data['claseProceso'] ?? 'N/A'),
-            'subclass_process' => isset($data['subclaseProceso']) ? (string) $data['subclaseProceso'] : null,
-            'litigants' => $data['sujetosProcesales'] ?? $apiProceso['sujetosProcesales'] ?? null,
-            'process_date' => $this->parseDate($data['fechaProceso'] ?? $apiProceso['fechaProceso'] ?? null) ?? now()->format('Y-m-d'),
-            'last_activity_date' => $this->parseDate($data['fechaUltimaActuacion'] ?? $apiProceso['fechaUltimaActuacion'] ?? null),
-            'location' => isset($data['ubicacion']) ? (string) $data['ubicacion'] : null,
-            'filing_content' => isset($data['contenidoRadicacion']) ? (string) $data['contenidoRadicacion'] : null,
-            'is_private' => (bool) ($data['esPrivado'] ?? $apiProceso['esPrivado'] ?? false),
-            'has_multiple_instances' => false,
-            'last_api_update' => now(),
-        ]);
-    }
-
-    private function parseDate(?string $date): ?string
-    {
-        if (! $date) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($date)->format('Y-m-d');
-        } catch (\Throwable) {
-            return null;
-        }
-    }
-
-    private function linkOrganizationsToNewProcess(Process $process): void
-    {
-        $rows = OrganizationProcess::query()
-            ->join('processes', 'organization_processes.process_id', '=', 'processes.id')
-            ->where('processes.process_number', $process->process_number)
-            ->select('organization_processes.organization_id', 'organization_processes.is_active')
-            ->get();
-
-        $orgActive = [];
-        foreach ($rows as $row) {
-            $id = $row->organization_id;
-            if (! isset($orgActive[$id])) {
-                $orgActive[$id] = false;
-            }
-            if ($row->is_active) {
-                $orgActive[$id] = true;
-            }
-        }
-
-        foreach ($orgActive as $organizationId => $isActive) {
-            OrganizationProcess::query()->firstOrCreate(
-                [
-                    'organization_id' => $organizationId,
-                    'process_id' => $process->id,
-                ],
-                [
-                    'interest_date' => now()->format('Y-m-d'),
-                    'is_active' => $isActive,
-                ]
-            );
-        }
-    }
-
-    /**
-     * @param  Collection<int, Process>  $processes
-     */
-    private function createMultipleInstancesNotifications(Collection $processes): void
-    {
-        foreach ($processes as $process) {
-            // Solo organizaciones con seguimiento activo: se notifica y se guarda historial.
-            $organizations = $process->organizations()->wherePivot('is_active', true)->get();
-
-            foreach ($organizations as $organization) {
-                $notification = OrganizationNotification::query()->firstOrCreate(
-                    [
-                        'organization_id' => $organization->id,
-                        'notifiable_id' => $process->id,
-                        'notifiable_type' => $process->getMorphClass(),
-                        'notification_type' => 'multiple_instances',
-                    ],
-                    [
-                        'id' => (string) \Illuminate\Support\Str::uuid(),
-                        'is_viewed' => false,
-                        'is_notified' => false,
-                    ]
-                );
-
-                dispatch(SendOrganizationNotificationJob::fromNotification($notification));
-            }
-        }
     }
 }
