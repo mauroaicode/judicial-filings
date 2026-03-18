@@ -100,14 +100,14 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $this->dispatchProcessRegistrationService->handle(
-            $data,
-            $organization,
-            $appUser
+        $result = $this->registerProcessService->handle(
+            $data->process_number,
+            $organization->id
         );
 
         return response()->json([
-            'message' => __('process.registration_dispatched'),
+            'message' => $this->buildRegistrationMessage($result),
+            'processes' => ProcessResource::collection($result->processes),
         ], 201);
     }
 
