@@ -23,6 +23,7 @@ class UpdateProfileService
 
         if (! empty($data->password)) {
             $payload['password'] = Hash::make($data->password);
+            $payload['must_change_password'] = false;
         }
 
         $appUser->update($payload);

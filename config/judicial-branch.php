@@ -20,44 +20,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Pool de Proxies (Webshare Proxy Server — Direct Connection)
+    | Proxy Residencial Rotativo (ProxyScrape / Webshare)
     |--------------------------------------------------------------------------
-    |
-    | Cuando está habilitado, cada request a Rama Judicial usa una IP diferente
-    | del pool de 250 IPs de Webshare. La selección es seed-based (round-robin
-    | sin locks): cada radicado usa su número como seed para mapear a una IP
-    | distinta, distribuyendo la carga naturalmente entre workers.
-    |
-    | Configuración en Webshare:
-    |   - Authentication Method: IP Authentication (sin usuario/contraseña)
-    |   - Connection Method: Direct Connection (cada IP tiene su propio puerto)
     |
     | Variables .env requeridas:
     |   JUDICIAL_BRANCH_PROXY_ENABLED=true
-    |   JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY=tu-api-key
-    |   JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE=ip   (o "credentials")
-    |
-    | Flujo:
-    |   1. php artisan proxy:refresh  → carga las 250 IPs en la BD
-    |   2. Cada job llama next(seed)  → obtiene una IP por posición
-    |   3. cURL 7/28/56              → markFailed() desactiva esa IP
-    |   4. HTTP 403                  → reintento con diferente seed/IP
+    |   JUDICIAL_BRANCH_PROXY_PROTOCOL=socks5h (recomendado para puerto 448)
+    |   JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
+    |   JUDICIAL_BRANCH_PROXY_PORT=6060
+    |   JUDICIAL_BRANCH_PROXY_USERNAME=...
+    |   JUDICIAL_BRANCH_PROXY_PASSWORD=...
     |
     */
     'proxy' => [
-        'enabled' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
-        'webshare_api_key' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_API_KEY', ''),
-        'webshare_auth_mode' => env('JUDICIAL_BRANCH_PROXY_WEBSHARE_AUTH_MODE', 'ip'),
-        'timeout' => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 20),
+        'enabled'  => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
+        'protocol' => env('JUDICIAL_BRANCH_PROXY_PROTOCOL', 'socks5h'),
+        'host'     => env('JUDICIAL_BRANCH_PROXY_HOST', 'rp.scrapegw.com'),
+        'port'     => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 6060),
+        'username' => env('JUDICIAL_BRANCH_PROXY_USERNAME', ''),
+        'password' => env('JUDICIAL_BRANCH_PROXY_PASSWORD', ''),
+        'timeout'  => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 30),
 
         /*
-         * Milliseconds to sleep between every HTTP call to Rama Judicial when
-         * proxy is active. Applies per worker independently (no shared lock).
+         * Jitter aleatorio entre peticiones a Rama Judicial.
+         * Emula el tiempo de lectura/clic de un humano para evitar
+         * la detección de patrones robóticos por Cloudflare WAF.
          *
-         * 500 ms  → safe, ~3 radicados/min with 3 workers
-         * 200 ms  → faster, ~7 radicados/min with 3 workers
-         * 0       → no delay (not recommended with multiple workers)
+         * Rango solicitado: 2500–5500 ms (2.5s - 5.5s)
          */
-        'call_delay_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MS', 500),
+        'call_delay_min_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MIN_MS', 2500),
+        'call_delay_max_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MAX_MS', 5500),
     ],
 ];

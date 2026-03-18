@@ -63,8 +63,10 @@ class OrganizationNotification extends Model
         'notification_type',
         'is_viewed',
         'is_notified',
+        'is_email_notified',
         'viewed_at',
         'notified_at',
+        'email_notified_at',
     ];
 
     /**
@@ -75,8 +77,10 @@ class OrganizationNotification extends Model
         return [
             'is_viewed' => 'boolean',
             'is_notified' => 'boolean',
+            'is_email_notified' => 'boolean',
             'viewed_at' => 'datetime',
             'notified_at' => 'datetime',
+            'email_notified_at' => 'datetime',
         ];
     }
 

@@ -160,7 +160,7 @@ readonly class RegisterProcessService
 
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
                 $this->attachProcessToOrganization($process, $organizationId);
-                $this->processSyncService->handle($process);
+                $this->processSyncService->handle($process, false);
 
                 $registeredProcesses->push($process);
             }
@@ -207,6 +207,7 @@ readonly class RegisterProcessService
             'is_private' => $detailData['esPrivado'] ?? false,
             'has_multiple_instances' => $hasMultipleInstances,
             'last_api_update' => now(),
+            'status' => 'activo',
         ];
 
         return Process::query()->create($processData);

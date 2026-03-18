@@ -84,6 +84,8 @@ class Process extends Model
         'is_private',
         'has_multiple_instances',
         'last_api_update',
+        'status',
+        'ai_summary',
     ];
 
     /**
@@ -100,6 +102,7 @@ class Process extends Model
             'is_private' => 'boolean',
             'has_multiple_instances' => 'boolean',
             'last_api_update' => 'datetime',
+            'ai_summary' => 'array',
         ];
     }
 
@@ -132,7 +135,7 @@ class Process extends Model
     /**
      * Get the subjects for the process (many-to-many via pivot).
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Process\Models\ProcessSubject, $this>
+     * @return EloquentBelongsToMany<ProcessSubject, $this>
      */
     public function subjects(): EloquentBelongsToMany
     {
@@ -147,7 +150,7 @@ class Process extends Model
     /**
      * Get the organizations that have access to this process.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Organization\Models\Organization, $this>
+     * @return EloquentBelongsToMany<Organization, $this>
      */
     public function organizations(): BelongsToMany
     {

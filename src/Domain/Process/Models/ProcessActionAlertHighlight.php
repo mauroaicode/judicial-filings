@@ -44,6 +44,7 @@ class ProcessActionAlertHighlight extends Model
      */
     protected $fillable = [
         'process_action_id',
+        'organization_id',
         'start',
         'end',
         'detected_text',

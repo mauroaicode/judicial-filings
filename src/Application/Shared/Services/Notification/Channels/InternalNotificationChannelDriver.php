@@ -5,27 +5,46 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Notification\Channels;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
+use Src\Application\Shared\Notifications\JudicialActionDetectedNotification;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
+use Src\Domain\Process\Models\ProcessAction;
 
 class InternalNotificationChannelDriver implements NotificationChannelDriverInterface
 {
     public function send(OrganizationNotification $notification, OrganizationNotificationChannel $channel): void
     {
-        // Internal channel: notification is already stored in organization_notifications.
-        // This driver can log for audit or trigger in-app display; no external delivery.
+        /** @var ProcessAction $action */
+        $action = $notification->notifiable;
+        if (! $action instanceof ProcessAction) {
+            return;
+        }
+
+        $process = $action->process;
+        $type = $notification->notification_type;
+        $users = $notification->organization->appUsers;
+
+        if ($users->isEmpty()) {
+            return;
+        }
+
         try {
+            Notification::send(
+                $users,
+                new JudicialActionDetectedNotification($action, $process, $type)
+            );
+
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->info('Internal notification recorded', [
+                ->info('Internal notification dispatched to organization users', [
                     'organization_id' => $notification->organization_id,
-                    'notification_type' => $notification->notification_type,
-                    'notifiable_type' => $notification->notifiable_type,
-                    'notifiable_id' => $notification->notifiable_id,
+                    'user_count' => $users->count(),
+                    'type' => $type,
                 ]);
         } catch (\Throwable $e) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->error('Internal notification send failed', [
+                ->error('Internal notification dispatch failed', [
                     'channel_id' => $channel->id,
                     'message' => $e->getMessage(),
                 ]);

@@ -25,7 +25,7 @@ return [
         ],
         'phone' => [
             'required' => 'El teléfono es obligatorio.',
-            'regex' => 'El teléfono debe tener 10 dígitos (celular). Se usará el indicativo +56 por defecto.',
+            'regex' => 'El teléfono debe tener 10 dígitos (celular). Se usará el indicativo +53 por defecto.',
         ],
         'email' => [
             'required' => 'El correo electrónico es obligatorio.',
@@ -34,6 +34,11 @@ return [
         ],
         'contact_person' => [
             'required_if' => 'La persona de contacto es obligatoria para persona jurídica.',
+        ],
+        'identification' => [
+            'required' => 'La identificación es obligatoria.',
+            'unique_cedula' => 'Ya existe una organización registrada con este número de identificación.',
+            'unique_nit' => 'Ya existe una organización registrada con este NIT.',
         ],
     ],
 ];

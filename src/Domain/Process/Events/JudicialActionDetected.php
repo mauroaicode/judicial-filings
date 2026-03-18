@@ -18,6 +18,8 @@ class JudicialActionDetected implements ShouldBroadcast
     use InteractsWithSockets;
     use SerializesModels;
 
+    public $broadcastQueue = 'notifications';
+
     public function __construct(
         public ProcessAction $action,
         public string $organizationId,

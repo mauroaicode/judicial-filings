@@ -39,7 +39,7 @@ class AppUserSeeder extends Seeder
                 'name' => 'Carlos',
                 'last_name' => 'López',
                 'slug' => 'carlos-lopez',
-                'email' => 'carlos.lopez@example.com',
+                'email' => 'aicode2310@gmail.com',
                 'identification' => '98765432-1',
                 'password' => bcrypt('password1234'),
                 'profile_image' => null,

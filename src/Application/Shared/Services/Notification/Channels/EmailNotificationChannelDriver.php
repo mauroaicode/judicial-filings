@@ -7,37 +7,53 @@ namespace Src\Application\Shared\Services\Notification\Channels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
+use Src\Application\Shared\Mail\JudicialActionDetectedMailable;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
+use Src\Domain\Process\Models\ProcessAction;
+use Throwable;
 
 class EmailNotificationChannelDriver implements NotificationChannelDriverInterface
 {
     /**
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function send(OrganizationNotification $notification, OrganizationNotificationChannel $channel): void
     {
         $to = $channel->channel_value;
+
         if (empty($to)) {
             throw new \InvalidArgumentException('Email channel has no recipient address.');
         }
 
-        $subject = $this->buildSubject($notification);
-        $body = $this->buildBody($notification);
+        /** @var ProcessAction $action */
+        $action = $notification->notifiable;
+        if (! $action instanceof ProcessAction) {
+            return;
+        }
+
+        $process = $action->process;
+        $type = $notification->notification_type;
+
+        // Add defensive delay to prevent Mailgun rate limiting for new accounts
+        sleep(2);
 
         try {
-            //            Mail::raw($body, function ($message) use ($to, $subject): void {
-            //                $message->to($to)->subject($subject);
-            //            });
+            Mail::to($to)->send(new JudicialActionDetectedMailable(
+                $action,
+                $process,
+                $notification->organization_id,
+                $type
+            ));
 
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->info('Envio de correo por email', [
-                    'channel_id' => $channel->id,
-                    'subject' => $subject,
-                    'message' => $body,
+                ->info('Judicial action email sent', [
+                    'organization_id' => $notification->organization_id,
+                    'process_number' => $process->process_number,
+                    'type' => $type,
                 ]);
 
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
                 ->error('Email notification send failed', [
                     'channel_id' => $channel->id,
@@ -46,18 +62,5 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
 
             throw $e;
         }
-    }
-
-    private function buildSubject(OrganizationNotification $notification): string
-    {
-        return 'Notificación judicial: '.$notification->notification_type;
-    }
-
-    private function buildBody(OrganizationNotification $notification): string
-    {
-        $notifiable = $notification->notifiable;
-        $type = $notification->notification_type;
-
-        return "Tipo: {$type}\n\nNotifiable: ".($notifiable ? $notifiable->getMorphClass().' #'.$notifiable->getKey() : 'N/A');
     }
 }

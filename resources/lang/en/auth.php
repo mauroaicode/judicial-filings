@@ -15,4 +15,9 @@ return [
     'account_created_line_1' => 'An account has been created for your organization in the judicial monitoring system. Below you will find your login credentials.',
     'account_created_warning' => 'For security, we recommend changing this temporary password on your first login.',
     'account_created_line_2' => 'If you did not request this account, please contact the system administrator.',
+    'forgot_password_subject' => 'Password Recovery',
+    'forgot_password_sent' => 'If the identification number exists in our system, you will receive an email with instructions.',
+    'user_not_found' => 'No user was found with that identification.',
+    'invalid_token' => 'The recovery token is invalid or has expired.',
+    'password_reset_successful' => 'Your password has been successfully reset.',
 ];

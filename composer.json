@@ -17,7 +17,9 @@
         "laravel/tinker": "^2.9",
         "maatwebsite/excel": "^3.1",
         "spatie/laravel-data": "^4.17",
-        "spatie/laravel-permission": "^6.21"
+        "spatie/laravel-permission": "^6.21",
+        "symfony/http-client": "^7.4",
+        "symfony/mailgun-mailer": "^7.4"
     },
     "require-dev": {
         "barryvdh/laravel-ide-helper": "^3.0",

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Process\Services;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -93,7 +94,7 @@ readonly class ProcessImportDataService
     {
         return Process::query()
             ->whereIn('process_number', $validNumbers)
-            ->whereHas('organizations', fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q->where('organizations.id', $organizationId))
+            ->whereHas('organizations', fn (Builder $q) => $q->where('organizations.id', $organizationId))
             ->pluck('process_number');
     }
 

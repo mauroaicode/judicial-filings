@@ -52,4 +52,35 @@ return [
     'deactivated_successfully' => 'Proceso desactivado exitosamente.',
     'import_finished_title' => 'Importación de radicados finalizada',
     'import_finished_description' => 'La importación del archivo ":filename" ha finalizado.',
+    'data_imported_title' => 'Radicado importado',
+    'data_imported_description' => 'Los datos del radicado :number han sido importados exitosamente.',
+    'ai_summary_ready_title' => 'Resumen de IA listo',
+    'ai_summary_ready_description' => 'El resumen de IA para el radicado :number ya está disponible.',
+    'import_failed_title' => 'Error de importación',
+    'import_failed_description' => 'No se pudo importar el radicado :number: :error',
+    'registration_dispatched' => 'El registro del proceso ha sido iniciado y se procesará en segundo plano.',
+    
+    // Notifications
+    'action_detected_subject' => 'Nueva actuación detectada: :number',
+    'alert_detected_subject' => '⚠️ Alerta de palabra clave: :number',
+    'action_detected_title' => 'Nueva Actuación Judicial',
+    'alert_detected_title' => 'Alerta de Actuación Judicial',
+    'new_action_intro' => 'Se ha registrado una nueva actuación en uno de sus procesos seguidos.',
+    'keyword_alert_intro' => '¡Atención! Se ha detectado una actuación que contiene palabras clave de su interés.',
+    'view_process' => 'Ver Proceso Completo',
+    'process_number' => 'Radicado',
+    'action_date' => 'Fecha de Actuación',
+    'action_text' => 'Actuación',
+    'annotation_text' => 'Anotación',
+    'matched_keywords' => 'Palabras Detectadas',
+    
+    // Internal/Websocket
+    'internal_action_title' => 'Nueva actuación',
+    'internal_alert_title' => '⚠️ Alerta de palabra clave',
+    'internal_action_description' => 'Nueva actuación en el radicado :number',
+    'internal_alert_description' => '¡Alerta! Palabra clave detectada en el radicado :number',
+    
+    // Consolidated Notifications
+    'consolidated_notifications_subject' => 'Resumen de actuaciones para :name - :date',
+    'consolidated_notifications_title' => 'Resumen Judicial Consolidado',
 ];
