@@ -101,6 +101,9 @@ class JudicialBranchConsultService
 
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
+                Log::channel(config('judicial-branch.log_channel', 'process_import'))
+                    ->info('JudicialBranch: Fetching processes', ['url' => $endpoint]);
+
                 $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchProcesses');
 
                 $response = $httpResponse->json();

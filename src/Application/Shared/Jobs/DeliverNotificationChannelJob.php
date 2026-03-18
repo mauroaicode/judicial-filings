@@ -64,13 +64,26 @@ class DeliverNotificationChannelJob implements ShouldQueue
     public function handle(NotificationDispatcherService $dispatcher): void
     {
         $channel = OrganizationNotificationChannel::query()->find($this->channelId);
-        $notification = OrganizationNotification::query()->find($this->notificationId);
+        $notification = OrganizationNotification::query()->where('id', $this->notificationId)->first();
+
+        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         if ($channel === null || $notification === null) {
+            Log::channel($logChannel)->warning('DeliverNotificationChannelJob: Record not found', [
+                'notification_id' => $this->notificationId,
+                'channel_id' => $this->channelId,
+                'notification_found' => $notification !== null,
+                'channel_found' => $channel !== null,
+            ]);
             return;
         }
 
-        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+        Log::channel($logChannel)->info('DeliverNotificationChannelJob: Processing job', [
+            'notification_id' => $this->notificationId,
+            'channel_id' => $this->channelId,
+            'channel_type' => $this->channelType
+        ]);
+
         $driver = $dispatcher->getDriver($channel->channel_type);
 
         if (! $driver instanceof NotificationChannelDriverInterface) {

@@ -144,6 +144,16 @@ class Organization extends Model
     }
 
     /**
+     * Get the notifications for the organization.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Src\Domain\Notification\Models\OrganizationNotification, $this>
+     */
+    public function notifications(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\Src\Domain\Notification\Models\OrganizationNotification::class, 'organization_id');
+    }
+
+    /**
      * Create a new Eloquent query builder for the model.
      *
      * @param  \Illuminate\Database\Query\Builder  $query

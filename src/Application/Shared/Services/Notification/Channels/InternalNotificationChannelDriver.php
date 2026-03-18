@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Notification\Channels;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
+use Src\Application\Shared\Notifications\JudicialActionDetectedNotification;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Process\Models\ProcessAction;
@@ -29,9 +31,9 @@ class InternalNotificationChannelDriver implements NotificationChannelDriverInte
         }
 
         try {
-            \Illuminate\Support\Facades\Notification::send(
-                $users, 
-                new \Src\Application\Shared\Notifications\JudicialActionDetectedNotification($action, $process, $type)
+            Notification::send(
+                $users,
+                new JudicialActionDetectedNotification($action, $process, $type)
             );
 
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))

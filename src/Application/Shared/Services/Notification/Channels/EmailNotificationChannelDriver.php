@@ -35,8 +35,11 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
         $process = $action->process;
         $type = $notification->notification_type;
 
+        // Add defensive delay to prevent Mailgun rate limiting for new accounts
+        sleep(2);
+
         try {
-            Mail::mailer('mailgun')->to($to)->send(new JudicialActionDetectedMailable(
+            Mail::to($to)->send(new JudicialActionDetectedMailable(
                 $action,
                 $process,
                 $notification->organization_id,

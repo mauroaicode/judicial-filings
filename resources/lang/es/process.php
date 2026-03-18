@@ -79,4 +79,8 @@ return [
     'internal_alert_title' => '⚠️ Alerta de palabra clave',
     'internal_action_description' => 'Nueva actuación en el radicado :number',
     'internal_alert_description' => '¡Alerta! Palabra clave detectada en el radicado :number',
+    
+    // Consolidated Notifications
+    'consolidated_notifications_subject' => 'Resumen de actuaciones para :name - :date',
+    'consolidated_notifications_title' => 'Resumen Judicial Consolidado',
 ];

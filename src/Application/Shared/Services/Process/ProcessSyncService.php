@@ -62,6 +62,7 @@ class ProcessSyncService
      */
     private function syncActuaciones(Process $process, array $apiActuaciones, bool $notify = true): void
     {
+        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         foreach ($apiActuaciones as $apiActuacion) {
             $idReg = (int) ($apiActuacion['idRegActuacion'] ?? 0);
@@ -78,7 +79,16 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
 
+            Log::channel($logChannel)->info('ProcessSyncService: New action saved', [
+                'action_id' => $action->id,
+                'process_id' => $process->id,
+                'reg_id' => $idReg,
+            ]);
+
             if ($notify) {
+                Log::channel($logChannel)->info('ProcessSyncService: Triggering notifications for action', [
+                    'action_id' => $action->id,
+                ]);
                 $this->processActionAlertNotificationService->handle($action, $process);
             }
         }
@@ -113,6 +123,10 @@ class ProcessSyncService
     {
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
+        Log::channel($channel)->info('ProcessSyncService: Starting sync for radicado', [
+            'process_number' => $processNumber,
+        ]);
+
         // 1. Discovery: Search for new instances in the API (moved from Command)
         $this->discoverNewProcesses($processNumber);
 
@@ -129,6 +143,11 @@ class ProcessSyncService
 
             return;
         }
+
+        Log::channel($channel)->info('ProcessSyncService: found active instances to sync', [
+            'process_number' => $processNumber,
+            'instances_count' => $processes->count(),
+        ]);
 
         $this->judicialService->withSeed($processNumber);
 
@@ -160,7 +179,16 @@ class ProcessSyncService
 
             $this->syncActuaciones($process, $actionsResult->data, $notify);
             $this->syncSujetos($process, $subjectsResult->data);
+
+            Log::channel($channel)->info('ProcessSyncService: instance sync completed', [
+                'process_number' => $processNumber,
+                'process_id' => $process->id,
+            ]);
         }
+
+        Log::channel($channel)->info('ProcessSyncService: finished sync for radicado', [
+            'process_number' => $processNumber,
+        ]);
     }
 
     /**

@@ -19,5 +19,5 @@ Broadcast::channel('organization.{id}', function ($user, $id) {
         return true;
     }
 
-    return (string) $user->organization_id === (string) $id;
+    return $user->organizations()->where('organizations.id', $id)->exists();
 });

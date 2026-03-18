@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Events\JudicialActionDetected;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
@@ -31,6 +33,12 @@ readonly class ProcessActionAlertNotificationService
     public function handle(ProcessAction $action, Process $process): void
     {
         $organizations = $this->getInterestedOrganizations($process);
+
+        Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+            ->info('ProcessActionAlertNotificationService: checking interested organizations', [
+                'process_id' => $process->id,
+                'organizations_count' => $organizations->count(),
+            ]);
 
         foreach ($organizations as $organization) {
             $this->notifyNewAction($action, $organization->id);
@@ -142,7 +150,7 @@ readonly class ProcessActionAlertNotificationService
      */
     private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType): void
     {
-        $notification = OrganizationNotification::query()->firstOrCreate(
+        OrganizationNotification::query()->firstOrCreate(
             [
                 'organization_id' => $organizationId,
                 'notifiable_id' => $action->id,
@@ -156,8 +164,11 @@ readonly class ProcessActionAlertNotificationService
             ]
         );
 
-        dispatch(SendOrganizationNotificationJob::fromNotification($notification));
-
-//        event(new JudicialActionDetected($action, $organizationId, $notificationType));
+        Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+            ->info('Notification recorded for digest', [
+                'organization_id' => $organizationId,
+                'type' => $notificationType,
+                'action_id' => $action->id,
+            ]);
     }
 }

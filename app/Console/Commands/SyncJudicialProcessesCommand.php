@@ -7,7 +7,9 @@ namespace App\Console\Commands;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
+use Src\Application\Shared\Jobs\DispatchOrganizationDigestsJob;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Jobs\SyncProcessJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
@@ -62,21 +64,39 @@ class SyncJudicialProcessesCommand extends Command
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        $jobsDispatched = 0;
+        $jobs = [];
         foreach ($processNumbers as $processNumber) {
-            SyncProcessJob::dispatch((string) $processNumber);
-            $jobsDispatched++;
+            $jobs[] = new SyncProcessJob((string) $processNumber);
             $bar->advance();
         }
 
-        $bar->finish();
-        $this->newLine();
+        try {
+            Bus::batch($jobs)
+                ->name('Sync Judicial Processes Batch')
+                ->finally(function () {
+                    // This runs after all jobs in the batch are finished (success or failure)
+                    DispatchOrganizationDigestsJob::dispatch();
+                })
+                ->onQueue('judicial-sync')
+                ->dispatch();
 
-        Log::channel($channel)->info('SyncJudicialProcessesCommand finished', [
-            'jobs_dispatched' => $jobsDispatched,
-        ]);
+            $bar->finish();
+            $this->newLine();
 
-        $this->info("Dispatched {$jobsDispatched} sync jobs to the queue.");
+            Log::channel($channel)->info('SyncJudicialProcessesCommand: Batch dispatched', [
+                'jobs_count' => count($jobs),
+            ]);
+
+            $this->info("Dispatched " . count($jobs) . " sync jobs in a batch.");
+            $this->info("Notifications will be consolidated and sent upon batch completion.");
+
+        } catch (\Throwable $e) {
+            $this->error("Failed to dispatch batch: " . $e->getMessage());
+            Log::channel($channel)->error('SyncJudicialProcessesCommand: Batch failing to dispatch', [
+                'message' => $e->getMessage()
+            ]);
+            return self::FAILURE;
+        }
 
         return self::SUCCESS;
     }
