@@ -46,7 +46,7 @@ class ImportRadicadoJob implements ShouldQueue
     }
 
     /**
-     * Registers the radicado against Rama Judicial and updates the batch counters.
+     * Registers the radicado against the Portal Judicial and updates the batch counters.
      */
     public function handle(RegisterProcessService $registerProcessService): void
     {
@@ -107,7 +107,7 @@ class ImportRadicadoJob implements ShouldQueue
      * Routes the exception: retryable (with release), or definitive failure.
      *
      * Empty-processes (ApiEmptyProcessesException) gets a limited number of retries because
-     * Rama Judicial occasionally returns HTTP 200 with an empty array under load. After all
+     * Portal Judicial occasionally returns HTTP 200 with an empty array under load. After all
      * retries are exhausted it is treated as a genuine "radicado does not exist" failure.
      */
     private function handleException(Throwable $e): void
@@ -140,7 +140,7 @@ class ImportRadicadoJob implements ShouldQueue
      *
      * - Proxy failure (cURL 7/28/56): retry quickly so the pool selects a
      *   different IP. High max_attempts because proxy failures are transient.
-     * - Empty processes (200 + vacío): Rama Judicial returns empty transiently
+     * - Empty processes (200 + vacío): Portal Judicial returns empty transiently
      *   under load. Small retries; if still empty → definitive failure.
      * - 403/429 with Retry-After header: honour the server-mandated wait exactly.
      * - 403/429 with proxy pool: exponential backoff per attempt (fresh IP each time).
@@ -229,17 +229,17 @@ class ImportRadicadoJob implements ShouldQueue
     }
 
     /**
-     * "Does not exist in Rama Judicial" may be transient: rate limit, timeout or API failure.
+     * "Does not exist in the Portal Judicial" may be transient: rate limit, timeout or API failure.
      */
     private function isNotFoundError(Throwable $e): bool
     {
         $message = $e->getMessage();
 
-        if (str_contains($message, 'no existe') && str_contains($message, 'Rama Judicial')) {
+        if (str_contains($message, 'no existe') && str_contains($message, 'Portal Judicial')) {
             return true;
         }
 
-        if (str_contains($message, 'does not exist') && str_contains($message, 'Judicial Branch')) {
+        if (str_contains($message, 'does not exist') && str_contains($message, 'Portal Judicial')) {
             return true;
         }
 

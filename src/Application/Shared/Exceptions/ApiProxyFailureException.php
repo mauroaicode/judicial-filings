@@ -7,7 +7,7 @@ namespace Src\Application\Shared\Exceptions;
 use Exception;
 
 /**
- * El proxy seleccionado no pudo conectar con la API de la Rama Judicial.
+ * El proxy seleccionado no pudo conectar con la API del Portal Judicial.
  *
  * Causas habituales:
  *   - cURL error 7:  el proxy está caído o bloqueado (Failed to connect).

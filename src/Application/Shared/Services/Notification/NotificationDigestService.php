@@ -7,6 +7,7 @@ namespace Src\Application\Shared\Services\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable;
 use Src\Application\Shared\Notifications\ConsolidatedJudicialActionsNotification;
 use Src\Domain\Notification\Models\NotificationDigest;
@@ -23,6 +24,7 @@ class NotificationDigestService
         $notifications = $organization->notifications()
             ->where('is_email_notified', false)
             ->where('notifiable_type', (new ProcessAction())->getMorphClass())
+            ->orderedByNotifiableConsActionDesc()
             ->with(['notifiable.process'])
             ->get();
 
@@ -76,9 +78,12 @@ class NotificationDigestService
             // 6. Send internal notification (Bell/Websocket) - only ONE
             $users = $organization->appUsers;
             if ($users->isNotEmpty()) {
-                \Illuminate\Support\Facades\Notification::send(
+                $actionsCount = $digestData->where('is_alert', false)->count();
+                $alertsCount = $digestData->where('is_alert', true)->count();
+
+                Notification::send(
                     $users,
-                    new ConsolidatedJudicialActionsNotification($digest, $digestData->count())
+                    new ConsolidatedJudicialActionsNotification($digest, $actionsCount, $alertsCount)
                 );
             }
 
@@ -106,12 +111,12 @@ class NotificationDigestService
             }
 
             $process = $action->process;
-            
+
             // Extract Parties (Demandante/Demandado) - explicitly for this process
             $parties = $process->subjects()
                 ->select(['subject_type', 'name_or_business_name'])
                 ->get();
-            
+
             $demandante = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->implode(', ');
             $demandado = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->implode(', ');
 

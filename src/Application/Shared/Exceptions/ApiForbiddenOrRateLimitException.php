@@ -7,7 +7,7 @@ namespace Src\Application\Shared\Exceptions;
 use Exception;
 
 /**
- * La API de la Rama Judicial respondió 403 Forbidden o 429 Too Many Requests.
+ * La API del Portal Judicial respondió 403 Forbidden o 429 Too Many Requests.
  * Transitorio: el job de importación debe reintentar.
  *
  * Cuando la respuesta incluye el header Retry-After, se almacena en $retryAfter

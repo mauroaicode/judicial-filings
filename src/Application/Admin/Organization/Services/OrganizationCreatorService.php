@@ -16,7 +16,7 @@ use Throwable;
 
 class OrganizationCreatorService
 {
-    private const PHONE_PREFIX = '+53';
+    private const PHONE_PREFIX = '+57';
 
     /**
      * Create a new organization and its first owner (AppUser), then send account email.
@@ -135,11 +135,19 @@ class OrganizationCreatorService
 
     private function createDefaultNotificationChannel(Organization $organization, AppUser $appUser): void
     {
-        $organization->notificationChannels()->create([
-            'channel_type' => 'email',
-            'channel_value' => $appUser->email,
-            'is_active' => true,
-            'priority' => 1,
+        $organization->notificationChannels()->createMany([
+            [
+                'channel_type' => 'email',
+                'channel_value' => $appUser->email,
+                'is_active' => true,
+                'priority' => 1,
+            ],
+            [
+                'channel_type' => 'internal',
+                'channel_value' => 'internal',
+                'is_active' => true,
+                'priority' => 1,
+            ],
         ]);
     }
 }

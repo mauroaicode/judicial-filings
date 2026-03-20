@@ -469,7 +469,7 @@ class JudicialBranchConsultService
             }
         }
 
-        $this->logWarning("HTTP {$status} from Rama Judicial — Max retries reached", [
+        $this->logWarning("HTTP {$status} del Portal Judicial — Max retries reached", [
             'context'     => $context,
             'retry_after' => $retryAfter,
         ]);

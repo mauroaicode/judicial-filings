@@ -19,7 +19,7 @@ Para que el flujo de sincronización y alertas funcione, deben estar activos los
 | Variable | Descripción |
 | :--- | :--- |
 | `JUDICIAL_BRANCH_PROXY_ENABLED` | (true/false) Activa el uso de proxies para evadir bloqueos de la API. |
-| `JUDICIAL_BRANCH_TIMEOUT` | Tiempo de espera para la API de la Rama Judicial (segundos). |
+| `JUDICIAL_BRANCH_TIMEOUT` | Tiempo de espera para la API de la Portal Judicial (segundos). |
 | `IA_KEYWORD_DETECTION_ENABLED` | (true/false) Activa la IA como árbitro final en la detección de palabras clave. |
 | `LOG_JUDICIAL_NOTIFICATIONS` | Canal de log para histórico de alertas (default: `judicial_sync_notifications`). |
 | `NOTIFICATION_INTERNAL_QUEUE` | Cola específica para WebSockets y notificaciones internas. |
@@ -62,7 +62,7 @@ El `ProcessActionAlertNotificationService` ejecuta la lógica por organización:
 
 Si el proceso falla o quieres ver las detecciones, revisa estos archivos:
 
-1.  **`storage/logs/judicial_sync.log`**: Errores de conexión con la API Rama Judicial o problemas de proxy.
+1.  **`storage/logs/judicial_sync.log`**: Errores de conexión con la API Portal Judicial o problemas de proxy.
 2.  **`storage/logs/judicial_sync_notifications.log`**: Aquí verás:
     - Confirmación de correos enviados.
     - Detección de palabras clave para cada organización.

@@ -16,7 +16,8 @@ class ConsolidatedJudicialActionsNotification extends Notification implements Sh
 
     public function __construct(
         private readonly NotificationDigest $digest,
-        private readonly int $count
+        private readonly int $actionsCount,
+        private readonly int $alertsCount
     ) {}
 
     /**
@@ -59,12 +60,19 @@ class ConsolidatedJudicialActionsNotification extends Notification implements Sh
      */
     private function getData(): array
     {
+        $description = "Se han detectado {$this->actionsCount} nuevas actuaciones";
+        if ($this->alertsCount > 0) {
+            $description .= " y {$this->alertsCount} alertas por palabras clave";
+        }
+        $description .= " en sus procesos seguidos.";
+
         return [
             'digest_id' => $this->digest->id,
             'title' => 'Resumen de actuaciones judiciales',
-            'description' => "Se han detectado {$this->count} nuevas actuaciones en sus procesos seguidos.",
+            'description' => $description,
             'type' => 'consolidated-digest',
-            'count' => $this->count,
+            'actions_count' => $this->actionsCount,
+            'alerts_count' => $this->alertsCount,
             'created_at' => now()->toISOString(),
         ];
     }

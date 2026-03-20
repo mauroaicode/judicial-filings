@@ -3,7 +3,7 @@
 return [
     'already_registered' => 'This filing number has already been registered for your organization.',
     'not_found' => 'Process not found.',
-    'not_found_in_judicial_branch' => 'The filing number does not exist in the Judicial Branch.',
+    'not_found_in_judicial_branch' => 'The case number is not available for online viewing.',
     'registered_successfully' => 'Process registered successfully.',
     'user_has_no_organization' => 'The user does not belong to any organization.',
     'is_private' => 'The filing number corresponds to a private process and cannot be registered.',
@@ -58,7 +58,7 @@ return [
     'import_failed_title' => 'Import failed',
     'import_failed_description' => 'Could not import filing :number: :error',
     'registration_dispatched' => 'Process registration has been started and will be processed in the background.',
-    
+
     // Notifications
     'action_detected_subject' => 'New action detected: :number',
     'alert_detected_subject' => '⚠️ Keyword alert: :number',
@@ -72,7 +72,7 @@ return [
     'action_text' => 'Action',
     'annotation_text' => 'Annotation',
     'matched_keywords' => 'Detected Keywords',
-    
+
     // Internal/Websocket
     'internal_action_title' => 'New action',
     'internal_alert_title' => '⚠️ Keyword alert',

@@ -42,7 +42,7 @@ return [
         'timeout'  => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 30),
 
         /*
-         * Jitter aleatorio entre peticiones a Rama Judicial.
+         * Jitter aleatorio entre peticiones al Portal Judicial.
          * Emula el tiempo de lectura/clic de un humano para evitar
          * la detección de patrones robóticos por Cloudflare WAF.
          *

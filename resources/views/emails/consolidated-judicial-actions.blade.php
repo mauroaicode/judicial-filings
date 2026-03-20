@@ -5,7 +5,14 @@
 @section('content')
     <div style="margin-bottom: 25px;">
         <h1 style="font-size: 20px; font-weight: 700; color: #24163E; margin: 0 0 10px 0;">
-            ¡NUESTRO SISTEMA DE ESTADOS JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA {{ now()->format('Y-m-d') }} TUVIERON MOVIMIENTO LOS SIGUIENTES PROCESOS!
+            @php
+                $uniqueProcessesCount = collect($data)->unique('process_number')->count();
+                $dateString = now()->format('Y-m-d');
+                $headerKey = $uniqueProcessesCount > 1 
+                    ? 'process.consolidated_notifications_header_plural' 
+                    : 'process.consolidated_notifications_header_singular';
+            @endphp
+            {{ __($headerKey, ['date' => $dateString]) }}
         </h1>
         <p style="font-size: 14px; color: #6B7280; margin: 0;">
             Estimado usuario, se han detectado nuevas actuaciones en sus procesos seguidos. A continuación el detalle consolidado:

@@ -8,7 +8,7 @@ Para que el sistema funcione correctamente, se deben ejecutar los siguientes ser
 
 | Servicio | Comando | Descripción |
 | :--- | :--- | :--- |
-| **Sincronización Judicial** | `php artisan queue:work --queue=judicial-sync` | Procesa la importación inicial del radicado desde la API de la Rama Judicial. |
+| **Sincronización Judicial** | `php artisan queue:work --queue=judicial-sync` | Procesa la importación inicial del radicado desde la API de la Portal Judicial. |
 | **Resumen de IA** | `php artisan queue:work --queue=process-ai` | Envía los datos al motor RAG y genera el resumen ejecutivo. |
 | **Notificaciones Internas** | `php artisan queue:work --queue=notifications,default` | Gestiona alertas internas y WebSockets (incluye cola default). |
 | **Notificaciones Email** | `php artisan queue:work --queue=notifications-email --rest=2` | Procesa el envío de correos (incluye retraso de seguridad para Mailgun). |
@@ -47,7 +47,7 @@ Cuando un usuario registra un radicado de **23 dígitos**:
 
 ### 2. Sincronización Judicial (`judicial-sync`)
 El Job `SyncJudicialBranchJob` se encarga de:
-- **Consulta API**: Solicita a la Rama Judicial la información histórica.
+- **Consulta API**: Solicita a la Portal Judicial la información histórica.
 - **Creación de Datos**: Registra el proceso, todas sus **Actuaciones** y sus **Sujetos Procesales**.
 - **Notificación**: Al terminar, envía la alerta `ProcessDataImportedNotification` (vía WebSocket/DB).
 - **Disparo de IA**: Al finalizar con éxito, encola automáticamente el siguiente paso para el resumen.

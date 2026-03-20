@@ -34,13 +34,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | API rate limit and retry (evitar bloqueo Rama Judicial)
+    | API rate limit and retry (evitar bloqueo Portal Judicial)
     |--------------------------------------------------------------------------
     |
     | rate_limit_per_minute: máx. consultas a la API por minuto (recomendado 4-6).
     | retry_release_seconds: segundos de espera antes de reintentar si falla.
     | retry_max_attempts: cuántas veces reintentar (otros errores) antes de marcar fallido.
-    | retry_max_attempts_for_not_found: reintentos extra para "no existe en Rama Judicial"
+    | retry_max_attempts_for_not_found: reintentos extra para "no existe en el Portal Judicial"
     |   (puede ser transitorio: rate limit, timeout, fallo API). Ej. 10 = hasta 11 intentos.
     | retry_release_seconds_for_not_found: espera antes de reintentar "not found" (ej. 300 = 5 min).
     |
@@ -56,11 +56,11 @@ return [
     | Retry para respuesta vacía (200 pero sin procesos)
     |--------------------------------------------------------------------------
     |
-    | Rama Judicial puede devolver HTTP 200 con array vacío de forma transitoria
+    | El Portal Judicial puede devolver HTTP 200 con array vacío de forma transitoria
     | cuando está bajo carga (comportamiento observado en logs). Un reintento
     | corto resuelve el problema. Máximo 3 intentos con 120s de espera.
     | Si tras todos los reintentos sigue vacío → fallo definitivo (radicado
-    | genuinamente no existe en Rama Judicial).
+    | genuinamente no existe en el Portal Judicial).
     |
     */
     'retry_max_attempts_for_empty' => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_EMPTY', 3),
@@ -68,7 +68,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Retry para 403/429 de Rama Judicial
+    | Retry para 403/429 del Portal Judicial
     |--------------------------------------------------------------------------
     |
     | Con proxy rotatorio: el 403 significa que esa IP egress está bloqueada,
