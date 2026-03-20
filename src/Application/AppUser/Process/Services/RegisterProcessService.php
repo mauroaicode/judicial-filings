@@ -29,7 +29,7 @@ readonly class RegisterProcessService
      *
      * Fast path: if any instance of the radicado already exists in DB (registered by another org),
      * all instances are attached directly without any API call.
-     * Full path: if the radicado is not in DB, the Rama Judicial API is consulted.
+     * Full path: if the radicado is not in DB, the Portal Judicial API is consulted.
      *
      * @param  string  $processNumber  23-digit radicado number
      * @param  string  $organizationId  Organization UUID
@@ -98,7 +98,7 @@ readonly class RegisterProcessService
     }
 
     /**
-     * Consults the Rama Judicial API to register a new radicado and sync its actions/subjects.
+     * Consults the Portal Judicial API to register a new radicado and sync its actions/subjects.
      *
      * Called only when no instance of the radicado exists in DB.
      * For each API instance: if the process_id is already in DB (race condition), it attaches;
@@ -111,7 +111,7 @@ readonly class RegisterProcessService
      */
     private function registerFromApi(string $processNumber, string $organizationId): RegisterProcessResult
     {
-        $processesData = $this->validateAndGetProcessesFromJudicialBranch($processNumber);
+        $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber);
 
         $hasMultipleInstances = count($processesData) > 1;
         $totalProcesses = count($processesData);
@@ -234,12 +234,12 @@ readonly class RegisterProcessService
     }
 
     /**
-     * Validate that the process exists in the judicial branch and get all processes.
+     * Validate that the process exists in the portal judicial and get all processes.
      *
      * @param  string  $processNumber  The process number to validate.
      * @return array<int, array<string, mixed>> The processes data from the API.
      */
-    private function validateAndGetProcessesFromJudicialBranch(string $processNumber): array
+    private function validateAndGetProcessesFromPortalJudicial(string $processNumber): array
     {
         try {
             $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
@@ -255,7 +255,7 @@ readonly class RegisterProcessService
     }
 
     /**
-     * Validate and get detailed process information from the judicial branch.
+     * Validate and get detailed process information from the portal judicial.
      *
      * @param  int  $processId  The API process ID.
      * @return array<string, mixed> The detailed process data.

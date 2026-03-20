@@ -320,6 +320,12 @@ it('creates organization and owner app user and sends notification', function ()
         $owner,
         \Src\Application\Shared\Notifications\AccountCreatedNotification::class
     );
+
+    // Verify notification channels
+    $org->load('notificationChannels');
+    expect($org->notificationChannels)->toHaveCount(2);
+    expect($org->notificationChannels->pluck('channel_type')->toArray())->toContain('email');
+    expect($org->notificationChannels->pluck('channel_type')->toArray())->toContain('internal');
 });
 
 it('creates juridical organization with contact person', function (): void {

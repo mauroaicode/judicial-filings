@@ -1,6 +1,6 @@
 # 🏛️ Manual de Operación: Importación Judicial
 
-Este documento detalla el funcionamiento del motor de importación masiva y sincronización de procesos de la Rama Judicial.
+Este documento detalla el funcionamiento del motor de importación masiva y sincronización de procesos de la Portal Judicial.
 
 ## 1. Arquitectura del Flujo
 La importación es un proceso asíncrono diseñado para manejar grandes volúmenes de datos sin bloquear el servidor.

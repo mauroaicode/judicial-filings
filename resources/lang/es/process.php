@@ -3,7 +3,7 @@
 return [
     'already_registered' => 'Este número de radicado ya ha sido registrado para tu organización.',
     'not_found' => 'Proceso no encontrado.',
-    'not_found_in_judicial_branch' => 'El número de radicado no existe en la Rama Judicial.',
+    'not_found_in_judicial_branch' => 'El número de radicado no está disponible para consulta en línea.',
     'registered_successfully' => 'Proceso registrado exitosamente.',
     'user_has_no_organization' => 'El usuario no pertenece a ninguna organización.',
     'is_private' => 'El número de radicado corresponde a un proceso privado y no es posible registrarlo.',
@@ -42,10 +42,10 @@ return [
     'organization_inactive' => 'La organización no está activa.',
     'import_all_already_registered' => 'Todos los radicados del archivo ya están registrados para esta organización.',
     'import_batch_not_found' => 'Lote de importación no encontrado.',
-    'import_job_max_attempts_exceeded' => 'Se excedió el número máximo de intentos (posible rate limit de la API Rama Judicial).',
-    'api_empty_processes' => 'La API de la Rama Judicial respondió correctamente pero no tiene procesos asociados a este radicado. Verifique en la página de la Rama Judicial.',
-    'api_forbidden' => 'La API de la Rama Judicial respondió 403 Forbidden (:context). Reintente más tarde.',
-    'api_rate_limit' => 'La API de la Rama Judicial respondió 429 Too Many Requests (:context). Reintente más tarde.',
+    'import_job_max_attempts_exceeded' => 'Se excedió el número máximo de intentos (posible rate limit de la API del Portal Judicial).',
+    'api_empty_processes' => 'La API del Portal Judicial respondió correctamente pero no tiene procesos asociados a este radicado. Verifique en la página del Portal Judicial.',
+    'api_forbidden' => 'La API del Portal Judicial respondió 403 Forbidden (:context). Reintente más tarde.',
+    'api_rate_limit' => 'La API del Portal Judicial respondió 429 Too Many Requests (:context). Reintente más tarde.',
     'sync_failed_actuaciones' => 'No se pudieron obtener las actuaciones del proceso. Reintente más tarde.',
     'sync_failed_sujetos' => 'No se pudieron obtener los sujetos procesales del proceso. Reintente más tarde.',
     'activated_successfully' => 'Proceso activado exitosamente.',
@@ -59,7 +59,7 @@ return [
     'import_failed_title' => 'Error de importación',
     'import_failed_description' => 'No se pudo importar el radicado :number: :error',
     'registration_dispatched' => 'El registro del proceso ha sido iniciado y se procesará en segundo plano.',
-    
+
     // Notifications
     'action_detected_subject' => 'Nueva actuación detectada: :number',
     'alert_detected_subject' => '⚠️ Alerta de palabra clave: :number',
@@ -73,14 +73,16 @@ return [
     'action_text' => 'Actuación',
     'annotation_text' => 'Anotación',
     'matched_keywords' => 'Palabras Detectadas',
-    
+
     // Internal/Websocket
     'internal_action_title' => 'Nueva actuación',
     'internal_alert_title' => '⚠️ Alerta de palabra clave',
     'internal_action_description' => 'Nueva actuación en el radicado :number',
     'internal_alert_description' => '¡Alerta! Palabra clave detectada en el radicado :number',
-    
+
     // Consolidated Notifications
     'consolidated_notifications_subject' => 'Resumen de actuaciones para :name - :date',
     'consolidated_notifications_title' => 'Resumen Judicial Consolidado',
+    'consolidated_notifications_header_singular' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVO MOVIMIENTO EL SIGUIENTE PROCESO!',
+    'consolidated_notifications_header_plural' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVIERON MOVIMIENTO LOS SIGUIENTES PROCESOS!',
 ];

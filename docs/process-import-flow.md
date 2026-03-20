@@ -2,7 +2,7 @@
 
 ## Visión general
 
-El usuario sube un archivo Excel con números de radicados (23 dígitos). El sistema los valida, filtra los ya registrados y pone en cola un job por radicado que consulta la API de Rama Judicial y los registra. Al finalizar todos los jobs se envían notificaciones al administrador y a la organización.
+El usuario sube un archivo Excel con números de radicados (23 dígitos). El sistema los valida, filtra los ya registrados y pone en cola un job por radicado que consulta la API de Portal Judicial y los registra. Al finalizar todos los jobs se envían notificaciones al administrador y a la organización.
 
 ---
 
@@ -57,7 +57,7 @@ ImportRadicadoJob::handle()
     Actualiza success_count o failed_count en ProcessImportBatch.
     │
     └─► RegisterProcessService
-            Consulta la API de Rama Judicial via JudicialBranchConsultService.
+            Consulta la API de Portal Judicial via JudicialBranchConsultService.
             JudicialBranchConsultService::throttle() bloquea con sleep()
             si se supera el rate limit interno — NO lanza excepción.
             Registra el proceso y sus actuaciones.
@@ -73,7 +73,7 @@ ImportRadicadoJob::handle()
 | Otro error | Sí, hasta `PROCESS_IMPORT_RETRY_MAX_ATTEMPTS` | `PROCESS_IMPORT_RETRY_RELEASE_SECONDS` |
 
 > **¿Por qué reintentar el 200 vacío?**  
-> Rama Judicial puede devolver HTTP 200 con array vacío de forma **transitoria** cuando está bajo carga (comportamiento observado en logs). Si tras todos los reintentos sigue vacío, se trata como fallo definitivo: el radicado genuinamente no existe en Rama Judicial.
+> Portal Judicial puede devolver HTTP 200 con array vacío de forma **transitoria** cuando está bajo carga (comportamiento observado en logs). Si tras todos los reintentos sigue vacío, se trata como fallo definitivo: el radicado genuinamente no existe en Portal Judicial.
 
 ### Completado del batch
 
@@ -109,7 +109,7 @@ ProcessImportBatchService::onBatchCompleted()
 
 | Cola | Propósito | Variable .env |
 |------|-----------|---------------|
-| `process-import` | Jobs de consulta a Rama Judicial | `PROCESS_IMPORT_QUEUE` |
+| `process-import` | Jobs de consulta a Portal Judicial | `PROCESS_IMPORT_QUEUE` |
 | `emails_import_report` | Envío del email de reporte al admin | — (hardcoded en `ProcessImportReportNotification`) |
 
 ```bash
@@ -131,7 +131,7 @@ php artisan queue:work --queue=emails_import_report
 ## 3.1 Proxy Pool — rotación de IPs
 
 El `ProxyPoolService` gestiona un pool de proxies HTTP que se rota aleatoriamente
-en cada request a Rama Judicial, eliminando el rate limit por IP.
+en cada request a Portal Judicial, eliminando el rate limit por IP.
 
 ### Arquitectura
 
@@ -144,7 +144,7 @@ ImportRadicadoJob
                     │       └─► ProxyPoolService::next()
                     │               ├─ lee pool del caché (o lo carga)
                     │               └─ array_rand($proxies) → ip:port aleatoria
-                    └─ request HTTP → Rama Judicial (vía proxy)
+                    └─ request HTTP → Portal Judicial (vía proxy)
 ```
 
 ### Proveedores disponibles
@@ -194,7 +194,7 @@ Cada request registra la IP usada (o "direct connection") en el canal `process_i
 ```
 [ProxyPool]    Proxy pool loaded {"provider":"proxyscrape","count":1000}
 [JudicialBranch] Using proxy {"proxy":"http://104.207.46.209:3129","pool_count":1000}
-[JudicialBranch] HTTP 403 from Rama Judicial {"context":"fetchProcesses","proxy_mode":"proxy pool [1000 IPs]"}
+[JudicialBranch] HTTP 403 from Portal Judicial {"context":"fetchProcesses","proxy_mode":"proxy pool [1000 IPs]"}
 ```
 
 ---
@@ -202,13 +202,13 @@ Cada request registra la IP usada (o "direct connection") en el canal `process_i
 ## 4. Variables de entorno relevantes
 
 ```dotenv
-# ── Rama Judicial API ──────────────────────────────────────────────────────────
+# ── Portal Judicial API ──────────────────────────────────────────────────────────
 JUDICIAL_BRANCH_API_URL=https://consultaprocesos.ramajudicial.gov.co:448/api/v2
 JUDICIAL_BRANCH_TIMEOUT_SECONDS=60
 JUDICIAL_BRANCH_LOG_CHANNEL=process_import
 
 # Rate limit interno (solo aplica cuando JUDICIAL_BRANCH_PROXY_ENABLED=false)
-JUDICIAL_BRANCH_RATE_LIMIT_PER_MINUTE=8   # máx peticiones HTTP/min a Rama Judicial
+JUDICIAL_BRANCH_RATE_LIMIT_PER_MINUTE=8   # máx peticiones HTTP/min a Portal Judicial
 
 # ── Proxy Pool ─────────────────────────────────────────────────────────────────
 JUDICIAL_BRANCH_PROXY_ENABLED=false        # true = activar rotación de IPs
@@ -238,11 +238,11 @@ PROCESS_IMPORT_RETRY_RELEASE_RATE_LIMIT=180
 PROCESS_IMPORT_RETRY_MAX_ATTEMPTS=2
 PROCESS_IMPORT_RETRY_RELEASE_SECONDS=120
 
-# Reintentos — radicado no encontrado en Rama Judicial (puede ser transitorio)
+# Reintentos — radicado no encontrado en Portal Judicial (puede ser transitorio)
 PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_NOT_FOUND=10
 PROCESS_IMPORT_RETRY_RELEASE_SECONDS_NOT_FOUND=300
 
-# Reintentos — 200 OK con array vacío (Rama Judicial bajo carga devuelve vacío transitoriamente)
+# Reintentos — 200 OK con array vacío (Portal Judicial bajo carga devuelve vacío transitoriamente)
 PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_EMPTY=3
 PROCESS_IMPORT_RETRY_RELEASE_SECONDS_EMPTY=120
 
