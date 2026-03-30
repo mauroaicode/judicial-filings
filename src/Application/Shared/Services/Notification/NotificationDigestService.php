@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable;
 use Src\Application\Shared\Notifications\ConsolidatedJudicialActionsNotification;
 use Src\Domain\Notification\Models\NotificationDigest;
@@ -138,12 +139,12 @@ class NotificationDigestService
                 'process_number' => $process->process_number,
                 'demandante' => empty($demandante) ? '---' : $demandante,
                 'demandado' => empty($demandado) ? '---' : $demandado,
-                'action_date' => $action->action_date->format('d/m/Y'),
+                'action_date' => DateFormatHelper::formatDate($action->action_date),
                 'action_text' => $action->action,
                 'annotation' => $action->annotation ?: '---',
-                'start_date' => $action->start_date ? $action->start_date->format('d/m/Y') : null,
-                'end_date' => $action->end_date ? $action->end_date->format('d/m/Y') : null,
-                'registration_date' => $action->registration_date->format('d/m/Y'),
+                'term_start_date' => $action->start_date ? DateFormatHelper::formatDate($action->start_date) : null,
+                'term_end_date' => $action->end_date ? DateFormatHelper::formatDate($action->end_date) : null,
+                'registration_date' => DateFormatHelper::formatDate($action->registration_date),
                 'is_alert' => $isAlert,
                 'matched_keywords' => $matchedKeywords,
             ];

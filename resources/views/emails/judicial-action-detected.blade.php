@@ -27,6 +27,18 @@
                     <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_date') }}:</td>
                     <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->action_date->format('d/m/Y') }}</td>
                 </tr>
+                @if($action->start_date)
+                <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_start_date') }}:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->start_date->format('d/m/Y') }}</td>
+                </tr>
+                @endif
+                @if($action->end_date)
+                <tr>
+                    <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_end_date') }}:</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->end_date->format('d/m/Y') }}</td>
+                </tr>
+                @endif
                 @if($notificationType === 'actuacion_alerta')
                 <tr>
                     <td style="padding: 8px 0; font-size: 14px; color: #EF4444; font-weight: 600;">Palabras Clave:</td>

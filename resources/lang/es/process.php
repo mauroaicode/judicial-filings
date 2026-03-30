@@ -70,6 +70,8 @@ return [
     'view_process' => 'Ver Proceso Completo',
     'process_number' => 'Radicado',
     'action_date' => 'Fecha de Actuación',
+    'action_start_date' => 'Fecha Inicio Término',
+    'action_end_date' => 'Fecha Finaliza Término',
     'action_text' => 'Actuación',
     'annotation_text' => 'Anotación',
     'matched_keywords' => 'Palabras Detectadas',

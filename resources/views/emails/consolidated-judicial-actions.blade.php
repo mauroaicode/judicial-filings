@@ -52,8 +52,8 @@
                             </div>
                         @endif
                     </td>
-                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center;">{{ $row['start_date'] ?: '---' }}</td>
-                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center;">{{ $row['end_date'] ?: '---' }}</td>
+                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center;">{{ $row['term_start_date'] ?: '---' }}</td>
+                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center;">{{ $row['term_end_date'] ?: '---' }}</td>
                     <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center;">{{ $row['registration_date'] }}</td>
                 </tr>
                 @endforeach
