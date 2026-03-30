@@ -38,14 +38,14 @@
             <tbody>
                 @foreach($data as $row)
                 <tr style="border-bottom: 1px solid #E5E7EB; vertical-align: top; {{ $row['is_alert'] ? 'background-color: #FEF2F2;' : '' }}">
-                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ $row['court'] }}</td>
+                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ \Illuminate\Support\Str::limit($row['court'], 50) }}</td>
                     <td style="padding: 8px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ $row['process_number'] }}</td>
-                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ $row['demandante'] }}</td>
-                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ $row['demandado'] }}</td>
+                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ \Illuminate\Support\Str::limit($row['demandante'], 50) }}</td>
+                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ \Illuminate\Support\Str::limit($row['demandado'], 50) }}</td>
                     <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center;">{{ $row['action_date'] }}</td>
-                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ $row['action_text'] }}</td>
+                    <td style="padding: 8px; border: 1px solid #E5E7EB;">{{ \Illuminate\Support\Str::limit($row['action_text'], 50) }}</td>
                     <td style="padding: 8px; border: 1px solid #E5E7EB; {{ $row['is_alert'] ? 'color: #B91C1C; font-weight: bold;' : '' }}">
-                        {{ $row['annotation'] }}
+                        {{ \Illuminate\Support\Str::limit($row['annotation'], 50) }}
                         @if($row['is_alert'] && !empty($row['matched_keywords']))
                             <div style="font-size: 10px; margin-top: 4px; color: #DC2626; font-style: italic;">
                                 Palabras clave: {{ $row['matched_keywords'] }}
