@@ -2,19 +2,21 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
+use Src\Application\AppUser\Process\Jobs\GenerateProcessAiSummaryJob;
+use Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob;
+use Src\Application\Shared\Services\AiRagService;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Notification\Notifications\ProcessAiSummaryReadyNotification;
+use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
+use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
-use Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob;
-use Src\Application\AppUser\Process\Jobs\GenerateProcessAiSummaryJob;
-use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
-use Src\Domain\Notification\Notifications\ProcessAiSummaryReadyNotification;
-use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create();
@@ -45,8 +47,8 @@ it('dispatches the process registration flow asynchronously without placeholders
 
     // Verify Job was dispatched with the number
     Queue::assertPushed(SyncJudicialBranchJob::class, function ($job) use ($processNumber) {
-        return $job->processNumber === $processNumber 
-            && $job->organizationId === $this->organization->id 
+        return $job->processNumber === $processNumber
+            && $job->organizationId === $this->organization->id
             && $job->appUser->id === $this->appUser->id;
     });
 
@@ -57,8 +59,13 @@ it('dispatches the process registration flow asynchronously without placeholders
 });
 
 it('successfully runs SyncJudicialBranchJob, creates process and dispatches AI job', function (): void {
-    Queue::fake([GenerateProcessAiSummaryJob::class]);
+    Queue::fake();
     Notification::fake();
+    Config::set('ia-rag.enabled', true);
+
+    $this->mock(AiRagService::class, function ($mock) {
+        $mock->shouldReceive('uploadMarkdown')->andReturn(true);
+    });
 
     $processNumber = '76001333301320170009301';
 
@@ -139,10 +146,11 @@ it('notifies failure when SyncJudicialBranchJob fails', function (): void {
     ]);
 
     $job = new SyncJudicialBranchJob($processNumber, $this->organization->id, $this->appUser);
-    
+
     try {
         app()->call([$job, 'handle']);
-    } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {
+    }
 
     // Verify Log updated to failed
     $log = ProcessRegistrationLog::where('process_number', $processNumber)->first();
@@ -157,6 +165,11 @@ it('notifies failure when SyncJudicialBranchJob fails', function (): void {
 
 it('successfully runs GenerateProcessAiSummaryJob and saves summary', function (): void {
     Notification::fake();
+
+    $this->mock(AiRagService::class, function ($mock) {
+        $mock->shouldReceive('uploadMarkdown')->andReturn('task_id');
+        $mock->shouldReceive('querySummary')->andReturn(['resumen' => 'Este es un resumen test']);
+    });
 
     $process = Process::factory()->create([
         'process_number' => '76001333301320170009301',

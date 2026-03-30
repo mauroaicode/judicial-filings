@@ -67,6 +67,7 @@ class OrganizationNotification extends Model
         'viewed_at',
         'notified_at',
         'email_notified_at',
+        'notification_digest_id',
     ];
 
     /**

@@ -177,7 +177,7 @@ class ImportRadicadoJob implements ShouldQueue
             if ($e->retryAfter !== null && $e->retryAfter > 0) {
                 $this->log('warning', 'Retry-After header received — honouring server wait', [
                     'retry_after_seconds' => $e->retryAfter,
-                    'attempt'             => $this->attempts(),
+                    'attempt' => $this->attempts(),
                 ]);
 
                 return [$e->retryAfter, $maxAttempts];

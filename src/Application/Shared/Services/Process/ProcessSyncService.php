@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Contracts\Database\Query\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
@@ -294,7 +293,7 @@ class ProcessSyncService
         }
 
         try {
-            return Carbon::parse($date)->format('Y-m-d');
+            return \Illuminate\Support\Facades\Date::parse($date)->format('Y-m-d');
         } catch (\Throwable) {
             return null;
         }
@@ -314,6 +313,7 @@ class ProcessSyncService
             if (! isset($orgActive[$id])) {
                 $orgActive[$id] = false;
             }
+
             if ($row->is_active) {
                 $orgActive[$id] = true;
             }

@@ -30,8 +30,8 @@ class OrganizationFactory extends Factory
         return [
             'id' => Str::uuid(),
             'name' => $type === 'natural'
-                ? $this->faker->name()
-                : $this->faker->company(),
+                ? $this->faker->unique()->name()
+                : $this->faker->unique()->company(),
             'slug' => function (array $attributes) {
                 return Str::slug($attributes['name']);
             },

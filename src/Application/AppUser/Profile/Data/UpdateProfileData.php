@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Profile\Data;
 
+use Illuminate\Validation\Rule;
+use Spatie\LaravelData\Attributes\Validation\Confirmed;
 use Spatie\LaravelData\Attributes\Validation\Min;
 use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Attributes\Validation\Required;
-use Spatie\LaravelData\Attributes\Validation\Confirmed;
 use Spatie\LaravelData\Data;
 use Src\Application\Shared\Traits\TranslatableDataAttributesTrait;
-use Illuminate\Validation\Rule;
-use Src\Domain\AppUser\Models\AppUser;
 
 class UpdateProfileData extends Data
 {

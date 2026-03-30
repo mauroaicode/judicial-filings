@@ -38,8 +38,8 @@ class ProxyPoolService
         }
 
         $protocol = (string) config('judicial-branch.proxy.protocol', 'http');
-        $host     = (string) config('judicial-branch.proxy.host', 'rp.scrapegw.com');
-        $port     = (int)    config('judicial-branch.proxy.port', 6060);
+        $host = (string) config('judicial-branch.proxy.host', 'rp.scrapegw.com');
+        $port = (int) config('judicial-branch.proxy.port', 6060);
         $username = (string) config('judicial-branch.proxy.username', '');
         $password = (string) config('judicial-branch.proxy.password', '');
 

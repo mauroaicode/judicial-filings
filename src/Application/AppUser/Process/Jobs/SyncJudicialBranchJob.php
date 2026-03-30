@@ -26,8 +26,7 @@ class SyncJudicialBranchJob implements ShouldQueue
         public string $processNumber,
         public string $organizationId,
         public AppUser $appUser
-    ) {
-    }
+    ) {}
 
     /**
      * @throws Throwable
@@ -44,14 +43,14 @@ class SyncJudicialBranchJob implements ShouldQueue
 
             $process = $result->getFirstProcess();
 
-            if ($process) {
+            if ($process instanceof \Src\Domain\Process\Models\Process) {
 
                 $this->updateLogStatus('success');
 
                 $this->appUser->notify(new ProcessDataImportedNotification($process));
 
                 if (config('ia-rag.enabled')) {
-                    GenerateProcessAiSummaryJob::dispatch($process, $this->organizationId, $this->appUser)
+                    dispatch(new \Src\Application\AppUser\Process\Jobs\GenerateProcessAiSummaryJob($process, $this->organizationId, $this->appUser))
                         ->onQueue(config('ia-rag.queues.ai'));
                 }
             } else {

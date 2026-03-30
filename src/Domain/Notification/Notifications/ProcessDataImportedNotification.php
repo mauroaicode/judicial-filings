@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Src\Domain\Notification\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Src\Domain\Process\Models\Process;
 
-class ProcessDataImportedNotification extends Notification implements ShouldQueue, ShouldBroadcast
+class ProcessDataImportedNotification extends Notification implements ShouldBroadcast, ShouldQueue
 {
     use Queueable;
 

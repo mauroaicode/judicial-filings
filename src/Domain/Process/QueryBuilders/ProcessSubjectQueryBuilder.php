@@ -99,4 +99,24 @@ class ProcessSubjectQueryBuilder extends Builder
 
         return $this;
     }
+
+    /**
+     * Order subjects by priority (Demandante, Demandado, others) and then by name.
+     *
+     * @return $this
+     *
+     * @phpstan-return static
+     */
+    public function orderedByPriority(): self
+    {
+        $this->orderByRaw(
+            "CASE 
+                WHEN UPPER(subject_type) LIKE '%DEMANDANTE%' THEN 1 
+                WHEN UPPER(subject_type) LIKE '%DEMANDADO%' THEN 2 
+                ELSE 3 
+             END ASC"
+        )->orderBy('name_or_business_name', 'asc');
+
+        return $this;
+    }
 }

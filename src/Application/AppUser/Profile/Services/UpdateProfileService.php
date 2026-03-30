@@ -18,10 +18,10 @@ class UpdateProfileService
             'last_name' => $data->last_name,
             'email' => $data->email,
             'identification' => $data->identification,
-            'slug' => Str::slug($data->name . ' ' . $data->last_name),
+            'slug' => Str::slug($data->name.' '.$data->last_name),
         ];
 
-        if (! empty($data->password)) {
+        if (! in_array($data->password, [null, '', '0'], true)) {
             $payload['password'] = Hash::make($data->password);
             $payload['must_change_password'] = false;
         }

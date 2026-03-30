@@ -41,4 +41,7 @@ return [
     'phone' => 'Phone',
     'contact_person' => 'Contact person',
     'is_active' => 'Active',
+    'keyword' => 'Keyword',
+    'password' => 'Password',
+    'password_confirmation' => 'Password Confirmation',
 ];

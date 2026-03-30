@@ -39,7 +39,7 @@ class SendNotificationDigestCommand extends Command
             ->when($organizationId, fn ($q) => $q->where('id', $organizationId))
             ->get();
 
-        $this->info("Checking " . $organizations->count() . " organizations for pending notifications...");
+        $this->info('Checking '.$organizations->count().' organizations for pending notifications...');
 
         $bar = $this->output->createProgressBar($organizations->count());
         $bar->start();

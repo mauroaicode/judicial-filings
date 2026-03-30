@@ -16,9 +16,7 @@ class JudicialActionDetectedNotification extends Notification implements ShouldQ
     use Queueable;
 
     /**
-     * @param ProcessAction $action
-     * @param Process $process
-     * @param string $notificationType 'actuacion' | 'actuacion_alerta'
+     * @param  string  $notificationType  'actuacion' | 'actuacion_alerta'
      */
     public function __construct(
         private readonly ProcessAction $action,
@@ -71,10 +69,10 @@ class JudicialActionDetectedNotification extends Notification implements ShouldQ
     private function getData(): array
     {
         $isAlert = $this->notificationType === 'actuacion_alerta';
-        
+
         return [
             'title' => $isAlert ? __('process.internal_alert_title') : __('process.internal_action_title'),
-            'description' => $isAlert 
+            'description' => $isAlert
                 ? __('process.internal_alert_description', ['number' => $this->process->process_number])
                 : __('process.internal_action_description', ['number' => $this->process->process_number]),
             'type' => $isAlert ? 'alert-keyword' : 'new-action',

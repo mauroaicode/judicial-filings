@@ -17,8 +17,7 @@ class ConsolidatedJudicialActionsMailable extends Mailable
     use SerializesModels;
 
     /**
-     * @param Collection $data This collection contains structured data for each row in the table
-     * @param string $organizationName
+     * @param  Collection  $data  This collection contains structured data for each row in the table
      */
     public function __construct(
         public readonly Collection $data,

@@ -9,7 +9,6 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Sleep;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
@@ -49,8 +48,7 @@ class JudicialBranchConsultService
 
     public function __construct(
         private readonly ProxyPoolService $proxyPool,
-    ) {
-    }
+    ) {}
 
     /**
      * Sets the radicado seed for this service instance.
@@ -302,16 +300,16 @@ class JudicialBranchConsultService
 
         $client = Http::timeout($timeout)
             ->withHeaders([
-                'User-Agent'       => $this->resolveUserAgent(),
-                'Accept'           => 'application/json, text/plain, */*',
-                'Accept-Language'  => 'es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Accept-Encoding'  => 'gzip, deflate, br',
-                'Connection'       => 'keep-alive',
-                'Sec-Fetch-Dest'   => 'empty',
-                'Sec-Fetch-Mode'   => 'cors',
-                'Sec-Fetch-Site'   => 'same-origin',
+                'User-Agent' => $this->resolveUserAgent(),
+                'Accept' => 'application/json, text/plain, */*',
+                'Accept-Language' => 'es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding' => 'gzip, deflate, br',
+                'Connection' => 'keep-alive',
+                'Sec-Fetch-Dest' => 'empty',
+                'Sec-Fetch-Mode' => 'cors',
+                'Sec-Fetch-Site' => 'same-origin',
                 'Sec-Ch-Ua-Mobile' => '?0',
-                'DNT'              => '1',
+                'DNT' => '1',
             ])
             ->withOptions(['cookies' => $this->cookieJar ?? new CookieJar]);
 
@@ -321,7 +319,7 @@ class JudicialBranchConsultService
 
             if ($proxyUrl !== null) {
                 $client = $client->withOptions([
-                    'proxy'   => $proxyUrl,
+                    'proxy' => $proxyUrl,
                 ]);
 
                 $this->logInfo('Using rotating residential proxy (Rotating per request)');
@@ -377,7 +375,7 @@ class JudicialBranchConsultService
 
                 $this->logWarning("Request attempt {$attempt} failed, retrying...", [
                     'context' => $context,
-                    'error'   => $th->getMessage(),
+                    'error' => $th->getMessage(),
                 ]);
 
                 $this->handleCooldown(null, $attempt);
@@ -394,18 +392,18 @@ class JudicialBranchConsultService
         $seconds = 0;
 
         // 1. Check for Retry-After header
-        if ($response !== null) {
+        if ($response instanceof \Illuminate\Http\Client\Response) {
             $retryAfter = $response->header('Retry-After');
-            if ($retryAfter !== '' && $retryAfter !== null) {
+            if (! empty($retryAfter)) {
                 $seconds = is_numeric($retryAfter)
                     ? (int) $retryAfter
-                    : (int) max(0, strtotime($retryAfter) - time());
+                    : max(0, strtotime($retryAfter) - time());
             }
         }
 
         // 2. If no Retry-After, apply exponential backoff (2s, 4s, 8s)
         if ($seconds <= 0) {
-            $seconds = (int) pow(2, $attempt + 1);
+            $seconds = (int) 2 ** ($attempt + 1);
         }
 
         $this->logInfo("Pausing for {$seconds}s before retry...", ['attempt' => $attempt]);
@@ -429,7 +427,7 @@ class JudicialBranchConsultService
     /**
      * Paces HTTP calls using a random jitter delay.
      *
-     * @param bool $fast If true, uses a shorter delay suitable for pagination clicks.
+     * @param  bool  $fast  If true, uses a shorter delay suitable for pagination clicks.
      */
     private function applyJitter(bool $fast = false): void
     {
@@ -459,18 +457,18 @@ class JudicialBranchConsultService
     {
         $retryAfter = null;
 
-        if ($httpResponse !== null) {
+        if ($httpResponse instanceof \Illuminate\Http\Client\Response) {
             $retryAfterHeader = $httpResponse->header('Retry-After');
 
-            if ($retryAfterHeader !== '' && $retryAfterHeader !== null) {
+            if (! empty($retryAfterHeader)) {
                 $retryAfter = is_numeric($retryAfterHeader)
                     ? (int) $retryAfterHeader
-                    : (int) max(0, strtotime($retryAfterHeader) - time());
+                    : max(0, strtotime($retryAfterHeader) - time());
             }
         }
 
         $this->logWarning("HTTP {$status} del Portal Judicial — Max retries reached", [
-            'context'     => $context,
+            'context' => $context,
             'retry_after' => $retryAfter,
         ]);
 
@@ -489,7 +487,7 @@ class JudicialBranchConsultService
     {
         $message = $th->getMessage();
 
-        $isCurlError7  = str_contains($message, 'cURL error 7');
+        $isCurlError7 = str_contains($message, 'cURL error 7');
         $isCurlError28 = str_contains($message, 'cURL error 28');
         $isCurlError56 = str_contains($message, 'cURL error 56');
 
@@ -498,9 +496,9 @@ class JudicialBranchConsultService
         }
 
         $label = match (true) {
-            $isCurlError7  => 'proxy gateway unreachable (CURLE_COULDNT_CONNECT)',
+            $isCurlError7 => 'proxy gateway unreachable (CURLE_COULDNT_CONNECT)',
             $isCurlError28 => 'proxy timeout (CURLE_OPERATION_TIMEDOUT)',
-            default        => 'proxy tunnel failed (CURLE_RECV_ERROR)',
+            default => 'proxy tunnel failed (CURLE_RECV_ERROR)',
         };
 
         $this->logWarning("Proxy fatal error — {$label}", [

@@ -135,7 +135,7 @@ class Process extends Model
     /**
      * Get the subjects for the process (many-to-many via pivot).
      *
-     * @return EloquentBelongsToMany<ProcessSubject, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Process\Models\ProcessSubject, $this>
      */
     public function subjects(): EloquentBelongsToMany
     {
@@ -150,7 +150,7 @@ class Process extends Model
     /**
      * Get the organizations that have access to this process.
      *
-     * @return EloquentBelongsToMany<Organization, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Organization\Models\Organization, $this>
      */
     public function organizations(): BelongsToMany
     {

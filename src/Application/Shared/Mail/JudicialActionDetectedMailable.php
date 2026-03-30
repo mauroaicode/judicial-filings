@@ -19,10 +19,7 @@ class JudicialActionDetectedMailable extends Mailable
     use SerializesModels;
 
     /**
-     * @param ProcessAction $action
-     * @param Process $process
-     * @param string $organizationId
-     * @param string $notificationType 'actuacion' | 'actuacion_alerta'
+     * @param  string  $notificationType  'actuacion' | 'actuacion_alerta'
      */
     public function __construct(
         public readonly ProcessAction $action,
@@ -33,8 +30,8 @@ class JudicialActionDetectedMailable extends Mailable
 
     public function envelope(): Envelope
     {
-        $subjectKey = $this->notificationType === 'actuacion_alerta' 
-            ? 'process.alert_detected_subject' 
+        $subjectKey = $this->notificationType === 'actuacion_alerta'
+            ? 'process.alert_detected_subject'
             : 'process.action_detected_subject';
 
         return new Envelope(
@@ -45,7 +42,7 @@ class JudicialActionDetectedMailable extends Mailable
     public function content(): Content
     {
         $matchedKeywords = null;
-        
+
         if ($this->notificationType === 'actuacion_alerta') {
             $matchedKeywords = ProcessActionAlertHighlight::query()
                 ->where('process_action_id', $this->action->id)

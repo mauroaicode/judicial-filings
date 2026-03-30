@@ -38,11 +38,17 @@ class NotificationDigest extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Organization, $this>
+     */
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');
     }
 
+    /**
+     * @return HasMany<OrganizationNotification, $this>
+     */
     public function notifications(): HasMany
     {
         return $this->hasMany(OrganizationNotification::class, 'notification_digest_id');

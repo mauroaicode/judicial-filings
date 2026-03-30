@@ -58,13 +58,13 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Include subjects relationship.
+     * Include subjects relationship with priority order.
      *
      * @return $this
      */
     public function withSubjects(): self
     {
-        return $this->with('subjects');
+        return $this->with(['subjects' => fn ($q) => $q->orderedByPriority()]);
     }
 
     /**

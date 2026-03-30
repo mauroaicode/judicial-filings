@@ -37,6 +37,7 @@ class AppUserFactory extends Factory
             'email' => $this->faker->unique()->safeEmail(),
             'identification' => $this->faker->unique()->numerify('##########'),
             'password' => bcrypt('password1234'),
+            'must_change_password' => false,
             'profile_image' => null,
             'email_verified_at' => now(),
         ];

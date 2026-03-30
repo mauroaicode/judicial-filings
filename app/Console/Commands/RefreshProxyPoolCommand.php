@@ -22,8 +22,8 @@ class RefreshProxyPoolCommand extends Command
             return self::FAILURE;
         }
 
-        $host     = config('judicial-branch.proxy.host');
-        $port     = config('judicial-branch.proxy.port');
+        $host = config('judicial-branch.proxy.host');
+        $port = config('judicial-branch.proxy.port');
         $username = config('judicial-branch.proxy.username');
         $password = config('judicial-branch.proxy.password');
 
@@ -53,15 +53,15 @@ class RefreshProxyPoolCommand extends Command
 
         // Step 2: test against Portal Judicial
         $radicado = (string) $this->option('radicado');
-        $apiUrl   = rtrim((string) config('judicial-branch.api_url'), '/');
-        $testUrl  = "{$apiUrl}/Procesos/Consulta/NumeroRadicacion?numero={$radicado}&SoloActivos=false&pagina=1";
+        $apiUrl = rtrim((string) config('judicial-branch.api_url'), '/');
+        $testUrl = "{$apiUrl}/Procesos/Consulta/NumeroRadicacion?numero={$radicado}&SoloActivos=false&pagina=1";
 
         $this->line("2. Probando contra el Portal Judicial (radicado: {$radicado})...");
 
         $ramaResponse = Http::timeout(20)
             ->withHeaders([
-                'User-Agent'      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-                'Accept'          => 'application/json, text/plain, */*',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+                'Accept' => 'application/json, text/plain, */*',
                 'Accept-Language' => 'es-CO,es;q=0.9',
             ])
             ->withOptions(['proxy' => "http://{$username}:{$password}@{$host}:{$port}"])

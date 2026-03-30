@@ -14,6 +14,7 @@ class UpdateKeywordService
      */
     public function handle(string $id, KeywordData $data, string $organizationId): Keyword
     {
+        /** @var Keyword $keyword */
         $keyword = Keyword::query()
             ->whereOrganization($organizationId)
             ->findOrFail($id);

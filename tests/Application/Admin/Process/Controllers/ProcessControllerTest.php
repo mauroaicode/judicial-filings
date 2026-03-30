@@ -496,8 +496,8 @@ it('filters processes by organization name', function (): void {
 });
 
 it('filters processes by organization name with exact match', function (): void {
-    $organization1 = Organization::factory()->create(['name' => 'Mauricio SAS']);
-    $organization2 = Organization::factory()->create(['name' => 'Mauricio Gutierrez']);
+    $organization1 = Organization::factory()->create(['name' => 'Test Mauricio SAS']);
+    $organization2 = Organization::factory()->create(['name' => 'Test Mauricio Gutierrez']);
 
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();

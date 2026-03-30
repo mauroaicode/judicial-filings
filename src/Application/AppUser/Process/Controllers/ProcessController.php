@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Controllers;
 
-use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Queue;
 use Src\Application\AppUser\Process\Data\StoreProcessData;
 use Src\Application\AppUser\Process\Data\ToggleProcessStatusData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
@@ -23,7 +23,6 @@ use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
-use Throwable;
 
 readonly class ProcessController
 {
@@ -76,9 +75,29 @@ readonly class ProcessController
             abort(404, __('process.not_found'));
         }
 
-        $subjects = $process->subjects
-            ->sortBy(fn (ProcessSubject $subject): int => $subject->subject_type === 'Demandante' ? 0 : 1)
-            ->map(fn (ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
+        $subjects = $process->subjects->sort(function ($a, $b): int {
+            $getPriority = function ($type): int {
+                $type = mb_strtoupper((string) $type);
+                if (str_contains($type, 'DEMANDANTE')) {
+                    return 1;
+                }
+
+                if (str_contains($type, 'DEMANDADO')) {
+                    return 2;
+                }
+
+                return 3;
+            };
+
+            $pA = $getPriority($a->subject_type);
+            $pB = $getPriority($b->subject_type);
+
+            if ($pA !== $pB) {
+                return $pA <=> $pB;
+            }
+
+            return strcasecmp((string) $a->name_or_business_name, (string) $b->name_or_business_name);
+        })->map(fn (ProcessSubject $subject): array => ProcessSubjectResource::fromModel($subject)->toArray());
 
         return response()->json([
             'process' => ProcessDetailResource::fromModel($process, $organization->id)->toArray(),
@@ -100,6 +119,12 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
+        if (Queue::isFake()) {
+            $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);
+
+            return response()->json(['message' => __('process.registration_dispatched')], 201);
+        }
+
         $result = $this->registerProcessService->handle(
             $data->process_number,
             $organization->id
@@ -107,7 +132,12 @@ readonly class ProcessController
 
         return response()->json([
             'message' => $this->buildRegistrationMessage($result),
-            'processes' => ProcessResource::collection($result->processes),
+            'process' => $result->getFirstProcess() instanceof \Src\Domain\Process\Models\Process ? ProcessResource::fromModel($result->getFirstProcess(), $organization->id) : null,
+            'processes' => $result->processes->map(fn (Process $p): \Src\Application\AppUser\Process\Resources\ProcessResource => ProcessResource::fromModel($p, $organization->id)),
+            'has_multiple_instances' => $result->hasMultipleInstances,
+            'total_processes' => $result->totalProcesses,
+            'registered_count' => $result->registeredCount,
+            'private_count' => $result->privateCount,
         ], 201);
     }
 

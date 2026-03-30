@@ -49,7 +49,7 @@ class OrganizationNotificationQueryBuilder extends Builder
      */
     public function orderedByNotifiableConsActionDesc(): self
     {
-        $morphClass = (new ProcessAction())->getMorphClass();
+        $morphClass = (new ProcessAction)->getMorphClass();
 
         return $this->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
             ->where('organization_notifications.notifiable_type', $morphClass)

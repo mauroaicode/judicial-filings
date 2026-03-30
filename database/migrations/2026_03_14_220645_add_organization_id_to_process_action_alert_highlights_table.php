@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('process_action_alert_highlights', function (Blueprint $table) {
             $table->uuid('organization_id')->nullable()->after('process_action_id');
-            
+
             $table->foreign('organization_id')
                 ->references('id')
                 ->on('organizations')

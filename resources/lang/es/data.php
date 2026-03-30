@@ -41,4 +41,6 @@ return [
     'phone' => 'Teléfono',
     'contact_person' => 'Persona de contacto',
     'is_active' => 'Activo',
+    'password_confirmation' => 'Confirmación de contraseña',
+    'keyword' => 'Palabra clave',
 ];

@@ -22,7 +22,7 @@ beforeEach(function (): void {
 
 it('can show user profile', function (): void {
     $response = $this->actingAs($this->appUser, 'sanctum')
-        ->getJson("/api/app-user/profile");
+        ->getJson('/api/app-user/profile');
 
     $response->assertStatus(200);
     $response->assertJson([
@@ -36,7 +36,7 @@ it('can show user profile', function (): void {
 it('can update user profile', function (): void {
     $email = fake()->unique()->safeEmail();
     $identification = fake()->unique()->numerify('##########');
-    
+
     $data = [
         'name' => 'Carlos',
         'last_name' => 'López',
@@ -45,7 +45,7 @@ it('can update user profile', function (): void {
     ];
 
     $response = $this->actingAs($this->appUser, 'sanctum')
-        ->putJson("/api/app-user/profile", $data);
+        ->putJson('/api/app-user/profile', $data);
 
     $response->assertStatus(200);
     $response->assertJson([
@@ -72,10 +72,10 @@ it('can update user password', function (): void {
     ];
 
     $response = $this->actingAs($this->appUser, 'sanctum')
-        ->putJson("/api/app-user/profile", $data);
+        ->putJson('/api/app-user/profile', $data);
 
     $response->assertStatus(200);
-    
+
     $this->appUser->refresh();
     expect(Hash::check('newpassword123', $this->appUser->password))->toBeTrue();
 });
@@ -91,7 +91,7 @@ it('fails to update profile with existing email', function (): void {
     ];
 
     $response = $this->actingAs($this->appUser, 'sanctum')
-        ->putJson("/api/app-user/profile", $data);
+        ->putJson('/api/app-user/profile', $data);
 
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['email']);
@@ -108,7 +108,7 @@ it('fails to update profile when password confirmation does not match', function
     ];
 
     $response = $this->actingAs($this->appUser, 'sanctum')
-        ->putJson("/api/app-user/profile", $data);
+        ->putJson('/api/app-user/profile', $data);
 
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['password']);

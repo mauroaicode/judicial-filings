@@ -14,7 +14,7 @@ class KeywordQueryBuilder extends Builder
      */
     public function whereSearch(string $search): self
     {
-        return $this->where(function (Builder $query) use ($search) {
+        return $this->where(function (Builder $query) use ($search): void {
             $query->where('name', 'like', "%{$search}%")
                 ->orWhere('keyword', 'like', "%{$search}%");
         });

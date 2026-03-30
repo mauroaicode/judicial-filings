@@ -11,6 +11,4 @@ use Illuminate\Database\Eloquent\Builder;
  *
  * @extends Builder<TModelClass>
  */
-class AppUserQueryBuilder extends Builder
-{
-}
+class AppUserQueryBuilder extends Builder {}

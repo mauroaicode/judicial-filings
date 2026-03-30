@@ -23,7 +23,7 @@ class NotificationDigestService
         // 1. Get all pending email notifications for this organization
         $notifications = $organization->notifications()
             ->where('is_email_notified', false)
-            ->where('notifiable_type', (new ProcessAction())->getMorphClass())
+            ->where('notifiable_type', (new ProcessAction)->getMorphClass())
             ->orderedByNotifiableConsActionDesc()
             ->with(['notifiable.process'])
             ->get();
@@ -51,18 +51,19 @@ class NotificationDigestService
             ->where('is_active', true)
             ->first();
 
-        if (!$emailChannel || empty($emailChannel->channel_value)) {
+        if (! $emailChannel || empty($emailChannel->channel_value)) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
                 ->warning('NotificationDigestService: No active email channel found', [
-                    'organization_id' => $organization->id
+                    'organization_id' => $organization->id,
                 ]);
+
             return;
         }
 
         // 4. Send the consolidated email
         try {
             // Persist the digest to DB first to have an ID for the frontend
-            $digest = NotificationDigest::create([
+            $digest = NotificationDigest::query()->create([
                 'organization_id' => $organization->id,
                 'data' => $digestData->toArray(),
                 'email_sent_at' => now(),
@@ -104,9 +105,9 @@ class NotificationDigestService
 
     private function prepareData(Collection $notifications, string $organizationId): Collection
     {
-        return $notifications->map(function (OrganizationNotification $notif) use ($organizationId) {
+        return $notifications->map(function (OrganizationNotification $notif) use ($organizationId): ?array {
             $action = $notif->notifiable;
-            if (!$action instanceof ProcessAction) {
+            if (! $action instanceof ProcessAction) {
                 return null;
             }
 
@@ -117,8 +118,8 @@ class NotificationDigestService
                 ->select(['subject_type', 'name_or_business_name'])
                 ->get();
 
-            $demandante = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->implode(', ');
-            $demandado = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->implode(', ');
+            $demandante = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->sort()->values()->implode(', ');
+            $demandado = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->sort()->values()->implode(', ');
 
             // Check for keywords if it's an alert
             $isAlert = $notif->notification_type === 'actuacion_alerta';
@@ -135,8 +136,8 @@ class NotificationDigestService
             return [
                 'court' => $process->court,
                 'process_number' => $process->process_number,
-                'demandante' => !empty($demandante) ? $demandante : '---',
-                'demandado' => !empty($demandado) ? $demandado : '---',
+                'demandante' => empty($demandante) ? '---' : $demandante,
+                'demandado' => empty($demandado) ? '---' : $demandado,
                 'action_date' => $action->action_date->format('d/m/Y'),
                 'action_text' => $action->action,
                 'annotation' => $action->annotation ?: '---',
