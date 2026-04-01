@@ -44,16 +44,15 @@ class OrganizationNotificationQueryBuilder extends Builder
     }
 
     /**
-     * Order by the related ProcessAction's cons_action (newest first).
-     * Consistent with ProcessActionController order.
+     * Order by the related ProcessAction's registration_date (newest first).
      */
-    public function orderedByNotifiableConsActionDesc(): self
+    public function orderedByNotifiableRegistrationDateDesc(): self
     {
         $morphClass = (new ProcessAction)->getMorphClass();
 
         return $this->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
             ->where('organization_notifications.notifiable_type', $morphClass)
-            ->orderBy('process_actions.process_id')
+            ->orderByDesc('process_actions.registration_date')
             ->orderByDesc('process_actions.cons_action')
             ->select('organization_notifications.*');
     }

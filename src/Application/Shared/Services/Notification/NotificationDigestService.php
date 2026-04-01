@@ -25,7 +25,7 @@ class NotificationDigestService
         $notifications = $organization->notifications()
             ->where('is_email_notified', false)
             ->where('notifiable_type', (new ProcessAction)->getMorphClass())
-            ->orderedByNotifiableConsActionDesc()
+            ->orderedByNotifiableRegistrationDateDesc()
             ->with(['notifiable.process'])
             ->get();
 
@@ -125,16 +125,27 @@ class NotificationDigestService
             // Check for keywords if it's an alert
             $isAlert = $notif->notification_type === 'actuacion_alerta';
             $matchedKeywords = null;
+            $alertHighlights = [];
+
             if ($isAlert) {
-                $matchedKeywords = ProcessActionAlertHighlight::query()
+                $highlights = ProcessActionAlertHighlight::query()
                     ->where('process_action_id', $action->id)
                     ->where('organization_id', $organizationId)
-                    ->pluck('detected_text')
-                    ->unique()
-                    ->implode(', ');
+                    ->get()
+                    ->unique(fn($h) => "{$h->start}-{$h->end}-{$h->detected_text}-{$h->source}");
+                
+                $matchedKeywords = $highlights->pluck('detected_text')->unique()->implode(', ');
+                
+                $alertHighlights = $highlights->map(fn($h) => [
+                    'start' => $h->start,
+                    'end' => $h->end,
+                    'text' => $h->detected_text,
+                    'source' => $h->source,
+                ])->toArray();
             }
 
             return [
+                'process_action_id' => $action->id,
                 'court' => $process->court,
                 'process_number' => $process->process_number,
                 'demandante' => empty($demandante) ? '---' : $demandante,
@@ -147,6 +158,7 @@ class NotificationDigestService
                 'registration_date' => DateFormatHelper::formatDate($action->registration_date),
                 'is_alert' => $isAlert,
                 'matched_keywords' => $matchedKeywords,
+                'alert_highlights' => $alertHighlights,
             ];
         })->filter()->values();
     }
