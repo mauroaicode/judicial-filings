@@ -58,7 +58,7 @@ class ImportRadicadoJob implements ShouldQueue
 
         try {
             $seed = $this->processNumber.':'.$this->attempts();
-            $result = $registerProcessService->handle($this->processNumber, $this->organizationId, $seed);
+            $result = $registerProcessService->handle($this->processNumber, $this->organizationId, null, $seed);
 
             $this->incrementBatchSuccess($result->registeredCount);
 

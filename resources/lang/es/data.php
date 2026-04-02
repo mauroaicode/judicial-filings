@@ -13,6 +13,7 @@ return [
     'process_class' => 'Clase de Proceso',
     'plaintiff' => 'Demandante',
     'defendant' => 'Demandado',
+    'lawyer_role' => 'Rol del Abogado',
     'organization' => 'Organización',
     'organization_id' => 'Organización',
     'created_at' => 'Fecha de Creación',
@@ -43,4 +44,8 @@ return [
     'is_active' => 'Activo',
     'password_confirmation' => 'Confirmación de contraseña',
     'keyword' => 'Palabra clave',
+    'term_start_date_from' => 'Fecha de Inicio Término Desde',
+    'term_start_date_to' => 'Fecha de Inicio Término Hasta',
+    'term_end_date_from' => 'Fecha de Finalización Término Desde',
+    'term_end_date_to' => 'Fecha de Finalización Término Hasta',
 ];

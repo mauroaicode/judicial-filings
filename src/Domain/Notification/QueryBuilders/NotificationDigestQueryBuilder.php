@@ -60,11 +60,12 @@ class NotificationDigestQueryBuilder extends Builder
      */
     public function applyActionCriteriaFilters(NotificationDigestFilterData $filters): self
     {
-        if (! $filters->process_number && 
-            ! $filters->registration_date_from && ! $filters->registration_date_to && 
+        if (! $filters->process_number &&
+            ! $filters->registration_date_from && ! $filters->registration_date_to &&
             ! $filters->action_date_from && ! $filters->action_date_to &&
             ! $filters->term_start_date_from && ! $filters->term_start_date_to &&
-            ! $filters->term_end_date_from && ! $filters->term_end_date_to
+            ! $filters->term_end_date_from && ! $filters->term_end_date_to &&
+            ! $filters->alert_level && ! $filters->lawyer_role
         ) {
             return $this;
         }
@@ -74,7 +75,11 @@ class NotificationDigestQueryBuilder extends Builder
                 ->from('organization_notifications')
                 ->where('notifiable_type', ProcessAction::class)
                 ->join('process_actions', 'process_actions.id', '=', 'organization_notifications.notifiable_id')
-                ->join('processes', 'processes.id', '=', 'process_actions.process_id');
+                ->join('processes', 'processes.id', '=', 'process_actions.process_id')
+                ->join('organization_processes', function ($join) {
+                    $join->on('organization_processes.process_id', '=', 'processes.id')
+                        ->on('organization_processes.organization_id', '=', 'organization_notifications.organization_id');
+                });
 
             if ($filters->process_number) {
                 $subQuery->where('processes.process_number', 'LIKE', '%'.$filters->process_number.'%');
@@ -110,6 +115,14 @@ class NotificationDigestQueryBuilder extends Builder
 
             if ($filters->term_end_date_to) {
                 $subQuery->where('process_actions.end_date', '<=', $filters->term_end_date_to);
+            }
+
+            if ($filters->alert_level) {
+                $subQuery->where('organization_processes.inactivity_alert_level', $filters->alert_level);
+            }
+
+            if ($filters->lawyer_role) {
+                $subQuery->where('organization_processes.lawyer_role', $filters->lawyer_role);
             }
         });
     }

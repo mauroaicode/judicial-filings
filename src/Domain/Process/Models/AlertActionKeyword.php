@@ -15,9 +15,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * Table: alert_actions_keywords.
  * Direct relation with process_actions via pivot process_action_alert_action_keyword (for filtering).
  *
- * @property-read string $id
- * @property-read string $name
- * @property-read string $slug
+ * @property-read string|null $severity_color
  *
  * @method static \Illuminate\Database\Eloquent\Builder|AlertActionKeyword query()
  */
@@ -39,6 +37,7 @@ class AlertActionKeyword extends Model
     protected $fillable = [
         'name',
         'slug',
+        'severity_color',
     ];
 
     /**

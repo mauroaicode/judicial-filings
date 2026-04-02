@@ -40,6 +40,7 @@ it('dispatches the process registration flow asynchronously without placeholders
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);

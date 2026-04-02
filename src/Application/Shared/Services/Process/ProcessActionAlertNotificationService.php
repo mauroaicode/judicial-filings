@@ -65,7 +65,18 @@ readonly class ProcessActionAlertNotificationService
             return;
         }
 
-        $this->notifyAlertDetected($action, $organization->id);
+        // Determine highest severity
+        $bestColor = null;
+        $order = ['red' => 3, 'yellow' => 2, 'green' => 1];
+
+        foreach ($detectionResults as $result) {
+            $color = $result['keyword']->severity_color;
+            if ($color && (! $bestColor || ($order[$color] ?? 0) > ($order[$bestColor] ?? 0))) {
+                $bestColor = $color;
+            }
+        }
+
+        $this->notifyAlertDetected($action, $organization->id, $bestColor);
 
         $this->registerHighlightsAndGlobalKeywords($action, $organization->id, $detectionResults);
     }
@@ -111,15 +122,15 @@ readonly class ProcessActionAlertNotificationService
     /**
      * Dispatch a keyword-triggered "alert" notification.
      */
-    private function notifyAlertDetected(ProcessAction $action, string $organizationId): void
+    private function notifyAlertDetected(ProcessAction $action, string $organizationId, ?string $severityColor = null): void
     {
-        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta');
+        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta', $severityColor);
     }
 
     /**
      * Create a notification record and dispatch the notification job.
      */
-    private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType): void
+    private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType, ?string $severityColor = null): void
     {
         OrganizationNotification::query()->firstOrCreate(
             [
@@ -127,6 +138,7 @@ readonly class ProcessActionAlertNotificationService
                 'notifiable_id' => $action->id,
                 'notifiable_type' => $action->getMorphClass(),
                 'notification_type' => $notificationType,
+                'severity_color' => $severityColor,
             ],
             [
                 'id' => (string) Str::uuid(),
@@ -139,6 +151,7 @@ readonly class ProcessActionAlertNotificationService
             ->info('Notification recorded for digest', [
                 'organization_id' => $organizationId,
                 'type' => $notificationType,
+                'color' => $severityColor,
                 'action_id' => $action->id,
             ]);
     }

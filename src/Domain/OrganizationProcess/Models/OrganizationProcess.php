@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Carbon;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 
 /**
@@ -15,6 +16,8 @@ use Src\Domain\Process\Models\Process;
  * @property-read string $process_id
  * @property-read Carbon $interest_date
  * @property-read bool $is_active
+ * @property-read ProcessLawyerRole|null $lawyer_role
+ * @property-read string|null $inactivity_alert_level
  * @property-read Carbon $created_at
  * @property-read Carbon|null $updated_at
  * @property-read Organization $organization
@@ -29,7 +32,7 @@ class OrganizationProcess extends Pivot
     protected $keyType = 'string';
 
     /**
-     * The attributes that are mass assignable.
+     * The attributes that are mass-assignable.
      *
      * @var list<string>
      */
@@ -38,6 +41,8 @@ class OrganizationProcess extends Pivot
         'process_id',
         'interest_date',
         'is_active',
+        'lawyer_role',
+        'inactivity_alert_level',
     ];
 
     /**
@@ -50,13 +55,14 @@ class OrganizationProcess extends Pivot
         return [
             'interest_date' => 'date',
             'is_active' => 'boolean',
+            'lawyer_role' => ProcessLawyerRole::class,
         ];
     }
 
     /**
      * Get the organization that owns this relationship.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Organization\Models\Organization, $this>
+     * @return BelongsTo<Organization, $this>
      */
     public function organization(): BelongsTo
     {
@@ -66,7 +72,7 @@ class OrganizationProcess extends Pivot
     /**
      * Get the process that owns this relationship.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Process\Models\Process, $this>
+     * @return BelongsTo<Process, $this>
      */
     public function process(): BelongsTo
     {

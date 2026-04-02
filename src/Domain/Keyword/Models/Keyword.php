@@ -20,6 +20,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $name
  * @property-read string $keyword
  * @property-read KeywordStatus $status
+ * @property-read string|null $severity_color
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  *
@@ -46,6 +47,7 @@ class Keyword extends Model
         'name',
         'keyword',
         'status',
+        'severity_color',
     ];
 
     /**

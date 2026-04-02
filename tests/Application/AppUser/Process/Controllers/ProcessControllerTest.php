@@ -25,6 +25,7 @@ beforeEach(function (): void {
 it('requires authentication to register a process', function (): void {
     $response = $this->postJson('/api/app-user/processes', [
         'process_number' => '76001333301320170009301',
+        'lawyer_role' => 'plaintiff',
     ]);
 
     $response->assertStatus(401);
@@ -41,7 +42,8 @@ it('validates that process_number is required', function (): void {
 it('validates that process_number has exactly 23 digits', function (): void {
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
-            'process_number' => '123456789012345678901', // 21 digits
+            'process_number' => '123456789012345678901',
+            'lawyer_role' => 'plaintiff', // 21 digits
         ]);
 
     $response->assertStatus(422);
@@ -51,7 +53,8 @@ it('validates that process_number has exactly 23 digits', function (): void {
 it('validates that process_number contains only digits', function (): void {
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
-            'process_number' => '7600133330132017000930A', // contains letter
+            'process_number' => '7600133330132017000930A',
+            'lawyer_role' => 'plaintiff', // contains letter
         ]);
 
     $response->assertStatus(422);
@@ -78,6 +81,7 @@ it('rejects process registration when user has no organization', function (): vo
     $response = $this->actingAs($userWithoutOrg)
         ->postJson('/api/app-user/processes', [
             'process_number' => '76001333301320170009301',
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(422);
@@ -97,6 +101,7 @@ it('rejects process registration when radicado does not exist in judicial branch
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => '00000000000000000000001',
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(404);
@@ -118,6 +123,7 @@ it('rejects process registration when radicado is already registered for organiz
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => '76001333301320170009301',
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(422);
@@ -152,6 +158,7 @@ it('rejects process registration when all instances are private', function (): v
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(422);
@@ -208,6 +215,7 @@ it('rejects process registration when existing global process is private', funct
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(422);
@@ -241,6 +249,7 @@ it('rejects process registration when single instance is private', function (): 
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(422);
@@ -326,6 +335,7 @@ it('registers a new process successfully', function (): void {
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => '76001333301320240000001',
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);
@@ -403,6 +413,7 @@ it('attaches existing process to organization if process already exists globally
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => '76001333301320170009301',
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);
@@ -497,6 +508,7 @@ it('registers multiple instances successfully', function (): void {
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);
@@ -571,6 +583,7 @@ it('registers multiple instances with some private processes', function (): void
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);
@@ -649,6 +662,7 @@ it('registers multiple instances with multiple private processes', function (): 
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);
@@ -664,4 +678,14 @@ it('registers multiple instances with multiple private processes', function (): 
         ->get();
 
     expect($processes)->toHaveCount(1);
+});
+
+it('requires lawyer_role when creating a process', function (): void {
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => '76001333301320170009301',
+        ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['lawyer_role']);
 });

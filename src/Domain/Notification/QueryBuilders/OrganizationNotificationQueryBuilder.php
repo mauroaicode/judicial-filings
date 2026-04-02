@@ -52,7 +52,7 @@ class OrganizationNotificationQueryBuilder extends Builder
 
         return $this->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
             ->where('organization_notifications.notifiable_type', $morphClass)
-            ->orderByDesc('process_actions.registration_date')
+            ->latest('process_actions.registration_date')
             ->orderByDesc('process_actions.cons_action')
             ->select('organization_notifications.*');
     }

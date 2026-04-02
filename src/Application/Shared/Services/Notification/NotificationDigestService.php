@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable;
 use Src\Application\Shared\Notifications\ConsolidatedJudicialActionsNotification;
 use Src\Domain\Notification\Models\NotificationDigest;
@@ -71,7 +72,7 @@ class NotificationDigestService
             ]);
 
             Mail::to($emailChannel->channel_value)->send(
-                new ConsolidatedJudicialActionsMailable($digestData, $organization->name)
+                new ConsolidatedJudicialActionsMailable($digestData, StrParseHelper::toTitleCase($organization->name))
             );
 
             // 5. Mark as notified and link to digest in DB
@@ -119,8 +120,11 @@ class NotificationDigestService
                 ->select(['subject_type', 'name_or_business_name'])
                 ->get();
 
-            $demandante = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->sort()->values()->implode(', ');
-            $demandado = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->sort()->values()->implode(', ');
+            $demandanteNames = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->sort()->values();
+            $demandante = $demandanteNames->map(fn (?string $name): ?string => StrParseHelper::toTitleCase($name))->implode(', ');
+
+            $demandadoNames = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->sort()->values();
+            $demandado = $demandadoNames->map(fn (?string $name): ?string => StrParseHelper::toTitleCase($name))->implode(', ');
 
             // Check for keywords if it's an alert
             $isAlert = $notif->notification_type === 'actuacion_alerta';
@@ -132,21 +136,21 @@ class NotificationDigestService
                     ->where('process_action_id', $action->id)
                     ->where('organization_id', $organizationId)
                     ->get()
-                    ->unique(fn($h) => "{$h->start}-{$h->end}-{$h->detected_text}-{$h->source}");
-                
+                    ->unique(fn ($h): string => "{$h->start}-{$h->end}-{$h->detected_text}-{$h->source}");
+
                 $matchedKeywords = $highlights->pluck('detected_text')->unique()->implode(', ');
-                
-                $alertHighlights = $highlights->map(fn($h) => [
+
+                $alertHighlights = $highlights->map(fn ($h): array => [
                     'start' => $h->start,
                     'end' => $h->end,
                     'text' => $h->detected_text,
                     'source' => $h->source,
-                ])->toArray();
+                ])->all();
             }
 
             return [
                 'process_action_id' => $action->id,
-                'court' => $process->court,
+                'court' => StrParseHelper::toTitleCase($process->court),
                 'process_number' => $process->process_number,
                 'demandante' => empty($demandante) ? '---' : $demandante,
                 'demandado' => empty($demandado) ? '---' : $demandado,

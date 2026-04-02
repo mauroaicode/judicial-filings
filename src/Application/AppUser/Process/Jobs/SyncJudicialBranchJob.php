@@ -13,6 +13,7 @@ use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
 use Throwable;
 
@@ -25,7 +26,8 @@ class SyncJudicialBranchJob implements ShouldQueue
     public function __construct(
         public string $processNumber,
         public string $organizationId,
-        public AppUser $appUser
+        public AppUser $appUser,
+        public ?ProcessLawyerRole $lawyerRole = null
     ) {}
 
     /**
@@ -38,6 +40,7 @@ class SyncJudicialBranchJob implements ShouldQueue
             $result = $registerProcessService->handle(
                 $this->processNumber,
                 $this->organizationId,
+                $this->lawyerRole,
                 $this->processNumber
             );
 

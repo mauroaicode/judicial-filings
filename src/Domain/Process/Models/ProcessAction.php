@@ -23,6 +23,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read int $cons_action
  * @property-read Carbon $action_date
  * @property-read string $action
+ * @property-read bool $is_alert
  * @property-read string|null $annotation
  * @property-read Carbon|null $start_date
  * @property-read Carbon|null $end_date

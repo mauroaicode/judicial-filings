@@ -25,11 +25,23 @@ class ProcessActionResource extends Resource
         public string $term_end_date,
         public string $registration_date,
         public ?array $alert_highlights = null,
+        public ?string $process_number = null,
+        public ?string $alert_level = null,
     ) {}
 
     public static function fromModel(ProcessAction $action, int $index = 0): self
     {
         $alertHighlights = self::buildAlertHighlights($action);
+        $process = $action->relationLoaded('process') ? $action->process : $action->process()->first();
+
+        // Si tenemos el proceso y cargamos organizaciones, podemos sacar el alert_level
+        $alertLevel = null;
+        if ($process) {
+            $organization = $process->organizations->first();
+            if ($organization && isset($organization->pivot->inactivity_alert_level)) {
+                $alertLevel = $organization->pivot->inactivity_alert_level;
+            }
+        }
 
         return new self(
             index: $index,
@@ -43,6 +55,8 @@ class ProcessActionResource extends Resource
             term_end_date: $action->end_date ? DateFormatHelper::formatDate($action->end_date) : '-',
             registration_date: DateFormatHelper::formatDate($action->registration_date),
             alert_highlights: $alertHighlights,
+            process_number: $process?->process_number,
+            alert_level: $alertLevel,
         );
     }
 

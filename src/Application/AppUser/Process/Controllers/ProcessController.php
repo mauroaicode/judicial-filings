@@ -23,6 +23,7 @@ use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
+use Throwable;
 
 readonly class ProcessController
 {
@@ -107,6 +108,8 @@ readonly class ProcessController
 
     /**
      * Register a new process.
+     *
+     * @throws Throwable
      */
     public function store(StoreProcessData $data): JsonResponse
     {
@@ -127,13 +130,14 @@ readonly class ProcessController
 
         $result = $this->registerProcessService->handle(
             $data->process_number,
-            $organization->id
+            $organization->id,
+            $data->lawyer_role
         );
 
         return response()->json([
             'message' => $this->buildRegistrationMessage($result),
-            'process' => $result->getFirstProcess() instanceof \Src\Domain\Process\Models\Process ? ProcessResource::fromModel($result->getFirstProcess(), $organization->id) : null,
-            'processes' => $result->processes->map(fn (Process $p): \Src\Application\AppUser\Process\Resources\ProcessResource => ProcessResource::fromModel($p, $organization->id)),
+            'process' => $result->getFirstProcess() instanceof Process ? ProcessResource::fromModel($result->getFirstProcess(), $organization->id) : null,
+            'processes' => $result->processes->map(fn (Process $p): ProcessResource => ProcessResource::fromModel($p, $organization->id)),
             'has_multiple_instances' => $result->hasMultipleInstances,
             'total_processes' => $result->totalProcesses,
             'registered_count' => $result->registeredCount,

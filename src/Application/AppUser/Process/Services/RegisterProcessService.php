@@ -13,7 +13,9 @@ use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
+use Throwable;
 
 readonly class RegisterProcessService
 {
@@ -35,9 +37,9 @@ readonly class RegisterProcessService
      * @param  string  $organizationId  Organization UUID
      * @param  string  $proxySeed  Seed for proxy pool selection (e.g. processNumber:attempt)
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
-    public function handle(string $processNumber, string $organizationId, string $proxySeed = ''): RegisterProcessResult
+    public function handle(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole = null, string $proxySeed = ''): RegisterProcessResult
     {
         if ($proxySeed !== '') {
             $this->judicialBranchConsultService->withSeed($proxySeed);
@@ -48,10 +50,10 @@ readonly class RegisterProcessService
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
 
         if ($existingProcesses->isNotEmpty()) {
-            return $this->attachExistingProcesses($existingProcesses, $organizationId);
+            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole);
         }
 
-        return $this->registerFromApi($processNumber, $organizationId);
+        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole);
     }
 
     /**
@@ -63,11 +65,11 @@ readonly class RegisterProcessService
      * @param  Collection<int, Process>  $processes  All DB instances of the radicado
      * @param  string  $organizationId  Organization UUID
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
-    private function attachExistingProcesses(Collection $processes, string $organizationId): RegisterProcessResult
+    private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole): RegisterProcessResult
     {
-        return DB::transaction(function () use ($processes, $organizationId): RegisterProcessResult {
+        return DB::transaction(function () use ($processes, $organizationId, $lawyerRole): RegisterProcessResult {
             /** @var Collection<int, Process> $attached */
             $attached = collect();
             $privateCount = 0;
@@ -79,7 +81,7 @@ readonly class RegisterProcessService
                     continue;
                 }
 
-                $this->attachProcessToOrganization($process, $organizationId);
+                $this->attachProcessToOrganization($process, $organizationId, $lawyerRole);
                 $attached->push($process);
             }
 
@@ -107,9 +109,9 @@ readonly class RegisterProcessService
      * @param  string  $processNumber  23-digit radicado number
      * @param  string  $organizationId  Organization UUID
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
-    private function registerFromApi(string $processNumber, string $organizationId): RegisterProcessResult
+    private function registerFromApi(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole): RegisterProcessResult
     {
         $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber);
 
@@ -120,7 +122,7 @@ readonly class RegisterProcessService
         $registeredProcesses = collect();
         $privateCount = 0;
 
-        return DB::transaction(function () use ($processNumber, $organizationId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
+        return DB::transaction(function () use ($processNumber, $organizationId, $lawyerRole, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
             foreach ($processesData as $processData) {
                 $isPrivate = $processData['esPrivado'] ?? false;
 
@@ -145,11 +147,20 @@ readonly class RegisterProcessService
                         continue;
                     }
 
+                    $updateData = ['last_api_update' => now()];
+
                     if ($hasMultipleInstances && ! $globalProcess->has_multiple_instances) {
-                        $globalProcess->update(['has_multiple_instances' => true]);
+                        $updateData['has_multiple_instances'] = true;
                     }
 
-                    $this->attachProcessToOrganization($globalProcess, $organizationId);
+                    $fechaUltimaActuacion = $this->parseDate($processData['fechaUltimaActuacion'] ?? null);
+                    if ($fechaUltimaActuacion && ($globalProcess->last_activity_date === null || $fechaUltimaActuacion > $globalProcess->last_activity_date->format('Y-m-d'))) {
+                        $updateData['last_activity_date'] = $fechaUltimaActuacion;
+                    }
+
+                    $globalProcess->update($updateData);
+
+                    $this->attachProcessToOrganization($globalProcess, $organizationId, $lawyerRole);
                     $registeredProcesses->push($globalProcess);
 
                     continue;
@@ -159,7 +170,7 @@ readonly class RegisterProcessService
                 $fechaUltimaActuacion = $processData['fechaUltimaActuacion'] ?? null;
 
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
-                $this->attachProcessToOrganization($process, $organizationId);
+                $this->attachProcessToOrganization($process, $organizationId, $lawyerRole);
                 $this->processSyncService->handle($process, false);
 
                 $registeredProcesses->push($process);
@@ -279,12 +290,13 @@ readonly class RegisterProcessService
      * @param  Process  $process  The process to attach.
      * @param  string  $organizationId  The organization ID.
      */
-    private function attachProcessToOrganization(Process $process, string $organizationId): void
+    private function attachProcessToOrganization(Process $process, string $organizationId, ?ProcessLawyerRole $lawyerRole): void
     {
         $process->organizations()->syncWithoutDetaching([
             $organizationId => [
                 'interest_date' => now()->toDateString(),
                 'is_active' => true,
+                'lawyer_role' => $lawyerRole?->value,
             ],
         ]);
     }

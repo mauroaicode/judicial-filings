@@ -18,17 +18,30 @@ beforeEach(function () {
     $this->appUser->organizations()->attach($this->organization->id, ['is_owner' => true]);
 
     actingAs($this->appUser, 'sanctum');
+    $this->freezeTime();
 });
 
 it('can list notification digests for the organization', function () {
-    NotificationDigest::factory()->count(3)->create([
+    NotificationDigest::factory()->create([
         'organization_id' => $this->organization->id,
+        'created_at' => now(),
+    ]);
+
+    NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'created_at' => now()->subDay(),
+    ]);
+
+    NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'created_at' => now()->subDays(2),
     ]);
 
     // Otro de otra organización
     NotificationDigest::factory()->create();
 
-    $response = getJson('/api/app-user/notification-digests');
+    // Solicitamos explícitamente un rango amplio para evitar el filtro por defecto de "solo hoy"
+    $response = getJson('/api/app-user/notification-digests?created_at_from='.now()->subDays(5)->format('Y-m-d').'&created_at_to='.now()->format('Y-m-d'));
 
     $response->assertOk()
         ->assertJsonCount(3, 'data');

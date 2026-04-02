@@ -24,5 +24,14 @@ class ProcessActionFilterData extends Data
         public ?string $search = null,
         /** Slug of alert keyword to filter by (e.g. sentencia, consulta, fijacion_estado). Only actions that have this keyword are returned. */
         public ?string $alert_slug = null,
+
+        // New Smart Filters
+        public ?string $process_number = null,
+        #[Date]
+        public ?string $date_from = null,
+        #[Date]
+        public ?string $date_to = null,
+        public ?string $alert_level = null,
+        public ?string $lawyer_role = null,
     ) {}
 }

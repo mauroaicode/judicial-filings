@@ -13,6 +13,7 @@ return [
     'process_class' => 'Process Class',
     'plaintiff' => 'Plaintiff',
     'defendant' => 'Defendant',
+    'lawyer_role' => 'Lawyer Role',
     'organization' => 'Organization',
     'organization_id' => 'Organization',
     'created_at' => 'Created At',
@@ -42,6 +43,9 @@ return [
     'contact_person' => 'Contact person',
     'is_active' => 'Active',
     'keyword' => 'Keyword',
-    'password' => 'Password',
     'password_confirmation' => 'Password Confirmation',
+    'term_start_date_from' => 'Term Start Date From',
+    'term_start_date_to' => 'Term Start Date To',
+    'term_end_date_from' => 'Term End Date From',
+    'term_end_date_to' => 'Term End Date To',
 ];

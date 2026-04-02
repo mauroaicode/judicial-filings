@@ -34,6 +34,8 @@ class NotificationDigestFilterData extends Data
         public ?string $term_end_date_from = null,
         #[Date]
         public ?string $term_end_date_to = null,
+        public ?string $alert_level = null,
+        public ?string $lawyer_role = null,
         public int $per_page = 20,
     ) {}
 
@@ -44,6 +46,7 @@ class NotificationDigestFilterData extends Data
             $this->action_date_from || $this->action_date_to ||
             $this->created_at_from || $this->created_at_to ||
             $this->term_start_date_from || $this->term_start_date_to ||
-            $this->term_end_date_from || $this->term_end_date_to;
+            $this->term_end_date_from || $this->term_end_date_to ||
+            $this->alert_level || $this->lawyer_role;
     }
 }
