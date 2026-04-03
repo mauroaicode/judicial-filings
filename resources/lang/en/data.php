@@ -48,4 +48,13 @@ return [
     'term_start_date_to' => 'Term Start Date To',
     'term_end_date_from' => 'Term End Date From',
     'term_end_date_to' => 'Term End Date To',
+    'total_actions' => 'Total Actions',
+    'alerts_red' => 'Red Alerts',
+    'alerts_yellow' => 'Yellow Alerts',
+    'alerts_green' => 'Green Alerts',
+    'alert_level' => 'Alert Level',
+    'lawyer_role' => 'Lawyer Role',
+    'date_from' => 'Date From',
+    'date_to' => 'Date To',
+    'total_recent_actions' => 'Total Recent Actions',
 ];

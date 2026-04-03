@@ -79,11 +79,11 @@ readonly class ProcessController
         $subjects = $process->subjects->sort(function ($a, $b): int {
             $getPriority = function ($type): int {
                 $type = mb_strtoupper((string) $type);
-                if (str_contains($type, 'DEMANDANTE')) {
+                if (str_contains($type, mb_strtoupper(ProcessSubject::TYPE_PLAINTIFF))) {
                     return 1;
                 }
 
-                if (str_contains($type, 'DEMANDADO')) {
+                if (str_contains($type, mb_strtoupper(ProcessSubject::TYPE_DEFENDANT))) {
                     return 2;
                 }
 

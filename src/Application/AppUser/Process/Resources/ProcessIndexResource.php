@@ -33,12 +33,16 @@ class ProcessIndexResource extends Resource
         public array $plaintiffs,
         /** @var list<string> Full list of defendant names for tooltip */
         public array $defendants,
+        public ?string $alert_level = null,
+        public ?string $lawyer_role = null,
     ) {}
 
     public static function fromModel(Process $process, string $organizationId, int $index = 0): self
     {
         $isActive = false;
         $createdAt = $process->created_at;
+        $alertLevel = null;
+        $lawyerRoleLabel = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
@@ -47,6 +51,15 @@ class ProcessIndexResource extends Resource
                 if ($organization->pivot->created_at) {
                     $createdAt = $organization->pivot->created_at;
                 }
+
+                $alertLevel = $organization->pivot->inactivity_alert_level;
+
+                $role = $organization->pivot->lawyer_role;
+                if (is_string($role)) {
+                    $role = \Src\Domain\Process\Enums\ProcessLawyerRole::tryFrom($role);
+                }
+
+                $lawyerRoleLabel = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
             }
         }
 
@@ -94,6 +107,8 @@ class ProcessIndexResource extends Resource
             defendant: $defendant,
             plaintiffs: $plaintiffsList,
             defendants: $defendantsList,
+            alert_level: $alertLevel,
+            lawyer_role: $lawyerRoleLabel,
         );
     }
 }

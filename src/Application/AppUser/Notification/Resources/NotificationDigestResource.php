@@ -36,7 +36,7 @@ class NotificationDigestResource extends Resource
         $formattedData = array_map(function (array $item) use ($notifLookup, $filters): ?array {
 
             // 1. Internal filtering logic
-            if ($filters instanceof NotificationDigestFilterData && ! self::shouldIncludeItem($item, $filters, $notifLookup)) {
+            if ($filters instanceof NotificationDigestFilterData && ! self::shouldIncludeItem($item, $filters)) {
                 return null;
             }
 
@@ -80,10 +80,11 @@ class NotificationDigestResource extends Resource
                 $notifLookup[$key] = $notif;
             }
         }
+
         return $notifLookup;
     }
 
-    private static function shouldIncludeItem(array $item, NotificationDigestFilterData $filters, array $notifLookup): bool
+    private static function shouldIncludeItem(array $item, NotificationDigestFilterData $filters): bool
     {
         // Filter by process number
         if ($filters->process_number && isset($item['process_number']) && ! str_contains((string) $item['process_number'], $filters->process_number)) {
@@ -91,50 +92,40 @@ class NotificationDigestResource extends Resource
         }
 
         // Filter by dates
-        if (! self::checkDateFilter($item['registration_date'] ?? null, $filters->registration_date_from, $filters->registration_date_to)) return false;
-        if (! self::checkDateFilter($item['action_date'] ?? null, $filters->action_date_from, $filters->action_date_to)) return false;
-        if (! self::checkDateFilter($item['term_start_date'] ?? $item['start_date'] ?? null, $filters->term_start_date_from, $filters->term_start_date_to)) return false;
-        if (! self::checkDateFilter($item['term_end_date'] ?? $item['end_date'] ?? null, $filters->term_end_date_from, $filters->term_end_date_to)) return false;
-
-        // Smart Filters (Alert Level & Role)
-        if ($filters->alert_level || $filters->lawyer_role) {
-            $lookupKey = ($item['process_number'] ?? '').'|'.($item['action_text'] ?? '');
-            $matchedNotif = $notifLookup[$lookupKey] ?? null;
-
-            if ($filters->alert_level) {
-                $level = null;
-                if ($matchedNotif) {
-                    $orgProc = $matchedNotif->notifiable->process->organizations->firstWhere('id', $matchedNotif->organization_id);
-                    $level = $orgProc?->pivot->inactivity_alert_level;
-                }
-                if ($level !== $filters->alert_level) return false;
-            }
-
-            if ($filters->lawyer_role) {
-                $role = null;
-                if ($matchedNotif) {
-                    $orgProc = $matchedNotif->notifiable->process->organizations->firstWhere('id', $matchedNotif->organization_id);
-                    $roleValue = $orgProc?->pivot->lawyer_role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole
-                        ? $orgProc->pivot->lawyer_role->value
-                        : $orgProc?->pivot->lawyer_role;
-                    $role = (string) $roleValue;
-                }
-                if ($role !== $filters->lawyer_role) return false;
-            }
+        if (! self::checkDateFilter($item['registration_date'] ?? null, $filters->registration_date_from, $filters->registration_date_to)) {
+            return false;
         }
 
-        return true;
+        if (! self::checkDateFilter($item['action_date'] ?? null, $filters->action_date_from, $filters->action_date_to)) {
+            return false;
+        }
+
+        if (! self::checkDateFilter($item['term_start_date'] ?? $item['start_date'] ?? null, $filters->term_start_date_from, $filters->term_start_date_to)) {
+            return false;
+        }
+
+        return self::checkDateFilter($item['term_end_date'] ?? $item['end_date'] ?? null, $filters->term_end_date_from, $filters->term_end_date_to);
     }
 
     private static function checkDateFilter(?string $value, ?string $from, ?string $to): bool
     {
-        if (! $from && ! $to) return true;
-        if (! $value) return false;
+        if (! $from && ! $to) {
+            return true;
+        }
+
+        if (! $value) {
+            return false;
+        }
 
         try {
-            $date = str_contains((string) $value, '/') ? Date::createFromFormat('d/m/Y', (string) $value) : Date::parse((string) $value);
-            if ($from && $date->lt(Date::parse($from)->startOfDay())) return false;
-            if ($to && $date->gt(Date::parse($to)->endOfDay())) return false;
+            $date = str_contains($value, '/') ? Date::createFromFormat('d/m/Y', $value) : Date::parse($value);
+            if ($from && $date->lt(Date::parse($from)->startOfDay())) {
+                return false;
+            }
+
+            if ($to && $date->gt(Date::parse($to)->endOfDay())) {
+                return false;
+            }
         } catch (\Exception) {
             return false;
         }
@@ -144,11 +135,14 @@ class NotificationDigestResource extends Resource
 
     private static function calculateSortTimestamp(?string $rawRegDate): int
     {
-        if (! $rawRegDate) return 0;
+        if (! $rawRegDate) {
+            return 0;
+        }
+
         try {
-            return str_contains((string) $rawRegDate, '/')
-                ? Date::createFromFormat('d/m/Y', (string) $rawRegDate)->timestamp
-                : Date::parse((string) $rawRegDate)->timestamp;
+            return str_contains($rawRegDate, '/')
+                ? Date::createFromFormat('d/m/Y', $rawRegDate)->timestamp
+                : Date::parse($rawRegDate)->timestamp;
         } catch (\Exception) {
             return 0;
         }
@@ -169,6 +163,7 @@ class NotificationDigestResource extends Resource
                 unset($item[$oldKey]);
             }
         }
+
         return $item;
     }
 
@@ -181,27 +176,38 @@ class NotificationDigestResource extends Resource
         // 1. Alert Highlights
         if ($matchedNotif && (empty($item['alert_highlights']))) {
             $actionModel = $matchedNotif->notifiable;
-            $item['alert_highlights'] = $actionModel->alertHighlights
-                ->unique(fn ($h): string => "{$h->start}-{$h->end}-{$h->detected_text}-{$h->source}")
-                ->map(fn ($h): array => [
-                    'start' => $h->start,
-                    'end' => $h->end,
-                    'text' => $h->detected_text,
-                    'source' => $h->source,
-                ])->values()->all();
+            if ($actionModel instanceof ProcessAction) {
+                $item['alert_highlights'] = $actionModel->alertHighlights
+                    ->unique(fn ($h): string => "{$h->start}-{$h->end}-{$h->detected_text}-{$h->source}")
+                    ->map(fn ($h): array => [
+                        'start' => $h->start,
+                        'end' => $h->end,
+                        'text' => $h->detected_text,
+                        'source' => $h->source,
+                    ])->values()->all();
+            }
         }
+
         $item['alert_highlights'] ??= [];
 
         // 2. Alert Level
         if ($matchedNotif) {
-            $orgProc = $matchedNotif->notifiable->process->organizations->firstWhere('id', $matchedNotif->organization_id);
-            $item['alert_level'] = $orgProc?->pivot->inactivity_alert_level;
-            
-            $roleValue = $orgProc?->pivot->lawyer_role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole
-                ? $orgProc->pivot->lawyer_role->value
-                : $orgProc?->pivot->lawyer_role;
-            $item['lawyer_role'] = (string) $roleValue;
+            $actionModel = $matchedNotif->notifiable;
+            if ($actionModel instanceof ProcessAction) {
+                $process = $actionModel->process;
+                $item['process_id'] = $process->id;
+                $orgProc = $process->organizations->firstWhere('id', $matchedNotif->organization_id);
+                $item['alert_level'] = $orgProc?->pivot->inactivity_alert_level;
+
+                $role = $orgProc?->pivot->lawyer_role;
+                if (is_string($role)) {
+                    $role = \Src\Domain\Process\Enums\ProcessLawyerRole::tryFrom($role);
+                }
+
+                $item['lawyer_role'] = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
+            }
         } else {
+            $item['process_id'] ??= null;
             $item['alert_level'] ??= null;
             $item['lawyer_role'] ??= null;
         }
@@ -234,6 +240,7 @@ class NotificationDigestResource extends Resource
                 $item[$field] = StrParseHelper::toTitleCase($item[$field]);
             }
         }
+
         return $item;
     }
 
@@ -244,9 +251,11 @@ class NotificationDigestResource extends Resource
                 try {
                     $dateObj = str_contains($item[$field], '/') ? Date::createFromFormat('d/m/Y', $item[$field]) : $item[$field];
                     $item[$field] = DateFormatHelper::formatDate($dateObj);
-                } catch (\Exception) {}
+                } catch (\Exception) {
+                }
             }
         }
+
         return $item;
     }
 
@@ -259,8 +268,9 @@ class NotificationDigestResource extends Resource
         usort($collection, fn (array $a, array $b): int => $b['_sort_timestamp'] <=> $a['_sort_timestamp']);
 
         // Strip sorting metadata
-        return array_map(function (array $item) {
+        return array_map(function (array $item): array {
             unset($item['_sort_timestamp']);
+
             return $item;
         }, $collection);
     }

@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Notification\Controllers;
 
-use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
-use Src\Application\AppUser\Notification\Data\DashboardSummaryData;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
-use Src\Application\AppUser\Notification\Services\DashboardSummaryService;
 use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\NotificationDigest;
@@ -17,8 +14,7 @@ use Src\Domain\Notification\Models\NotificationDigest;
 readonly class NotificationDigestController
 {
     public function __construct(
-        private NotificationDigestFinderService $notificationDigestFinderService,
-        private DashboardSummaryService $dashboardSummaryService
+        private NotificationDigestFinderService $notificationDigestFinderService
     ) {}
 
     public function index(NotificationDigestFilterData $filters): LengthAwarePaginator
@@ -64,29 +60,5 @@ readonly class NotificationDigestController
         $paginatedDigests->setCollection($mergedCollection);
 
         return $paginatedDigests;
-    }
-
-    /**
-     * Get the dashboard summary (KPI cards).
-     */
-    public function summary(Request $request): DashboardSummaryData
-    {
-        /** @var AppUser $appUser */
-        $appUser = auth()->user();
-
-        $organization = $appUser->organizations()->first();
-
-        if (! $organization) {
-            abort(422, __('process.user_has_no_organization'));
-        }
-
-        $dateFrom = $request->query('date_from');
-        $dateTo = $request->query('date_to');
-
-        return $this->dashboardSummaryService->handle(
-            $organization->id,
-            is_string($dateFrom) ? $dateFrom : null,
-            is_string($dateTo) ? $dateTo : null
-        );
     }
 }

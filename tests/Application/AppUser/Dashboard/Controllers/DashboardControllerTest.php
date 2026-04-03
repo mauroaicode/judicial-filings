@@ -34,7 +34,7 @@ it('returns dashboard summary with correct kpi counts', function (): void {
 
     // 2. Create actions with different dates
     // One inside range
-    ProcessAction::factory()->create([
+    $actionToday = ProcessAction::factory()->create([
         'process_id' => $processRed->id,
         'action_date' => Carbon::now()->toDateString(),
     ]);
@@ -55,12 +55,26 @@ it('returns dashboard summary with correct kpi counts', function (): void {
 
     // Request for today
     $today = Carbon::now()->toDateString();
+
+    // Create a notification for today's action so the service counts it
+    DB::table('organization_notifications')->insert([
+        'id' => fake()->uuid(),
+        'organization_id' => $this->organization->id,
+        'notifiable_id' => $actionToday->id,
+        'notifiable_type' => ProcessAction::class,
+        'notification_type' => 'judicial_action_detected',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
     $response = $this->actingAs($this->appUser)
-        ->getJson("/api/app-user/notification-digests/summary?date_from={$today}&date_to={$today}");
+        ->getJson("/api/app-user/dashboard/summary?date_from={$today}&date_to={$today}");
 
     $response->assertStatus(200);
     $response->assertJson([
-        'total_actions' => 1, // Only today's action
+        'total_recent_actions' => 1, // Only today's action
         'alerts_red' => 1,
         'alerts_yellow' => 1,
         'alerts_green' => 0,
@@ -82,11 +96,11 @@ it('does not filter semaphore counts by date', function (): void {
     // Even if I filter for some future date where there are NO actions
     $futureDate = now()->addYear()->toDateString();
     $response = $this->actingAs($this->appUser)
-        ->getJson("/api/app-user/notification-digests/summary?date_from={$futureDate}&date_to={$futureDate}");
+        ->getJson("/api/app-user/dashboard/summary?date_from={$futureDate}&date_to={$futureDate}");
 
     $response->assertStatus(200);
     $response->assertJson([
-        'total_actions' => 0, // No actions in future
+        'total_recent_actions' => 0, // No actions in future
         'alerts_red' => 1,     // Red process still exists globally
     ]);
 });

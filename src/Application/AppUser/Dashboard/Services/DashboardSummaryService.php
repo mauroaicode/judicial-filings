@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Notification\Services;
+namespace Src\Application\AppUser\Dashboard\Services;
 
-use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\Date;
-use Src\Application\AppUser\Notification\Data\DashboardSummaryData;
+use Src\Application\AppUser\Dashboard\Data\DashboardSummaryData;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\ProcessAction;
 
@@ -21,21 +20,18 @@ readonly class DashboardSummaryService
      */
     public function handle(string $organizationId, ?string $dateFrom = null, ?string $dateTo = null): DashboardSummaryData
     {
+        $lastActivityDate = $dateFrom ?? \Src\Domain\Notification\Models\OrganizationNotification::query()
+            ->where('organization_id', $organizationId)
+            ->where('notifiable_type', ProcessAction::class)
+            ->max('created_at');
 
-        $totalActionsQuery = ProcessAction::query()
-            ->whereHas('process.organizations', function (Builder $q) use ($organizationId): void {
-                $q->where('organizations.id', $organizationId);
-            });
+        $activeDate = $lastActivityDate ? \Illuminate\Support\Facades\Date::parse($lastActivityDate)->toDateString() : now()->toDateString();
 
-        if ($dateFrom) {
-            $totalActionsQuery->where('action_date', '>=', Date::parse($dateFrom)->startOfDay());
-        }
-
-        if ($dateTo) {
-            $totalActionsQuery->where('action_date', '<=', Date::parse($dateTo)->endOfDay());
-        }
-
-        $totalActions = $totalActionsQuery->count();
+        $totalActions = (int) \Src\Domain\Notification\Models\OrganizationNotification::query()
+            ->where('organization_id', $organizationId)
+            ->where('notifiable_type', ProcessAction::class)
+            ->whereDate('created_at', $activeDate)
+            ->count();
 
         $alerts = OrganizationProcess::query()
             ->where('organization_id', $organizationId)
@@ -45,7 +41,7 @@ readonly class DashboardSummaryService
             ->pluck('count', 'inactivity_alert_level');
 
         return new DashboardSummaryData(
-            total_actions: $totalActions,
+            total_recent_actions: $totalActions,
             alerts_red: (int) ($alerts['red'] ?? 0),
             alerts_yellow: (int) ($alerts['yellow'] ?? 0),
             alerts_green: (int) ($alerts['green'] ?? 0),

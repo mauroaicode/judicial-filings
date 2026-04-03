@@ -48,4 +48,13 @@ return [
     'term_start_date_to' => 'Fecha de Inicio Término Hasta',
     'term_end_date_from' => 'Fecha de Finalización Término Desde',
     'term_end_date_to' => 'Fecha de Finalización Término Hasta',
+    'total_actions' => 'Total de Actuaciones',
+    'alerts_red' => 'Alertas Rojas',
+    'alerts_yellow' => 'Alertas Amarillas',
+    'alerts_green' => 'Alertas Verdes',
+    'alert_level' => 'Nivel de Alerta',
+    'lawyer_role' => 'Rol del Abogado',
+    'date_from' => 'Fecha Desde',
+    'date_to' => 'Fecha Hasta',
+    'total_recent_actions' => 'Total de Actuaciones Recientes',
 ];

@@ -21,30 +21,27 @@ beforeEach(function () {
     $this->freezeTime();
 });
 
-it('can list notification digests for the organization', function () {
-    NotificationDigest::factory()->create([
-        'organization_id' => $this->organization->id,
-        'created_at' => now(),
-    ]);
-
-    NotificationDigest::factory()->create([
-        'organization_id' => $this->organization->id,
-        'created_at' => now()->subDay(),
-    ]);
-
-    NotificationDigest::factory()->create([
+it('can list notification digests for the organization using last activity logic', function () {
+    $oldest = NotificationDigest::factory()->create([
         'organization_id' => $this->organization->id,
         'created_at' => now()->subDays(2),
     ]);
 
-    // Otro de otra organización
-    NotificationDigest::factory()->create();
+    $recent = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'created_at' => now()->subDay(),
+    ]);
 
-    // Solicitamos explícitamente un rango amplio para evitar el filtro por defecto de "solo hoy"
-    $response = getJson('/api/app-user/notification-digests?created_at_from='.now()->subDays(5)->format('Y-m-d').'&created_at_to='.now()->format('Y-m-d'));
+    // Requesting without filters should only bring the most recent day's digests
+    $response = getJson('/api/app-user/notification-digests');
 
     $response->assertOk()
-        ->assertJsonCount(3, 'data');
+        ->assertJsonCount(1, 'data');
+    expect($response->json('data.0.id'))->toBe($recent->id);
+
+    // Requesting with a range should bring everything
+    $rangeResponse = getJson('/api/app-user/notification-digests?created_at_from='.now()->subDays(5)->format('Y-m-d').'&created_at_to='.now()->format('Y-m-d'));
+    $rangeResponse->assertJsonCount(2, 'data');
 });
 
 it('can filter notification digests by created_at date range', function () {
