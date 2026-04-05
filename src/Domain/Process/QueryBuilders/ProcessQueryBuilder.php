@@ -153,6 +153,8 @@ class ProcessQueryBuilder extends Builder
         $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
         $this->applyStatusFilter($data->status);
         $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
+        $this->applyRoleFilter($data->lawyer_role);
+        $this->applySeverityColorFilter($data->severity_color);
 
         return $this;
     }
@@ -300,6 +302,34 @@ class ProcessQueryBuilder extends Builder
 
         $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($isActive): void {
             $query->where('organization_processes.is_active', $isActive);
+        });
+    }
+
+    /**
+     * Apply lawyer role filter.
+     */
+    private function applyRoleFilter(?string $role): void
+    {
+        if (! $role) {
+            return;
+        }
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($role): void {
+            $query->where('organization_processes.lawyer_role', $role);
+        });
+    }
+
+    /**
+     * Apply severity color (semaphore) filter.
+     */
+    private function applySeverityColorFilter(?string $color): void
+    {
+        if (! $color) {
+            return;
+        }
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($color): void {
+            $query->where('organization_processes.inactivity_alert_level', $color);
         });
     }
 

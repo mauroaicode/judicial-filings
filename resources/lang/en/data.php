@@ -57,4 +57,5 @@ return [
     'date_from' => 'Date From',
     'date_to' => 'Date To',
     'total_recent_actions' => 'Total Recent Actions',
+    'severity_color' => 'Severity Color',
 ];

@@ -1,11 +1,16 @@
 <?php
 
 return [
-    'custom' => [
-        'alert_slug_only_for_alerta' => 'The alert type filter (alert_slug) only applies when type is actuacion_alerta.',
-    ],
+    'required' => 'The :attribute field is required.',
+    'enum' => 'The selected :attribute is invalid.',
+    'array' => 'The :attribute must be an array.',
     'regex' => 'The :attribute format is invalid.',
-    'process_number.regex' => 'The filing number must have exactly 23 numeric digits.',
+    'min' => [
+        'array' => 'The :attribute must have at least :min items.',
+    ],
+    'process_number' => [
+        'regex' => 'The filing number must have exactly 23 numeric digits.',
+    ],
     'file' => [
         'required' => 'The file field is required.',
         'file' => 'The field must be a valid file.',
@@ -40,5 +45,8 @@ return [
             'unique_cedula' => 'An organization with this identification number is already registered.',
             'unique_nit' => 'An organization with this NIT is already registered.',
         ],
+    ],
+    'custom' => [
+        'alert_slug_only_for_alerta' => 'The alert type filter (alert_slug) only applies when type is actuacion_alerta.',
     ],
 ];

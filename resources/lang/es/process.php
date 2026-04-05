@@ -87,4 +87,7 @@ return [
     'consolidated_notifications_title' => 'Resumen Judicial Consolidado',
     'consolidated_notifications_header_singular' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVO MOVIMIENTO EL SIGUIENTE PROCESO!',
     'consolidated_notifications_header_plural' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVIERON MOVIMIENTO LOS SIGUIENTES PROCESOS!',
+    'config_updated_successfully' => 'Configuración del proceso actualizada exitosamente.',
+    'relationship_not_found' => 'No se encontró la asociación entre el proceso y su organización.',
+    'invalid_none_combination' => 'No es posible filtrar por "Sin Rol" y "Sin Semáforo" al mismo tiempo.',
 ];

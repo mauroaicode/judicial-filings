@@ -276,7 +276,7 @@ it('formats dates correctly', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('process.process_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-01-15')));
-    expect($response->json('process.last_activity_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate(\Illuminate\Support\Carbon::parse('2024-02-20')));
+    expect($response->json('process.last_activity_date'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDateTimeWithDayOfWeek(\Illuminate\Support\Carbon::parse('2024-02-20')));
     expect($response->json('process.last_api_update'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDateTimeWithDayOfWeek(\Illuminate\Support\Carbon::parse('2024-03-10 14:30:00')));
     expect($response->json('process.created_at'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDateTime(\Illuminate\Support\Carbon::parse('2024-01-01 10:00:00')));
 });

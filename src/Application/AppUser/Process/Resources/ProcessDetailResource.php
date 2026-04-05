@@ -79,7 +79,7 @@ class ProcessDetailResource extends Resource
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
             litigants: $process->litigants,
             process_date: DateFormatHelper::formatDate($process->process_date),
-            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : null,
+            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_activity_date) : null,
             location: $process->location ? StrParseHelper::toTitleCase($process->location) : null,
             filing_content: $process->filing_content,
             is_private: $process->is_private,

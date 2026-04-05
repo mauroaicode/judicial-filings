@@ -6,15 +6,15 @@ namespace Src\Application\AppUser\Process\Services;
 
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
-use Src\Application\Shared\Services\JudicialBranchConsultService;
-use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Shared\Enums\SeverityColor;
 use Throwable;
 
 readonly class RegisterProcessService
@@ -22,8 +22,8 @@ readonly class RegisterProcessService
     use ParseDateTrait;
 
     public function __construct(
-        private JudicialBranchConsultService $judicialBranchConsultService,
-        private ProcessSyncService $processSyncService
+        private \Src\Application\Shared\Services\JudicialBranchConsultService $judicialBranchConsultService,
+        private \Src\Application\Shared\Services\Process\ProcessSyncService $processSyncService
     ) {}
 
     /**
@@ -173,6 +173,11 @@ readonly class RegisterProcessService
                 $this->attachProcessToOrganization($process, $organizationId, $lawyerRole);
                 $this->processSyncService->handle($process, false);
 
+                // After sync, last_activity_date is now populated from actuaciones.
+                // Recalculate and persist the semaphore with the updated date.
+                $process->refresh();
+                $this->recalculateAlertLevelAfterSync($process, $organizationId, $lawyerRole);
+
                 $registeredProcesses->push($process);
             }
 
@@ -292,12 +297,71 @@ readonly class RegisterProcessService
      */
     private function attachProcessToOrganization(Process $process, string $organizationId, ?ProcessLawyerRole $lawyerRole): void
     {
+        $alertLevel = $this->calculateInitialAlertLevel($process, $lawyerRole);
+
         $process->organizations()->syncWithoutDetaching([
             $organizationId => [
                 'interest_date' => now()->toDateString(),
                 'is_active' => true,
                 'lawyer_role' => $lawyerRole?->value,
+                'inactivity_alert_level' => $alertLevel,
             ],
         ]);
+    }
+
+    /**
+     * After sync, last_activity_date is now real. Recalculate and persist the alert level.
+     */
+    private function recalculateAlertLevelAfterSync(Process $process, string $organizationId, ?ProcessLawyerRole $lawyerRole): void
+    {
+        if (! $lawyerRole || ! $process->last_activity_date) {
+            return;
+        }
+
+        $alertLevel = $this->calculateInitialAlertLevel($process, $lawyerRole);
+
+        \Illuminate\Support\Facades\DB::table('organization_processes')
+            ->where('organization_id', $organizationId)
+            ->where('process_id', $process->id)
+            ->update(['inactivity_alert_level' => $alertLevel, 'updated_at' => now()]);
+    }
+
+    /**
+     * Calculate initial alert level based on process activity.
+     */
+    private function calculateInitialAlertLevel(Process $process, ?ProcessLawyerRole $role): ?string
+    {
+        if (! $role || ! $process->last_activity_date) {
+            return null;
+        }
+
+        $days = (int) Date::parse($process->last_activity_date)->diffInDays(now());
+
+        return match ($role) {
+            ProcessLawyerRole::PLAINTIFF => $this->getPlaintiffLevel($days),
+            ProcessLawyerRole::DEFENDANT => $this->getDefendantLevel($days),
+        };
+    }
+
+    private function getPlaintiffLevel(int $days): string
+    {
+        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::PLAINTIFF->value.'.'.SeverityColor::RED->value, 90)) {
+            return SeverityColor::RED->value;
+        }
+
+        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::PLAINTIFF->value.'.'.SeverityColor::YELLOW->value, 45)) {
+            return SeverityColor::YELLOW->value;
+        }
+
+        return SeverityColor::GREEN->value;
+    }
+
+    private function getDefendantLevel(int $days): ?string
+    {
+        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::DEFENDANT->value.'.'.SeverityColor::GREEN->value, 90)) {
+            return SeverityColor::GREEN->value;
+        }
+
+        return null;
     }
 }

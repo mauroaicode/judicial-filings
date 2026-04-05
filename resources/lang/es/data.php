@@ -53,8 +53,8 @@ return [
     'alerts_yellow' => 'Alertas Amarillas',
     'alerts_green' => 'Alertas Verdes',
     'alert_level' => 'Nivel de Alerta',
-    'lawyer_role' => 'Rol del Abogado',
     'date_from' => 'Fecha Desde',
     'date_to' => 'Fecha Hasta',
     'total_recent_actions' => 'Total de Actuaciones Recientes',
+    'severity_color' => 'Color del Semáforo',
 ];

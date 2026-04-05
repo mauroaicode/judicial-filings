@@ -41,6 +41,6 @@ trait TranslatableDataAttributesTrait
      */
     protected static function excludedAttributesFromTranslation(): array
     {
-        return ['token', 'id', 'hash', 'roles'];
+        return ['token', 'id', 'hash', 'roles', 'process_ids'];
     }
 }
