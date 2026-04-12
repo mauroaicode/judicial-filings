@@ -45,16 +45,19 @@ class ProcessSyncService
             throw new \RuntimeException(__('process.sync_failed_actuaciones'));
         }
 
-        $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
-        if (! $subjectsResult->isSuccessful) {
-            Log::channel($logChannel)->error('ProcessSyncService: failed to fetch sujetos', [
-                'process_id' => $process->id,
-            ]);
-            throw new \RuntimeException(__('process.sync_failed_sujetos'));
-        }
-
         $this->syncActuaciones($process, $actionsResult->data, $notify);
-        $this->syncSujetos($process, $subjectsResult->data);
+
+        // Optimización: solo consultar sujetos si el proceso aún no tiene sujetos registrados.
+        if (! $process->subjects()->exists()) {
+            $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
+            if (! $subjectsResult->isSuccessful) {
+                Log::channel($logChannel)->error('ProcessSyncService: failed to fetch sujetos', [
+                    'process_id' => $process->id,
+                ]);
+                throw new \RuntimeException(__('process.sync_failed_sujetos'));
+            }
+            $this->syncSujetos($process, $subjectsResult->data);
+        }
     }
 
     /**
@@ -199,18 +202,21 @@ class ProcessSyncService
                 continue;
             }
 
-            $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
-            if (! $subjectsResult->isSuccessful) {
-                Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
-                    'process_number' => $processNumber,
-                    'process_id' => $process->id,
-                ]);
-
-                continue;
-            }
-
             $this->syncActuaciones($process, $actionsResult->data, $notify);
-            $this->syncSujetos($process, $subjectsResult->data);
+
+            // Optimización: solo consultar sujetos si el proceso aún no tiene sujetos registrados.
+            if (! $process->subjects()->exists()) {
+                $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
+                if (! $subjectsResult->isSuccessful) {
+                    Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
+                        'process_number' => $processNumber,
+                        'process_id' => $process->id,
+                    ]);
+
+                    continue;
+                }
+                $this->syncSujetos($process, $subjectsResult->data);
+            }
 
             Log::channel($channel)->info('ProcessSyncService: instance sync completed', [
                 'process_number' => $processNumber,

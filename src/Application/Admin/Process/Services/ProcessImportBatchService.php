@@ -7,6 +7,7 @@ namespace Src\Application\Admin\Process\Services;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
+use Random\RandomException;
 use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Shared\DTOs\ProcessImportReport;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
@@ -113,17 +114,30 @@ readonly class ProcessImportBatchService
      */
     private function buildJobs(array $toEnqueue, string $organizationId, string $batchId): array
     {
-        $delaySeconds = $this->resolveDelaySeconds();
         $queue = config('process-import.jobs.import_radicado.queue');
         $jobs = [];
+        $accumulatedDelay = 0;
 
         foreach ($toEnqueue as $index => $processNumber) {
+            $accumulatedDelay += $this->resolveRandomDelaySeconds();
+
             $jobs[] = (new ImportRadicadoJob($batchId, $processNumber, $organizationId))
                 ->onQueue($queue)
-                ->delay(now()->addSeconds($index * $delaySeconds));
+                ->delay(now()->addSeconds($accumulatedDelay));
         }
 
         return $jobs;
+    }
+
+    /**
+     * Resolves a random delay between jobs (1 to 4 seconds) for testing purposes.
+     *
+     * @return int Delay in seconds
+     * @throws RandomException
+     */
+    private function resolveRandomDelaySeconds(): int
+    {
+        return random_int(1, 4);
     }
 
     /**
