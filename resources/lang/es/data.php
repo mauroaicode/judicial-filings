@@ -57,4 +57,5 @@ return [
     'date_to' => 'Fecha Hasta',
     'total_recent_actions' => 'Total de Actuaciones Recientes',
     'severity_color' => 'Color del Semáforo',
+    'is_ai_enabled' => 'IA Habilitada',
 ];

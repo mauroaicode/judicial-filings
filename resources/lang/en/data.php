@@ -58,4 +58,5 @@ return [
     'date_to' => 'Date To',
     'total_recent_actions' => 'Total Recent Actions',
     'severity_color' => 'Severity Color',
+    'is_ai_enabled' => 'AI Enabled',
 ];
