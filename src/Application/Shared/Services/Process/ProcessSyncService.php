@@ -56,6 +56,7 @@ class ProcessSyncService
                 ]);
                 throw new \RuntimeException(__('process.sync_failed_sujetos'));
             }
+
             $this->syncSujetos($process, $subjectsResult->data);
         }
     }
@@ -215,6 +216,7 @@ class ProcessSyncService
 
                     continue;
                 }
+
                 $this->syncSujetos($process, $subjectsResult->data);
             }
 

@@ -14,7 +14,8 @@ use Src\Domain\Notification\Models\NotificationDigest;
 readonly class NotificationDigestController
 {
     public function __construct(
-        private NotificationDigestFinderService $notificationDigestFinderService
+        private NotificationDigestFinderService $notificationDigestFinderService,
+        private \Src\Domain\Process\Services\GroupProcessActionsService $groupProcessActionsService
     ) {}
 
     public function index(NotificationDigestFilterData $filters): LengthAwarePaginator
@@ -53,7 +54,14 @@ readonly class NotificationDigestController
                     $mergedDigest->setRelation('notifications', $combinedNotifications);
                 }
 
-                return NotificationDigestResource::fromModel($mergedDigest, $filters)->toArray();
+                $resource = NotificationDigestResource::fromModel($mergedDigest, $filters)->toArray();
+
+                // Agrupamos las actuaciones dentro del digest
+                if (isset($resource['data']) && is_array($resource['data'])) {
+                    $resource['data'] = $this->groupProcessActionsService->handle(collect($resource['data']))->toArray();
+                }
+
+                return $resource;
             })
             ->values();
 

@@ -45,7 +45,7 @@ readonly class DashboardStatsService
             $nonPivotFilters->status = null;
 
             return Process::query()
-                ->whereHas('organizations', function ($query) use ($organizationId, $currentFilters): void {
+                ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId, $currentFilters): void {
                     $query->where('organizations.id', $organizationId);
 
                     if ($currentFilters->status) {
@@ -63,9 +63,9 @@ readonly class DashboardStatsService
 
                     if ($currentFilters->severity_color) {
                         if ($currentFilters->severity_color === 'none') {
-                            $query->where(function ($q): void {
+                            $query->where(function (\Illuminate\Contracts\Database\Query\Builder $q): void {
                                 $q->whereNull('organization_processes.inactivity_alert_level')
-                                    ->orWhereHas('process', fn ($p) => $p->whereNull('last_activity_date'));
+                                    ->orWhereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $p) => $p->whereNull('last_activity_date'));
                             });
                         } else {
                             $query->where('organization_processes.inactivity_alert_level', $currentFilters->severity_color);
@@ -80,6 +80,7 @@ readonly class DashboardStatsService
 
         $activeFilters = clone $filters;
         $activeFilters->status = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value;
+
         $active = (int) $baseQueryBuilder($activeFilters)->distinct()->count('process_number');
 
         $multipleInstances = (int) DB::table(

@@ -328,7 +328,7 @@ class JudicialBranchConsultService
                 ]);
 
                 $this->logInfo('Executing request', [
-                    'proxy_url'  => $proxyUrl,
+                    'proxy_url' => $proxyUrl,
                     'user_agent' => $userAgent,
                 ]);
             } else {
@@ -355,9 +355,9 @@ class JudicialBranchConsultService
 
             // If successful (or not a retryable error like 404), return immediately
             if ($status < 400 || $status === 404) {
-                // Soft-block detection: If we expect JSON but receive an HTML 200 OK, 
+                // Soft-block detection: If we expect JSON but receive an HTML 200 OK,
                 // it means the proxy or Azure WAF returned a Captcha or SPA fallback page.
-                $contentType = $response->header('Content-Type') ?? '';
+                $contentType = $response->header('Content-Type');
                 if ($status === 200 && str_contains($contentType, 'text/html')) {
                     $this->throwIfForbiddenOrRateLimit(403, $context, $response);
                 }
@@ -383,35 +383,9 @@ class JudicialBranchConsultService
             // Tratamos todo error de conexión (timeout, proxy drop) como fallo rápido
             // para que Laravel genere una nueva sesión y pase de proxy.
             $this->throwIfProxyFailure($th, $context);
-            
+
             throw $th;
         }
-    }
-
-    /**
-     * Handles waiting before a retry, using Retry-After header or exponential backoff.
-     */
-    private function handleCooldown(?Response $response, int $attempt): void
-    {
-        $seconds = 0;
-
-        // 1. Check for Retry-After header
-        if ($response instanceof \Illuminate\Http\Client\Response) {
-            $retryAfter = $response->header('Retry-After');
-            if (! empty($retryAfter)) {
-                $seconds = is_numeric($retryAfter)
-                    ? (int) $retryAfter
-                    : max(0, strtotime($retryAfter) - time());
-            }
-        }
-
-        // 2. If no Retry-After, apply exponential backoff (2s, 4s, 8s)
-        if ($seconds <= 0) {
-            $seconds = (int) 2 ** ($attempt + 1);
-        }
-
-        $this->logInfo("Pausing for {$seconds}s before retry...", ['attempt' => $attempt]);
-        Sleep::sleep($seconds);
     }
 
     /**

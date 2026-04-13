@@ -205,11 +205,15 @@ class NotificationDigestResource extends Resource
                 }
 
                 $item['lawyer_role'] = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
+
+                // Inyectamos el consecutivo para poder relacionar actuaciones
+                $item['cons_action'] = $actionModel->cons_action;
             }
         } else {
             $item['process_id'] ??= null;
             $item['alert_level'] ??= null;
             $item['lawyer_role'] ??= null;
+            $item['cons_action'] ??= 0;
         }
 
         // 3. Subjects (Title Case & Pluralization)

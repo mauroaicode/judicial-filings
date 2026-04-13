@@ -33,7 +33,7 @@ readonly class BulkUpdateProcessConfigService
         $organizationProcesses = OrganizationProcess::query()
             ->with('process')
             ->where('organization_id', $organizationId)
-            ->whereHas('process', function ($query) use ($processNumbers) {
+            ->whereHas('process', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($processNumbers): void {
                 $query->whereIn('process_number', $processNumbers);
             })
             ->get();

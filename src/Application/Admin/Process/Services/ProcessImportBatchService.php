@@ -118,7 +118,7 @@ readonly class ProcessImportBatchService
         $jobs = [];
         $accumulatedDelay = 0;
 
-        foreach ($toEnqueue as $index => $processNumber) {
+        foreach ($toEnqueue as $processNumber) {
             $accumulatedDelay += $this->resolveRandomDelaySeconds();
 
             $jobs[] = (new ImportRadicadoJob($batchId, $processNumber, $organizationId))
@@ -133,26 +133,12 @@ readonly class ProcessImportBatchService
      * Resolves a random delay between jobs (1 to 4 seconds) for testing purposes.
      *
      * @return int Delay in seconds
+     *
      * @throws RandomException
      */
     private function resolveRandomDelaySeconds(): int
     {
         return random_int(1, 4);
-    }
-
-    /**
-     * Resolves the delay between jobs from config, falling back to a rate-limit calculation.
-     *
-     * @return int Delay in seconds
-     */
-    private function resolveDelaySeconds(): int
-    {
-        $jobRateLimit = (int) config('process-import.rate_limit_per_minute', 4);
-
-        return (int) config(
-            'process-import.delay_between_radicados_seconds',
-            (int) ceil(60 / max(1, $jobRateLimit)),
-        );
     }
 
     /**

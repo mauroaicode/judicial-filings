@@ -49,10 +49,12 @@ class ProxyPoolService
             return null;
         }
 
-        $sessionId = $seed !== '' ? substr(md5($seed), 0, 10) : substr(md5(uniqid((string) random_int(0, 999999), true)), 0, 10);
+        $sessionId = $seed !== ''
+            ? substr(hash('sha256', $seed), 0, 10)
+            : bin2hex(random_bytes(5));
 
         if (preg_match('/-session-[a-zA-Z0-9]+/', $username)) {
-            $username = preg_replace('/-session-[a-zA-Z0-9]+/', '-session-' . $sessionId, $username);
+            $username = preg_replace('/-session-[a-zA-Z0-9]+/', '-session-'.$sessionId, $username);
         }
 
         return "{$protocol}://{$username}:{$password}@{$host}:{$port}";
