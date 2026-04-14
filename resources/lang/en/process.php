@@ -87,4 +87,5 @@ return [
 
     'config_updated_successfully' => 'Process configuration updated successfully.',
     'relationship_not_found' => 'The association between the process and your organization was not found.',
+    'not_found_in_organization' => 'The specified process does not belong to this organization.',
 ];

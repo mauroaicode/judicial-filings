@@ -162,4 +162,14 @@ class Organization extends Model
     {
         return new OrganizationQueryBuilder($query);
     }
+
+    /**
+     * Get the tasks for the organization.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Src\Domain\Task\Models\Task, $this>
+     */
+    public function tasks(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\Src\Domain\Task\Models\Task::class, 'organization_id');
+    }
 }

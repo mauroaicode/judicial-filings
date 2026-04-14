@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Factories;
+
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\Process;
+use Src\Domain\Task\Models\Task;
+
+/**
+ * @extends Factory<Task>
+ */
+class TaskFactory extends Factory
+{
+    protected $model = Task::class;
+
+    /**
+     * Define the model's default state.
+     *
+     * @return array<string, mixed>
+     */
+    public function definition(): array
+    {
+        return [
+            'title' => $this->faker->sentence(),
+            'description' => $this->faker->paragraph(),
+            'is_admin' => false,
+            'process_id' => Process::factory(),
+            'organization_id' => Organization::factory(),
+        ];
+    }
+
+    public function admin(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_admin' => true,
+        ]);
+    }
+}

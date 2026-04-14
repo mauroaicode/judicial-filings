@@ -48,6 +48,39 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Filter active processes for a specific organization.
+     *
+     * @return $this
+     */
+    public function whereActiveForOrganization(string $organizationId): self
+    {
+        return $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId): void {
+            $query->where('organization_processes.organization_id', $organizationId)
+                ->where('organization_processes.is_active', true);
+        });
+    }
+
+    /**
+     * Filter processes by process number (LIKE search).
+     *
+     * @return $this
+     */
+    public function whereProcessNumberLike(string $processNumber): self
+    {
+        return $this->where('process_number', 'LIKE', "%{$processNumber}%");
+    }
+
+    /**
+     * Filter processes by court (LIKE search).
+     *
+     * @return $this
+     */
+    public function whereCourtLike(string $court): self
+    {
+        return $this->where('court', 'LIKE', "%{$court}%");
+    }
+
+    /**
      * Include actions relationship.
      *
      * @return $this
@@ -100,6 +133,24 @@ class ProcessQueryBuilder extends Builder
             FROM organization_processes
             WHERE organization_processes.process_id = processes.id
         ) DESC');
+
+        return $this;
+    }
+
+    /**
+     * Order processes by the registration date of a specific organization.
+     *
+     * @return $this
+     */
+    public function orderByOrganizationRegistration(string $organizationId, string $direction = 'desc'): self
+    {
+        $this->orderBy(
+            \Src\Domain\OrganizationProcess\Models\OrganizationProcess::query()->select('created_at')
+                ->whereColumn('process_id', 'processes.id')
+                ->where('organization_id', $organizationId)
+                ->limit(1),
+            $direction
+        );
 
         return $this;
     }

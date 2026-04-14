@@ -161,4 +161,14 @@ class Process extends Model
             'organization_id'
         )->withPivot(['interest_date', 'is_active', 'lawyer_role', 'inactivity_alert_level'])->withTimestamps();
     }
+
+    /**
+     * Get the tasks for the organization.
+     *
+     * @return HasMany<\Src\Domain\Task\Models\Task, $this>
+     */
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(\Src\Domain\Task\Models\Task::class, 'process_id');
+    }
 }
