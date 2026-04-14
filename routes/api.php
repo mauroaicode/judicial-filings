@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('app-user')->middleware('api')->group(function () {
+Route::prefix('app-user')->name('app-user.')->middleware('api')->group(function () {
     $appUserRoutesPath = __DIR__.'/api/app_user';
 
     if (is_dir($appUserRoutesPath)) {
@@ -14,7 +14,7 @@ Route::prefix('app-user')->middleware('api')->group(function () {
     }
 });
 
-Route::prefix('admin')->middleware('api')->group(function () {
+Route::prefix('admin')->name('admin.')->middleware('api')->group(function () {
     $adminRoutesPath = __DIR__.'/api/admin';
 
     if (is_dir($adminRoutesPath)) {
