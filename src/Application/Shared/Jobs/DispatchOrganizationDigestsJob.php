@@ -10,7 +10,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Src\Application\Shared\Services\Notification\NotificationDigestService;
 use Src\Domain\Organization\Models\Organization;
 
 class DispatchOrganizationDigestsJob implements ShouldQueue
@@ -33,17 +32,17 @@ class DispatchOrganizationDigestsJob implements ShouldQueue
 
         // Find organizations with pending notifications
         $organizations = Organization::query()
-            ->whereHas('notifications', function ($query) {
+            ->whereHas('notifications', function (\Illuminate\Contracts\Database\Query\Builder $query): void {
                 $query->where('is_email_notified', false);
             })
             ->get();
 
         Log::channel($channel)->info('DispatchOrganizationDigestsJob: Found organizations with pending notifications', [
-            'count' => $organizations->count()
+            'count' => $organizations->count(),
         ]);
 
         foreach ($organizations as $organization) {
-            SendOrganizationDigestJob::dispatch($organization);
+            dispatch(new \Src\Application\Shared\Jobs\SendOrganizationDigestJob($organization));
         }
 
         Log::channel($channel)->info('DispatchOrganizationDigestsJob: Finished global digest dispatch');

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Services;
 
+use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
-use Exception;
 
 class AiRagService
 {
-    private string $baseUrl;
+    private readonly string $baseUrl;
 
     public function __construct()
     {
@@ -19,6 +19,7 @@ class AiRagService
 
     /**
      * Upload process data in Markdown format to the RAG engine.
+     *
      * @throws ConnectionException
      * @throws Exception
      */
@@ -35,8 +36,8 @@ class AiRagService
             ->attach('file', $markdownContent, "process_{$docId}.md")
             ->post("{$this->baseUrl}/insert?{$queryParams}");
 
-        if (!$response->successful()) {
-            throw new Exception("DeepSeek-RAG upload failed: " . $response->body());
+        if (! $response->successful()) {
+            throw new Exception('DeepSeek-RAG upload failed: '.$response->body());
         }
 
         $taskId = $response->json('task_id');
@@ -48,6 +49,7 @@ class AiRagService
 
     /**
      * Wait for a task to be completed.
+     *
      * @throws Exception
      */
     private function waitForTask(string $taskId, string $tenantId): void
@@ -67,10 +69,10 @@ class AiRagService
             }
 
             if ($response->json('status') === 'failed') {
-                throw new Exception("DeepSeek-RAG task failed: " . $response->json('error', 'Unknown error'));
+                throw new Exception('DeepSeek-RAG task failed: '.$response->json('error', 'Unknown error'));
             }
 
-            sleep($delay);
+            \Illuminate\Support\Sleep::sleep($delay);
             $attempts++;
         }
 
@@ -79,6 +81,7 @@ class AiRagService
 
     /**
      * Query the RAG engine for an AI summary.
+     *
      * @throws ConnectionException
      * @throws Exception
      */
@@ -96,8 +99,8 @@ class AiRagService
                 'response_type' => 'json',
             ]);
 
-        if (!$response->successful()) {
-            throw new Exception("DeepSeek-RAG query failed: " . $response->body());
+        if (! $response->successful()) {
+            throw new Exception('DeepSeek-RAG query failed: '.$response->body());
         }
 
         $data = $response->json();

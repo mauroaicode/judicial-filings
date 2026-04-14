@@ -16,12 +16,14 @@ use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
+use Src\Domain\Process\Services\GroupProcessActionsService;
 
 readonly class ProcessActionController
 {
     public function __construct(
         private ProcessActionFinderService $processActionFinderService,
-        private ProcessDetailService $processDetailService
+        private ProcessDetailService $processDetailService,
+        private GroupProcessActionsService $groupProcessActionsService
     ) {}
 
     /**
@@ -51,9 +53,14 @@ readonly class ProcessActionController
 
         /** @var \Illuminate\Pagination\LengthAwarePaginator $paginatedActions */
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
-        $transformedItems = $paginatedActions->getCollection()->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel($action, $offset + $key + 1)->toArray());
 
-        $paginatedActions->setCollection($transformedItems);
+        $transformedItems = $paginatedActions->getCollection()
+            ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel($action, $offset + $key + 1)->toArray());
+
+        // Agrupar Fijaciones con sus Autos
+        $groupedItems = $this->groupProcessActionsService->handle($transformedItems);
+
+        $paginatedActions->setCollection($groupedItems);
 
         return $paginatedActions;
     }

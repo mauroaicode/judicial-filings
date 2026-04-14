@@ -78,4 +78,14 @@ return [
     'internal_alert_title' => '⚠️ Keyword alert',
     'internal_action_description' => 'New action in radicado :number',
     'internal_alert_description' => 'Alert! Keyword detected in radicado :number',
+
+    // Consolidated Notifications
+    'consolidated_notifications_subject' => 'Action summary for :name - :date',
+    'consolidated_notifications_title' => 'Consolidated Judicial Summary',
+    'consolidated_notifications_header_singular' => 'OUR PERSONALIZED JUDICIAL NOTIFICATION SYSTEM INFORMS YOU THAT ON :date THE FOLLOWING PROCESS HAD MOVEMENT!',
+    'consolidated_notifications_header_plural' => 'OUR PERSONALIZED JUDICIAL NOTIFICATION SYSTEM INFORMS YOU THAT ON :date THE FOLLOWING PROCESSES HAD MOVEMENT!',
+
+    'config_updated_successfully' => 'Process configuration updated successfully.',
+    'relationship_not_found' => 'The association between the process and your organization was not found.',
+    'not_found_in_organization' => 'The specified process does not belong to this organization.',
 ];

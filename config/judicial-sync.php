@@ -49,8 +49,8 @@ return [
     */
     'queues' => [
         'internal' => env('NOTIFICATION_INTERNAL_QUEUE', 'notifications'),
-        'email'    => env('NOTIFICATION_EMAIL_QUEUE', 'notifications-email'),
-        'sms'      => env('NOTIFICATION_SMS_QUEUE', 'notifications-sms'),
+        'email' => env('NOTIFICATION_EMAIL_QUEUE', 'notifications-email'),
+        'sms' => env('NOTIFICATION_SMS_QUEUE', 'notifications-sms'),
         'whatsapp' => env('NOTIFICATION_WHATSAPP_QUEUE', 'notifications-whatsapp'),
     ],
 ];

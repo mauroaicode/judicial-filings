@@ -41,7 +41,7 @@ readonly class OrganizationNotificationListService
             ->whereOrganization($organizationId)
             ->whereNotificationType($type)
             ->whereViewed($viewed)
-            ->with(['notifiable' => fn ($q) => $q->with(['process' => fn ($q2) => $q2->with('subjects')], 'alertHighlights')]);
+            ->with(['notifiable' => fn ($q) => $q->with(['process' => fn ($q2) => $q2->with(['subjects' => fn ($q3) => $q3->orderedByPriority()])], 'alertHighlights')]);
 
         if ($alertSlug !== null && $alertSlug !== '' && $type === 'actuacion_alerta') {
             $keyword = AlertActionKeyword::query()->where('slug', $alertSlug)->first();
@@ -115,7 +115,24 @@ readonly class OrganizationNotificationListService
 
         $subjects = $process->relationLoaded('subjects')
             ? $process->subjects
-            : $process->subjects()->orderedBySubjectType()->get();
+            : $process->subjects()->orderedByPriority()->get();
+
+        // Sort collection to ensure order even if loaded through other routes
+        $subjects = $subjects->sortBy([
+            function ($subject): int {
+                $type = mb_strtoupper((string) $subject->subject_type);
+                if (str_contains($type, 'DEMANDANTE')) {
+                    return 1;
+                }
+
+                if (str_contains($type, 'DEMANDADO')) {
+                    return 2;
+                }
+
+                return 3;
+            },
+            fn ($subject) => mb_strtolower((string) $subject->name_or_business_name),
+        ]);
 
         $detail['subjects'] = $subjects->map(fn ($s): array => [
             'name' => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '',

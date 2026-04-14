@@ -48,6 +48,39 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Filter active processes for a specific organization.
+     *
+     * @return $this
+     */
+    public function whereActiveForOrganization(string $organizationId): self
+    {
+        return $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId): void {
+            $query->where('organization_processes.organization_id', $organizationId)
+                ->where('organization_processes.is_active', true);
+        });
+    }
+
+    /**
+     * Filter processes by process number (LIKE search).
+     *
+     * @return $this
+     */
+    public function whereProcessNumberLike(string $processNumber): self
+    {
+        return $this->where('process_number', 'LIKE', "%{$processNumber}%");
+    }
+
+    /**
+     * Filter processes by court (LIKE search).
+     *
+     * @return $this
+     */
+    public function whereCourtLike(string $court): self
+    {
+        return $this->where('court', 'LIKE', "%{$court}%");
+    }
+
+    /**
      * Include actions relationship.
      *
      * @return $this
@@ -58,13 +91,13 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Include subjects relationship.
+     * Include subjects relationship with priority order.
      *
      * @return $this
      */
     public function withSubjects(): self
     {
-        return $this->with('subjects');
+        return $this->with(['subjects' => fn ($q) => $q->orderedByPriority()]);
     }
 
     /**
@@ -100,6 +133,24 @@ class ProcessQueryBuilder extends Builder
             FROM organization_processes
             WHERE organization_processes.process_id = processes.id
         ) DESC');
+
+        return $this;
+    }
+
+    /**
+     * Order processes by the registration date of a specific organization.
+     *
+     * @return $this
+     */
+    public function orderByOrganizationRegistration(string $organizationId, string $direction = 'desc'): self
+    {
+        $this->orderBy(
+            \Src\Domain\OrganizationProcess\Models\OrganizationProcess::query()->select('created_at')
+                ->whereColumn('process_id', 'processes.id')
+                ->where('organization_id', $organizationId)
+                ->limit(1),
+            $direction
+        );
 
         return $this;
     }
@@ -153,6 +204,8 @@ class ProcessQueryBuilder extends Builder
         $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
         $this->applyStatusFilter($data->status);
         $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
+        $this->applyRoleFilter($data->lawyer_role);
+        $this->applySeverityColorFilter($data->severity_color);
 
         return $this;
     }
@@ -300,6 +353,34 @@ class ProcessQueryBuilder extends Builder
 
         $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($isActive): void {
             $query->where('organization_processes.is_active', $isActive);
+        });
+    }
+
+    /**
+     * Apply lawyer role filter.
+     */
+    private function applyRoleFilter(?string $role): void
+    {
+        if (! $role) {
+            return;
+        }
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($role): void {
+            $query->where('organization_processes.lawyer_role', $role);
+        });
+    }
+
+    /**
+     * Apply severity color (semaphore) filter.
+     */
+    private function applySeverityColorFilter(?string $color): void
+    {
+        if (! $color) {
+            return;
+        }
+
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($color): void {
+            $query->where('organization_processes.inactivity_alert_level', $color);
         });
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Contracts\Database\Query\Builder;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
@@ -45,16 +45,20 @@ class ProcessSyncService
             throw new \RuntimeException(__('process.sync_failed_actuaciones'));
         }
 
-        $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
-        if (! $subjectsResult->isSuccessful) {
-            Log::channel($logChannel)->error('ProcessSyncService: failed to fetch sujetos', [
-                'process_id' => $process->id,
-            ]);
-            throw new \RuntimeException(__('process.sync_failed_sujetos'));
-        }
-
         $this->syncActuaciones($process, $actionsResult->data, $notify);
-        $this->syncSujetos($process, $subjectsResult->data);
+
+        // Optimización: solo consultar sujetos si el proceso aún no tiene sujetos registrados.
+        if (! $process->subjects()->exists()) {
+            $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
+            if (! $subjectsResult->isSuccessful) {
+                Log::channel($logChannel)->error('ProcessSyncService: failed to fetch sujetos', [
+                    'process_id' => $process->id,
+                ]);
+                throw new \RuntimeException(__('process.sync_failed_sujetos'));
+            }
+
+            $this->syncSujetos($process, $subjectsResult->data);
+        }
     }
 
     /**
@@ -63,6 +67,9 @@ class ProcessSyncService
     private function syncActuaciones(Process $process, array $apiActuaciones, bool $notify = true): void
     {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+
+        $hasNewActions = false;
+        $maxActionDate = null;
 
         foreach ($apiActuaciones as $apiActuacion) {
             $idReg = (int) ($apiActuacion['idRegActuacion'] ?? 0);
@@ -78,6 +85,12 @@ class ProcessSyncService
             $attributes['process_id'] = $process->id;
 
             $action = ProcessAction::query()->create($attributes);
+            $hasNewActions = true;
+
+            $actionDate = Date::parse($attributes['action_date']);
+            if (! $maxActionDate instanceof \Illuminate\Support\Carbon || $actionDate->greaterThan($maxActionDate)) {
+                $maxActionDate = $actionDate;
+            }
 
             Log::channel($logChannel)->info('ProcessSyncService: New action saved', [
                 'action_id' => $action->id,
@@ -91,6 +104,29 @@ class ProcessSyncService
                 ]);
                 $this->processActionAlertNotificationService->handle($action, $process);
             }
+        }
+
+        $dbMaxDate = $process->actions()->max('action_date');
+
+        $updateData = [
+            'last_api_update' => now(),
+        ];
+
+        if ($dbMaxDate) {
+            $dbMaxDateStr = Date::parse($dbMaxDate)->format('Y-m-d');
+            $currentDateStr = $process->last_activity_date ? $process->last_activity_date->format('Y-m-d') : null;
+
+            if ($currentDateStr === null || $dbMaxDateStr > $currentDateStr) {
+                $updateData['last_activity_date'] = $dbMaxDateStr;
+            }
+        }
+
+        $process->update($updateData);
+
+        if ($hasNewActions) {
+            OrganizationProcess::query()
+                ->where('process_id', $process->id)
+                ->update(['inactivity_alert_level' => null]);
         }
     }
 
@@ -167,18 +203,22 @@ class ProcessSyncService
                 continue;
             }
 
-            $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
-            if (! $subjectsResult->isSuccessful) {
-                Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
-                    'process_number' => $processNumber,
-                    'process_id' => $process->id,
-                ]);
-
-                continue;
-            }
-
             $this->syncActuaciones($process, $actionsResult->data, $notify);
-            $this->syncSujetos($process, $subjectsResult->data);
+
+            // Optimización: solo consultar sujetos si el proceso aún no tiene sujetos registrados.
+            if (! $process->subjects()->exists()) {
+                $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
+                if (! $subjectsResult->isSuccessful) {
+                    Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
+                        'process_number' => $processNumber,
+                        'process_id' => $process->id,
+                    ]);
+
+                    continue;
+                }
+
+                $this->syncSujetos($process, $subjectsResult->data);
+            }
 
             Log::channel($channel)->info('ProcessSyncService: instance sync completed', [
                 'process_number' => $processNumber,
@@ -218,6 +258,16 @@ class ProcessSyncService
                 $process = $this->createProcessFromApi($apiProceso);
                 $this->linkOrganizationsToNewProcess($process);
                 $created++;
+            } else {
+                // If it already exists, update metadata from the process list info
+                $lastActivity = $this->parseDate($apiProceso['fechaUltimaActuacion'] ?? null);
+                $updateData = ['last_api_update' => now()];
+
+                if ($lastActivity && ($process->last_activity_date === null || $lastActivity > $process->last_activity_date->format('Y-m-d'))) {
+                    $updateData['last_activity_date'] = $lastActivity;
+                }
+
+                $process->update($updateData);
             }
         }
 
@@ -294,7 +344,7 @@ class ProcessSyncService
         }
 
         try {
-            return Carbon::parse($date)->format('Y-m-d');
+            return Date::parse($date)->format('Y-m-d');
         } catch (\Throwable) {
             return null;
         }
@@ -314,6 +364,7 @@ class ProcessSyncService
             if (! isset($orgActive[$id])) {
                 $orgActive[$id] = false;
             }
+
             if ($row->is_active) {
                 $orgActive[$id] = true;
             }

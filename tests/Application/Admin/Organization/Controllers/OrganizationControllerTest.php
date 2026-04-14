@@ -308,7 +308,7 @@ it('creates organization and owner app user and sends notification', function ()
     $org = Organization::query()->where('email', 'carlos.org.test@example.com')->first();
     expect($org)->not->toBeNull();
     expect($org->slug)->toContain('carlos-lopez');
-    expect($org->phone)->toContain('+56');
+    expect($org->phone)->toContain('+57');
 
     $org->load('appUsers');
     expect($org->appUsers)->toHaveCount(1);

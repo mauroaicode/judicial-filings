@@ -61,6 +61,8 @@ class JudicialActionDetected implements ShouldBroadcast
             'annotation' => $this->action->annotation,
             'action_text' => $this->action->action,
             'date' => $this->action->action_date->format('Y-m-d'),
+            'term_start_date' => $this->action->start_date ? $this->action->start_date->format('Y-m-d') : null,
+            'term_end_date' => $this->action->end_date ? $this->action->end_date->format('Y-m-d') : null,
         ];
     }
 }

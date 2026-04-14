@@ -35,12 +35,16 @@ class ProcessDetailResource extends Resource
         public string $updated_at,
         public string $term_start_date,
         public string $term_end_date,
+        public ?string $alert_level = null,
+        public ?string $lawyer_role = null,
     ) {}
 
     public static function fromModel(Process $process, string $organizationId): self
     {
         $isActive = false;
         $createdAt = $process->created_at;
+        $alertLevel = null;
+        $lawyerRoleLabel = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
@@ -49,6 +53,15 @@ class ProcessDetailResource extends Resource
                 if ($organization->pivot->created_at) {
                     $createdAt = $organization->pivot->created_at;
                 }
+
+                $alertLevel = $organization->pivot->inactivity_alert_level;
+
+                $role = $organization->pivot->lawyer_role;
+                if (is_string($role)) {
+                    $role = \Src\Domain\Process\Enums\ProcessLawyerRole::tryFrom($role);
+                }
+
+                $lawyerRoleLabel = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
             }
         }
 
@@ -66,7 +79,7 @@ class ProcessDetailResource extends Resource
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
             litigants: $process->litigants,
             process_date: DateFormatHelper::formatDate($process->process_date),
-            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : null,
+            last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_activity_date) : null,
             location: $process->location ? StrParseHelper::toTitleCase($process->location) : null,
             filing_content: $process->filing_content,
             is_private: $process->is_private,
@@ -77,6 +90,8 @@ class ProcessDetailResource extends Resource
             updated_at: DateFormatHelper::formatDateTime($process->updated_at),
             term_start_date: '-',
             term_end_date: '-',
+            alert_level: $alertLevel,
+            lawyer_role: $lawyerRoleLabel,
         );
     }
 }

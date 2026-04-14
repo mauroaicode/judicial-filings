@@ -19,7 +19,7 @@ use function Pest\Laravel\actingAs;
 
 pest()->extend(Tests\TestCase::class)
     ->use(Illuminate\Foundation\Testing\DatabaseTransactions::class)
-    ->in('Filament', 'Application', 'Domain', 'Architecture');
+    ->in('Filament', 'Application', 'Domain', 'Architecture', 'Feature');
 
 /*
 |--------------------------------------------------------------------------

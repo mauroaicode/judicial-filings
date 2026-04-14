@@ -70,6 +70,8 @@ return [
     'view_process' => 'Ver Proceso Completo',
     'process_number' => 'Radicado',
     'action_date' => 'Fecha de Actuación',
+    'action_start_date' => 'Fecha Inicio Término',
+    'action_end_date' => 'Fecha Finaliza Término',
     'action_text' => 'Actuación',
     'annotation_text' => 'Anotación',
     'matched_keywords' => 'Palabras Detectadas',
@@ -85,4 +87,8 @@ return [
     'consolidated_notifications_title' => 'Resumen Judicial Consolidado',
     'consolidated_notifications_header_singular' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVO MOVIMIENTO EL SIGUIENTE PROCESO!',
     'consolidated_notifications_header_plural' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVIERON MOVIMIENTO LOS SIGUIENTES PROCESOS!',
+    'config_updated_successfully' => 'Configuración del proceso actualizada exitosamente.',
+    'relationship_not_found' => 'No se encontró la asociación entre el proceso y su organización.',
+    'not_found_in_organization' => 'El proceso especificado no pertenece a esta organización.',
+    'invalid_none_combination' => 'No es posible filtrar por "Sin Rol" y "Sin Semáforo" al mismo tiempo.',
 ];

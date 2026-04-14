@@ -11,8 +11,6 @@ use Src\Domain\Organization\Models\Organization;
 
 class OrganizationNotificationChannelSeeder extends Seeder
 {
-    private const CHANNEL_TYPES = ['email', 'whatsapp', 'sms', 'internal'];
-
     /**
      * Run the database seeds.
      * Creates only email, whatsapp and sms channels (one of each type per org).
@@ -45,8 +43,10 @@ class OrganizationNotificationChannelSeeder extends Seeder
     {
         $all = ['whatsapp', 'sms'];
         $count = random_int(0, 2);
-        
-        if ($count === 0) return [];
+
+        if ($count === 0) {
+            return [];
+        }
 
         /** @var list<string> $result */
         $result = [];

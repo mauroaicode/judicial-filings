@@ -38,8 +38,8 @@ class ProxyPoolService
         }
 
         $protocol = (string) config('judicial-branch.proxy.protocol', 'http');
-        $host     = (string) config('judicial-branch.proxy.host', 'rp.scrapegw.com');
-        $port     = (int)    config('judicial-branch.proxy.port', 6060);
+        $host = (string) config('judicial-branch.proxy.host', 'rp.scrapegw.com');
+        $port = (int) config('judicial-branch.proxy.port', 6060);
         $username = (string) config('judicial-branch.proxy.username', '');
         $password = (string) config('judicial-branch.proxy.password', '');
 
@@ -47,6 +47,14 @@ class ProxyPoolService
             $this->logWarning('Proxy credentials not configured (JUDICIAL_BRANCH_PROXY_USERNAME / PASSWORD)');
 
             return null;
+        }
+
+        $sessionId = $seed !== ''
+            ? substr(hash('sha256', $seed), 0, 10)
+            : bin2hex(random_bytes(5));
+
+        if (preg_match('/-session-[a-zA-Z0-9]+/', $username)) {
+            $username = preg_replace('/-session-[a-zA-Z0-9]+/', '-session-'.$sessionId, $username);
         }
 
         return "{$protocol}://{$username}:{$password}@{$host}:{$port}";

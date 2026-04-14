@@ -16,7 +16,7 @@ class InternalNotificationChannelDriver implements NotificationChannelDriverInte
 {
     public function send(OrganizationNotification $notification, OrganizationNotificationChannel $channel): void
     {
-        /** @var ProcessAction $action */
+        /** @var \Illuminate\Database\Eloquent\Model $action */
         $action = $notification->notifiable;
         if (! $action instanceof ProcessAction) {
             return;

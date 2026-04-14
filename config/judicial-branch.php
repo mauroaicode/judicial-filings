@@ -33,13 +33,13 @@ return [
     |
     */
     'proxy' => [
-        'enabled'  => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
+        'enabled' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
         'protocol' => env('JUDICIAL_BRANCH_PROXY_PROTOCOL', 'socks5h'),
-        'host'     => env('JUDICIAL_BRANCH_PROXY_HOST', 'rp.scrapegw.com'),
-        'port'     => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 6060),
+        'host' => env('JUDICIAL_BRANCH_PROXY_HOST', 'rp.scrapegw.com'),
+        'port' => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 6060),
         'username' => env('JUDICIAL_BRANCH_PROXY_USERNAME', ''),
         'password' => env('JUDICIAL_BRANCH_PROXY_PASSWORD', ''),
-        'timeout'  => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 30),
+        'timeout' => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 30),
 
         /*
          * Jitter aleatorio entre peticiones al Portal Judicial.

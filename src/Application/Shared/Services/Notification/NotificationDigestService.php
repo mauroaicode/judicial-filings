@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
+use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable;
 use Src\Application\Shared\Notifications\ConsolidatedJudicialActionsNotification;
 use Src\Domain\Notification\Models\NotificationDigest;
@@ -23,8 +25,8 @@ class NotificationDigestService
         // 1. Get all pending email notifications for this organization
         $notifications = $organization->notifications()
             ->where('is_email_notified', false)
-            ->where('notifiable_type', (new ProcessAction())->getMorphClass())
-            ->orderedByNotifiableConsActionDesc()
+            ->where('notifiable_type', (new ProcessAction)->getMorphClass())
+            ->orderedByNotifiableRegistrationDateDesc()
             ->with(['notifiable.process'])
             ->get();
 
@@ -51,25 +53,26 @@ class NotificationDigestService
             ->where('is_active', true)
             ->first();
 
-        if (!$emailChannel || empty($emailChannel->channel_value)) {
+        if (! $emailChannel || empty($emailChannel->channel_value)) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
                 ->warning('NotificationDigestService: No active email channel found', [
-                    'organization_id' => $organization->id
+                    'organization_id' => $organization->id,
                 ]);
+
             return;
         }
 
         // 4. Send the consolidated email
         try {
             // Persist the digest to DB first to have an ID for the frontend
-            $digest = NotificationDigest::create([
+            $digest = NotificationDigest::query()->create([
                 'organization_id' => $organization->id,
                 'data' => $digestData->toArray(),
                 'email_sent_at' => now(),
             ]);
 
             Mail::to($emailChannel->channel_value)->send(
-                new ConsolidatedJudicialActionsMailable($digestData, $organization->name)
+                new ConsolidatedJudicialActionsMailable($digestData, StrParseHelper::toTitleCase($organization->name))
             );
 
             // 5. Mark as notified and link to digest in DB
@@ -104,9 +107,9 @@ class NotificationDigestService
 
     private function prepareData(Collection $notifications, string $organizationId): Collection
     {
-        return $notifications->map(function (OrganizationNotification $notif) use ($organizationId) {
+        return $notifications->map(function (OrganizationNotification $notif) use ($organizationId): ?array {
             $action = $notif->notifiable;
-            if (!$action instanceof ProcessAction) {
+            if (! $action instanceof ProcessAction) {
                 return null;
             }
 
@@ -117,34 +120,49 @@ class NotificationDigestService
                 ->select(['subject_type', 'name_or_business_name'])
                 ->get();
 
-            $demandante = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->implode(', ');
-            $demandado = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->implode(', ');
+            $demandanteNames = $parties->where('subject_type', 'Demandante')->pluck('name_or_business_name')->unique()->sort()->values();
+            $demandante = $demandanteNames->map(fn (?string $name): ?string => StrParseHelper::toTitleCase($name))->implode(', ');
+
+            $demandadoNames = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->sort()->values();
+            $demandado = $demandadoNames->map(fn (?string $name): ?string => StrParseHelper::toTitleCase($name))->implode(', ');
 
             // Check for keywords if it's an alert
             $isAlert = $notif->notification_type === 'actuacion_alerta';
             $matchedKeywords = null;
+            $alertHighlights = [];
+
             if ($isAlert) {
-                $matchedKeywords = ProcessActionAlertHighlight::query()
+                $highlights = ProcessActionAlertHighlight::query()
                     ->where('process_action_id', $action->id)
                     ->where('organization_id', $organizationId)
-                    ->pluck('detected_text')
-                    ->unique()
-                    ->implode(', ');
+                    ->get()
+                    ->unique(fn ($h): string => "{$h->start}-{$h->end}-{$h->detected_text}-{$h->source}");
+
+                $matchedKeywords = $highlights->pluck('detected_text')->unique()->implode(', ');
+
+                $alertHighlights = $highlights->map(fn ($h): array => [
+                    'start' => $h->start,
+                    'end' => $h->end,
+                    'text' => $h->detected_text,
+                    'source' => $h->source,
+                ])->all();
             }
 
             return [
-                'court' => $process->court,
+                'process_action_id' => $action->id,
+                'court' => StrParseHelper::toTitleCase($process->court),
                 'process_number' => $process->process_number,
-                'demandante' => !empty($demandante) ? $demandante : '---',
-                'demandado' => !empty($demandado) ? $demandado : '---',
-                'action_date' => $action->action_date->format('d/m/Y'),
+                'demandante' => empty($demandante) ? '---' : $demandante,
+                'demandado' => empty($demandado) ? '---' : $demandado,
+                'action_date' => DateFormatHelper::formatDate($action->action_date),
                 'action_text' => $action->action,
                 'annotation' => $action->annotation ?: '---',
-                'start_date' => $action->start_date ? $action->start_date->format('d/m/Y') : null,
-                'end_date' => $action->end_date ? $action->end_date->format('d/m/Y') : null,
-                'registration_date' => $action->registration_date->format('d/m/Y'),
+                'term_start_date' => $action->start_date ? DateFormatHelper::formatDate($action->start_date) : null,
+                'term_end_date' => $action->end_date ? DateFormatHelper::formatDate($action->end_date) : null,
+                'registration_date' => DateFormatHelper::formatDate($action->registration_date),
                 'is_alert' => $isAlert,
                 'matched_keywords' => $matchedKeywords,
+                'alert_highlights' => $alertHighlights,
             ];
         })->filter()->values();
     }

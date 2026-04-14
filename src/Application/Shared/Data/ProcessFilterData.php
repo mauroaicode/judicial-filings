@@ -39,5 +39,9 @@ class ProcessFilterData extends Data
         #[In(['active', 'inactive'])]
         public ?string $status = null,
         public mixed $has_multiple_instances = null,
+        #[In(['plaintiff', 'defendant'])]
+        public ?string $lawyer_role = null,
+        #[In(['red', 'yellow', 'green'])]
+        public ?string $severity_color = null,
     ) {}
 }

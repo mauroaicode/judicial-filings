@@ -1,4 +1,5 @@
 <?php
+
 /** @noinspection DuplicatedCode */
 
 declare(strict_types=1);
@@ -53,8 +54,8 @@ class DeliverNotificationChannelJob implements ShouldQueue
     {
         return match ($this->channelType) {
             'sms', 'whatsapp' => 2,
-            'internal'        => 3,
-            default           => 3,
+            'internal' => 3,
+            default => 3,
         };
     }
 
@@ -75,20 +76,21 @@ class DeliverNotificationChannelJob implements ShouldQueue
                 'notification_found' => $notification !== null,
                 'channel_found' => $channel !== null,
             ]);
+
             return;
         }
 
         Log::channel($logChannel)->info('DeliverNotificationChannelJob: Processing job', [
             'notification_id' => $this->notificationId,
             'channel_id' => $this->channelId,
-            'channel_type' => $this->channelType
+            'channel_type' => $this->channelType,
         ]);
 
         $driver = $dispatcher->getDriver($channel->channel_type);
 
         if (! $driver instanceof NotificationChannelDriverInterface) {
             Log::channel($logChannel)->warning('DeliverNotificationChannelJob: Unknown driver', [
-                'channel_type' => $channel->channel_type
+                'channel_type' => $channel->channel_type,
             ]);
 
             return;

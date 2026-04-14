@@ -64,7 +64,8 @@ class ConsolidatedJudicialActionsNotification extends Notification implements Sh
         if ($this->alertsCount > 0) {
             $description .= " y {$this->alertsCount} alertas por palabras clave";
         }
-        $description .= " en sus procesos seguidos.";
+
+        $description .= ' en sus procesos seguidos.';
 
         return [
             'digest_id' => $this->digest->id,

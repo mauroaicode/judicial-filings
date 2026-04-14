@@ -15,7 +15,7 @@ return new class extends Migration
             $table->dropForeign('organization_notifications_organization_id_foreign');
             $table->dropPrimary();
         });
-        
+
         Schema::table('organization_notifications', function (Blueprint $table) {
             $table->primary(['organization_id', 'notifiable_id', 'notifiable_type', 'notification_type']);
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');

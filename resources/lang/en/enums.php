@@ -27,4 +27,8 @@ return [
         'active' => 'Active',
         'inactive' => 'Inactive',
     ],
+    'process_lawyer_role' => [
+        'plaintiff' => 'Plaintiff',
+        'defendant' => 'Defendant',
+    ],
 ];

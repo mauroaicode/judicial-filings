@@ -14,11 +14,14 @@ class CreateKeywordService
      */
     public function handle(KeywordData $data, string $organizationId): Keyword
     {
-        return Keyword::query()->create([
+        /** @var Keyword $keyword */
+        $keyword = Keyword::query()->create([
             'organization_id' => $organizationId,
             'name' => $data->name,
             'keyword' => $data->keyword,
             'status' => $data->status,
         ]);
+
+        return $keyword;
     }
 }

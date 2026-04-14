@@ -51,7 +51,7 @@ class NotificationDispatcherService
         foreach ($channels as $channel) {
             // Skip email and internal for immediate dispatch to allow for consolidated digest
             // BUT ONLY IF it's a judicial action. Other notifications (like import finished) should be immediate.
-            $isJudicialAction = $notification->notifiable_type === (new ProcessAction())->getMorphClass();
+            $isJudicialAction = $notification->notifiable_type === (new ProcessAction)->getMorphClass();
 
             if ($isJudicialAction && in_array($channel->channel_type, ['email', 'internal'], true)) {
                 continue;
@@ -66,11 +66,7 @@ class NotificationDispatcherService
                     'queue' => $queueName,
                 ]);
 
-            DeliverNotificationChannelJob::dispatch(
-                $notification->id,
-                $channel->id,
-                $channel->channel_type
-            )->onQueue($queueName);
+            dispatch(new DeliverNotificationChannelJob($notification->id, $channel->id, $channel->channel_type))->onQueue($queueName);
         }
     }
 

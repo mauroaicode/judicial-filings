@@ -1,11 +1,16 @@
 <?php
 
 return [
-    'custom' => [
-        'alert_slug_only_for_alerta' => 'El filtro por tipo de alerta (alert_slug) solo aplica cuando type es actuacion_alerta.',
-    ],
+    'required' => 'El campo :attribute es obligatorio.',
+    'enum' => 'El valor seleccionado para :attribute es inválido.',
+    'array' => 'El campo :attribute debe ser un arreglo.',
     'regex' => 'El formato de :attribute es inválido.',
-    'process_number.regex' => 'El número de radicado debe tener exactamente 23 dígitos numéricos.',
+    'min' => [
+        'array' => 'El campo :attribute debe tener al menos :min elementos.',
+    ],
+    'process_number' => [
+        'regex' => 'El número de radicado debe tener exactamente 23 dígitos numéricos.',
+    ],
     'file' => [
         'required' => 'El archivo es requerido.',
         'file' => 'El campo debe ser un archivo válido.',
@@ -40,5 +45,8 @@ return [
             'unique_cedula' => 'Ya existe una organización registrada con este número de identificación.',
             'unique_nit' => 'Ya existe una organización registrada con este NIT.',
         ],
+    ],
+    'custom' => [
+        'alert_slug_only_for_alerta' => 'El filtro por tipo de alerta (alert_slug) solo aplica cuando type es actuacion_alerta.',
     ],
 ];

@@ -17,7 +17,7 @@ class ListKeywordService
     /**
      * Handle the keyword listing.
      *
-     * @return LengthAwarePaginator<\Src\Domain\Keyword\Models\Keyword>
+     * @return LengthAwarePaginator<int, array<string, mixed>>
      */
     public function handle(KeywordFilterData $filters, string $organizationId, int $perPage = 20, int $page = 1): LengthAwarePaginator
     {
@@ -25,19 +25,21 @@ class ListKeywordService
 
         $this->applyFilters($query, $filters);
 
+        /** @var LengthAwarePaginatorImpl<int, Keyword> $paginator */
         $paginator = $query->orderByCreatedAt()->paginate($perPage, ['*'], 'page', $page);
 
-        $items = $paginator->getCollection()->map(function (Keyword $keyword) {
-            return KeywordResource::fromModel($keyword)->toArray();
-        })->all();
+        $items = $paginator->getCollection()->map(fn (Keyword $keyword): array => KeywordResource::fromModel($keyword)->toArray())->all();
 
-        return new LengthAwarePaginatorImpl(
+        /** @var LengthAwarePaginatorImpl<int, array<string, mixed>> $result */
+        $result = new LengthAwarePaginatorImpl(
             $items,
             $paginator->total(),
             $perPage,
             $page,
             ['path' => request()->url(), 'query' => request()->query()]
         );
+
+        return $result;
     }
 
     /**

@@ -7,11 +7,9 @@ namespace Src\Application\Shared\Services\Process;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
-use Src\Domain\Process\Events\JudicialActionDetected;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
@@ -25,10 +23,6 @@ readonly class ProcessActionAlertNotificationService
 
     /**
      * Entry point to process notifications and alerts for a new judicial action.
-     *
-     * @param ProcessAction $action
-     * @param Process $process
-     * @return void
      */
     public function handle(ProcessAction $action, Process $process): void
     {
@@ -50,8 +44,7 @@ readonly class ProcessActionAlertNotificationService
     /**
      * Fetch active organizations interested in the process with their keywords.
      *
-     * @param Process $process
-     * @return Collection
+     * @return Collection<int, Organization>
      */
     private function getInterestedOrganizations(Process $process): Collection
     {
@@ -63,10 +56,6 @@ readonly class ProcessActionAlertNotificationService
 
     /**
      * Execute keyword detection and coordinate highlighting for a specific organization.
-     *
-     * @param ProcessAction $action
-     * @param Organization $organization
-     * @return void
      */
     private function processAlertsForOrganization(ProcessAction $action, Organization $organization): void
     {
@@ -76,18 +65,24 @@ readonly class ProcessActionAlertNotificationService
             return;
         }
 
-        $this->notifyAlertDetected($action, $organization->id);
+        // Determine highest severity
+        $bestColor = null;
+        $order = ['red' => 3, 'yellow' => 2, 'green' => 1];
+
+        foreach ($detectionResults as $result) {
+            $color = $result['keyword']->severity_color;
+            if ($color && (! $bestColor || ($order[$color] ?? 0) > ($order[$bestColor] ?? 0))) {
+                $bestColor = $color;
+            }
+        }
+
+        $this->notifyAlertDetected($action, $organization->id, $bestColor);
 
         $this->registerHighlightsAndGlobalKeywords($action, $organization->id, $detectionResults);
     }
 
     /**
      * Persist position-based highlights and map hits to global alert categories.
-     *
-     * @param ProcessAction $action
-     * @param string $organizationId
-     * @param \Illuminate\Support\Collection $detectionResults
-     * @return void
      */
     private function registerHighlightsAndGlobalKeywords(ProcessAction $action, string $organizationId, \Illuminate\Support\Collection $detectionResults): void
     {
@@ -105,23 +100,19 @@ readonly class ProcessActionAlertNotificationService
                 ]);
 
                 $globalKeyword = AlertActionKeyword::matchFragment($match['text']);
-                if ($globalKeyword) {
+                if ($globalKeyword instanceof \Src\Domain\Process\Models\AlertActionKeyword) {
                     $globalKeywordIds[$globalKeyword->id] = true;
                 }
             }
         }
 
-        if (! empty($globalKeywordIds)) {
+        if ($globalKeywordIds !== []) {
             $action->alertActionKeywords()->syncWithoutDetaching(array_keys($globalKeywordIds));
         }
     }
 
     /**
      * Dispatch a standard "new action" notification.
-     *
-     * @param ProcessAction $action
-     * @param string $organizationId
-     * @return void
      */
     private function notifyNewAction(ProcessAction $action, string $organizationId): void
     {
@@ -130,25 +121,16 @@ readonly class ProcessActionAlertNotificationService
 
     /**
      * Dispatch a keyword-triggered "alert" notification.
-     *
-     * @param ProcessAction $action
-     * @param string $organizationId
-     * @return void
      */
-    private function notifyAlertDetected(ProcessAction $action, string $organizationId): void
+    private function notifyAlertDetected(ProcessAction $action, string $organizationId, ?string $severityColor = null): void
     {
-        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta');
+        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta', $severityColor);
     }
 
     /**
      * Create a notification record and dispatch the notification job.
-     *
-     * @param ProcessAction $action
-     * @param string $organizationId
-     * @param string $notificationType
-     * @return void
      */
-    private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType): void
+    private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType, ?string $severityColor = null): void
     {
         OrganizationNotification::query()->firstOrCreate(
             [
@@ -156,6 +138,7 @@ readonly class ProcessActionAlertNotificationService
                 'notifiable_id' => $action->id,
                 'notifiable_type' => $action->getMorphClass(),
                 'notification_type' => $notificationType,
+                'severity_color' => $severityColor,
             ],
             [
                 'id' => (string) Str::uuid(),
@@ -168,6 +151,7 @@ readonly class ProcessActionAlertNotificationService
             ->info('Notification recorded for digest', [
                 'organization_id' => $organizationId,
                 'type' => $notificationType,
+                'color' => $severityColor,
                 'action_id' => $action->id,
             ]);
     }

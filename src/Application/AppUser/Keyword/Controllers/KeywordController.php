@@ -6,7 +6,6 @@ namespace Src\Application\AppUser\Keyword\Controllers;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Src\Application\AppUser\Keyword\Data\KeywordData;
 use Src\Application\AppUser\Keyword\Data\KeywordFilterData;
 use Src\Application\AppUser\Keyword\Resources\KeywordResource;
@@ -58,6 +57,7 @@ readonly class KeywordController
             abort(422, __('process.user_has_no_organization'));
         }
 
+        /** @var Keyword $keyword */
         $keyword = Keyword::query()
             ->whereOrganization($organization->id)
             ->findOrFail($id);

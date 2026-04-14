@@ -58,7 +58,7 @@ class ImportRadicadoJob implements ShouldQueue
 
         try {
             $seed = $this->processNumber.':'.$this->attempts();
-            $result = $registerProcessService->handle($this->processNumber, $this->organizationId, $seed);
+            $result = $registerProcessService->handle($this->processNumber, $this->organizationId, null, $seed);
 
             $this->incrementBatchSuccess($result->registeredCount);
 
@@ -177,7 +177,7 @@ class ImportRadicadoJob implements ShouldQueue
             if ($e->retryAfter !== null && $e->retryAfter > 0) {
                 $this->log('warning', 'Retry-After header received — honouring server wait', [
                     'retry_after_seconds' => $e->retryAfter,
-                    'attempt'             => $this->attempts(),
+                    'attempt' => $this->attempts(),
                 ]);
 
                 return [$e->retryAfter, $maxAttempts];

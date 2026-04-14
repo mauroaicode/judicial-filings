@@ -13,7 +13,6 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
-use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\AppUser\QueryBuilders\AppUserQueryBuilder;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Shared\Traits\Uuid;

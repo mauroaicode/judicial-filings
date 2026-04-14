@@ -26,8 +26,7 @@ class GenerateProcessAiSummaryJob implements ShouldQueue
         public string $organizationId,
         public AppUser $appUser,
         public ?string $prompt = null
-    ) {
-    }
+    ) {}
 
     /**
      * @throws Exception
@@ -62,9 +61,8 @@ class GenerateProcessAiSummaryJob implements ShouldQueue
         $markdown .= $this->buildGeneralInformation();
         $markdown .= $this->buildSubjectsSection();
         $markdown .= $this->buildActionsSection();
-        $markdown .= $this->buildAiNotice();
 
-        return $markdown;
+        return $markdown.$this->buildAiNotice();
     }
 
     private function buildHeader(): string
@@ -78,9 +76,8 @@ class GenerateProcessAiSummaryJob implements ShouldQueue
         $markdown .= "- **Despacho:** {$this->process->court}\n";
         $markdown .= "- **Departamento:** {$this->process->department}\n";
         $markdown .= "- **Tipo de Proceso:** {$this->process->process_type}\n";
-        $markdown .= "- **Clase de Proceso:** {$this->process->process_class}\n\n";
 
-        return $markdown;
+        return $markdown."- **Clase de Proceso:** {$this->process->process_class}\n\n";
     }
 
     private function buildSubjectsSection(): string
@@ -89,14 +86,14 @@ class GenerateProcessAiSummaryJob implements ShouldQueue
         $markdown = "## Sujetos Procesales\n";
 
         if ($subjects->isEmpty()) {
-            return $markdown . "*No hay sujetos procesales registrados.*\n\n";
+            return $markdown."*No hay sujetos procesales registrados.*\n\n";
         }
 
         foreach ($subjects as $subject) {
             $markdown .= "- **{$subject->subject_type}:** {$subject->name_or_business_name} ({$subject->identification})\n";
         }
 
-        return $markdown . "\n";
+        return $markdown."\n";
     }
 
     private function buildActionsSection(): string
@@ -105,7 +102,7 @@ class GenerateProcessAiSummaryJob implements ShouldQueue
         $markdown = "## Actuaciones\n";
 
         if ($actions->isEmpty()) {
-            return $markdown . "*No hay actuaciones registradas.*\n\n";
+            return $markdown."*No hay actuaciones registradas.*\n\n";
         }
 
         foreach ($actions as $action) {
@@ -121,8 +118,8 @@ class GenerateProcessAiSummaryJob implements ShouldQueue
         $hasNoData = $this->process->subjects->isEmpty() &&
             $this->process->actions()->count() === 0;
 
-        if (!$hasNoData) {
-            return "";
+        if (! $hasNoData) {
+            return '';
         }
 
         return "\n---\n**AVISO PARA IA:** Este proceso es muy reciente o no tiene datos públicos de actuaciones/sujetos aún. Por favor, genera un resumen indicando que solo se dispone de la información básica de radicación.";

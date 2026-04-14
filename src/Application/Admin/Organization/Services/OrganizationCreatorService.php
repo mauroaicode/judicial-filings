@@ -10,7 +10,6 @@ use Illuminate\Support\Str;
 use Src\Application\Admin\Organization\Data\StoreOrganizationData;
 use Src\Application\Shared\Notifications\AccountCreatedNotification;
 use Src\Domain\AppUser\Models\AppUser;
-use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Organization\Models\Organization;
 use Throwable;
 

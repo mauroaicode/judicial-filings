@@ -27,7 +27,7 @@ it('can request a password reset link using identification', function (): void {
     $response->assertJson(['message' => __('auth.forgot_password_sent')]);
 
     Notification::assertSentTo($this->appUser, ForgotPasswordNotification::class);
-    
+
     $this->assertDatabaseHas('password_reset_tokens', [
         'email' => $this->appUser->email,
     ]);
@@ -41,7 +41,7 @@ it('returns error if identification is not found', function (): void {
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['identification']);
     expect($response->json('errors.identification.0'))->toBe(__('auth.user_not_found'));
-    
+
     Notification::assertNothingSent();
 });
 
@@ -66,7 +66,7 @@ it('can reset password with a valid token', function (): void {
     $this->appUser->refresh();
     expect(Hash::check('new-password-1234', $this->appUser->password))->toBeTrue();
     expect($this->appUser->must_change_password)->toBeFalse();
-    
+
     $this->assertDatabaseMissing('password_reset_tokens', [
         'email' => $this->appUser->email,
     ]);
@@ -94,7 +94,7 @@ it('rejects password reset with invalid token', function (): void {
 it('rejects password reset with expired token', function (): void {
     $token = 'expired-token';
     $expire = config('auth.passwords.users.expire');
-    
+
     DB::table('password_reset_tokens')->insert([
         'email' => $this->appUser->email,
         'token' => Hash::make($token),

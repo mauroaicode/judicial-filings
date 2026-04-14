@@ -19,7 +19,7 @@ trait AnnotationAlertDetectionTrait
     protected function filterAllowedFragments(array $fragments): array
     {
         try {
-            if (! Schema::hasTable('alert_actions_keywords')) {
+            if (! Schema::hasTable('alert_actions_keywords') || AlertActionKeyword::query()->count() === 0) {
                 return $this->filterAllowedFragmentsFromConfig($fragments);
             }
 

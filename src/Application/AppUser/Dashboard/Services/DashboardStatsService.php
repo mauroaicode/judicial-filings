@@ -14,6 +14,10 @@ readonly class DashboardStatsService
 {
     public function handle(string $organizationId, ProcessFilterData $filters): DashboardStatsResource
     {
+        if ($filters->lawyer_role === 'none' && $filters->severity_color === 'none') {
+            abort(422, __('process.invalid_none_combination'));
+        }
+
         $processCounts = $this->getProcessCounts($organizationId, $filters);
         $notificationCountsByType = $this->getNotificationCountsByType($organizationId);
 
@@ -28,34 +32,59 @@ readonly class DashboardStatsService
 
     /**
      * Counts unique radicados (by process_number) applying the same filters as the process list.
-     * Uses the filteredIdsQuery pattern to ensure consistent results with the listing endpoint.
+     * Uses the filtered base query pattern to ensure consistent results with the listing endpoint.
      *
      * @return array{total: int, active: int, inactive: int, multiple_instances: int}
      */
     private function getProcessCounts(string $organizationId, ProcessFilterData $filters): array
     {
-        $filteredIdsQuery = Process::query()
-            ->whereOrganization($organizationId)
-            ->filters($filters)
-            ->select('id');
+        $baseQueryBuilder = function (ProcessFilterData $currentFilters) use ($organizationId) {
+            $nonPivotFilters = clone $currentFilters;
+            $nonPivotFilters->lawyer_role = null;
+            $nonPivotFilters->severity_color = null;
+            $nonPivotFilters->status = null;
 
-        $total = (int) Process::query()
-            ->whereIn('id', $filteredIdsQuery)
-            ->distinct()
-            ->count('process_number');
+            return Process::query()
+                ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId, $currentFilters): void {
+                    $query->where('organizations.id', $organizationId);
 
-        $active = (int) Process::query()
-            ->whereIn('id', $filteredIdsQuery)
-            ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($organizationId): void {
-                $q->where('organizations.id', $organizationId)
-                    ->where('organization_processes.is_active', true);
-            })
-            ->distinct()
-            ->count('process_number');
+                    if ($currentFilters->status) {
+                        $isActive = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::tryFrom($currentFilters->status) === \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE;
+                        $query->where('organization_processes.is_active', $isActive);
+                    }
+
+                    if ($currentFilters->lawyer_role) {
+                        if ($currentFilters->lawyer_role === 'none') {
+                            $query->whereNull('organization_processes.lawyer_role');
+                        } else {
+                            $query->where('organization_processes.lawyer_role', $currentFilters->lawyer_role);
+                        }
+                    }
+
+                    if ($currentFilters->severity_color) {
+                        if ($currentFilters->severity_color === 'none') {
+                            $query->where(function (\Illuminate\Contracts\Database\Query\Builder $q): void {
+                                $q->whereNull('organization_processes.inactivity_alert_level')
+                                    ->orWhereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $p) => $p->whereNull('last_activity_date'));
+                            });
+                        } else {
+                            $query->where('organization_processes.inactivity_alert_level', $currentFilters->severity_color);
+                        }
+                    }
+                })
+                ->filters($nonPivotFilters);
+        };
+
+        $totalQuery = $baseQueryBuilder($filters);
+        $total = (int) $totalQuery->distinct()->count('process_number');
+
+        $activeFilters = clone $filters;
+        $activeFilters->status = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value;
+
+        $active = (int) $baseQueryBuilder($activeFilters)->distinct()->count('process_number');
 
         $multipleInstances = (int) DB::table(
-            Process::query()
-                ->whereIn('id', $filteredIdsQuery)
+            $baseQueryBuilder($filters)
                 ->select('process_number')
                 ->groupBy('process_number')
                 ->havingRaw('COUNT(*) > 1')

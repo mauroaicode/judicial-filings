@@ -9,7 +9,6 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Sleep;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
@@ -33,6 +32,10 @@ class JudicialBranchConsultService
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_4_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0',
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15',
+        'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0',
     ];
 
     /**
@@ -49,8 +52,7 @@ class JudicialBranchConsultService
 
     public function __construct(
         private readonly ProxyPoolService $proxyPool,
-    ) {
-    }
+    ) {}
 
     /**
      * Sets the radicado seed for this service instance.
@@ -299,19 +301,20 @@ class JudicialBranchConsultService
     {
         $proxyEnabled = config('judicial-branch.proxy.enabled', false);
         $timeout = (int) config('judicial-branch.proxy.timeout', 45);
+        $userAgent = $this->resolveUserAgent();
 
         $client = Http::timeout($timeout)
             ->withHeaders([
-                'User-Agent'       => $this->resolveUserAgent(),
-                'Accept'           => 'application/json, text/plain, */*',
-                'Accept-Language'  => 'es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Accept-Encoding'  => 'gzip, deflate, br',
-                'Connection'       => 'keep-alive',
-                'Sec-Fetch-Dest'   => 'empty',
-                'Sec-Fetch-Mode'   => 'cors',
-                'Sec-Fetch-Site'   => 'same-origin',
+                'User-Agent' => $userAgent,
+                'Accept' => 'application/json, text/plain, */*',
+                'Accept-Language' => 'es-CO,es;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding' => 'gzip, deflate, br',
+                'Connection' => 'keep-alive',
+                'Sec-Fetch-Dest' => 'empty',
+                'Sec-Fetch-Mode' => 'cors',
+                'Sec-Fetch-Site' => 'same-origin',
                 'Sec-Ch-Ua-Mobile' => '?0',
-                'DNT'              => '1',
+                'DNT' => '1',
             ])
             ->withOptions(['cookies' => $this->cookieJar ?? new CookieJar]);
 
@@ -321,95 +324,68 @@ class JudicialBranchConsultService
 
             if ($proxyUrl !== null) {
                 $client = $client->withOptions([
-                    'proxy'   => $proxyUrl,
+                    'proxy' => $proxyUrl,
                 ]);
 
-                $this->logInfo('Using rotating residential proxy (Rotating per request)');
+                $this->logInfo('Executing request', [
+                    'proxy_url' => $proxyUrl,
+                    'user_agent' => $userAgent,
+                ]);
+            } else {
+                $this->logInfo('Executing request (direct, no proxy available)', [
+                    'user_agent' => $userAgent,
+                ]);
             }
+        } else {
+            $this->logInfo('Executing request (direct connection)', [
+                'user_agent' => $userAgent,
+            ]);
         }
 
         return $client;
     }
 
-    /**
-     * Executes an HTTP request with exponential backoff and Retry-After handling.
-     *
-     * @param  callable  $request  A closure that returns the Response.
-     */
     private function performRequestWithRetries(callable $request, string $context): Response
     {
-        $maxRetries = 6; // Aumentamos reintentos internos para proxies residenciales inestables
-        $attempt = 0;
+        try {
+            /** @var Response $response */
+            $response = $request();
 
-        while (true) {
-            try {
-                /** @var Response $response */
-                $response = $request();
+            $status = $response->status();
 
-                $status = $response->status();
-
-                // If successful (or not a retryable error like 404), return immediately
-                if ($status < 400 || $status === 404) {
-                    return $response;
+            // If successful (or not a retryable error like 404), return immediately
+            if ($status < 400 || $status === 404) {
+                // Soft-block detection: If we expect JSON but receive an HTML 200 OK,
+                // it means the proxy or Azure WAF returned a Captcha or SPA fallback page.
+                $contentType = $response->header('Content-Type');
+                if ($status === 200 && str_contains($contentType, 'text/html')) {
+                    $this->throwIfForbiddenOrRateLimit(403, $context, $response);
                 }
 
-                // Handle 403 (Forbidden) or 429 (Too Many Requests)
-                if ($status === 403 || $status === 429) {
-                    if ($attempt >= $maxRetries) {
-                        $this->throwIfForbiddenOrRateLimit($status, $context, $response);
-                    }
-
-                    $this->handleCooldown($response, $attempt);
-                    $attempt++;
-
-                    continue;
-                }
-
-                // For other errors, just return the response and let the caller handle it
                 return $response;
-
-            } catch (Throwable $th) {
-                // Handle raw connection errors (proxy failures, timeouts)
-                if ($attempt >= $maxRetries) {
-                    $this->throwIfProxyFailure($th, $context);
-                    throw $th;
-                }
-
-                $this->logWarning("Request attempt {$attempt} failed, retrying...", [
-                    'context' => $context,
-                    'error'   => $th->getMessage(),
-                ]);
-
-                $this->handleCooldown(null, $attempt);
-                $attempt++;
             }
-        }
-    }
 
-    /**
-     * Handles waiting before a retry, using Retry-After header or exponential backoff.
-     */
-    private function handleCooldown(?Response $response, int $attempt): void
-    {
-        $seconds = 0;
-
-        // 1. Check for Retry-After header
-        if ($response !== null) {
-            $retryAfter = $response->header('Retry-After');
-            if ($retryAfter !== '' && $retryAfter !== null) {
-                $seconds = is_numeric($retryAfter)
-                    ? (int) $retryAfter
-                    : (int) max(0, strtotime($retryAfter) - time());
+            // Handle 403 (Forbidden) or 429 (Too Many Requests)
+            if ($status === 403 || $status === 429) {
+                // ¡FALLO RÁPIDO!
+                $this->throwIfForbiddenOrRateLimit($status, $context, $response);
             }
-        }
 
-        // 2. If no Retry-After, apply exponential backoff (2s, 4s, 8s)
-        if ($seconds <= 0) {
-            $seconds = (int) pow(2, $attempt + 1);
-        }
+            // For other errors, just return the response and let the caller handle it
+            return $response;
 
-        $this->logInfo("Pausing for {$seconds}s before retry...", ['attempt' => $attempt]);
-        Sleep::sleep($seconds);
+        } catch (Throwable $th) {
+            // Ignore API exceptions we just threw
+            if ($th instanceof ApiForbiddenOrRateLimitException) {
+                throw $th;
+            }
+
+            // Tratamos todo error de conexión (timeout, proxy drop) como fallo rápido
+            // para que Laravel genere una nueva sesión y pase de proxy.
+            $this->throwIfProxyFailure($th, $context);
+
+            throw $th;
+        }
     }
 
     /**
@@ -429,7 +405,7 @@ class JudicialBranchConsultService
     /**
      * Paces HTTP calls using a random jitter delay.
      *
-     * @param bool $fast If true, uses a shorter delay suitable for pagination clicks.
+     * @param  bool  $fast  If true, uses a shorter delay suitable for pagination clicks.
      */
     private function applyJitter(bool $fast = false): void
     {
@@ -459,18 +435,18 @@ class JudicialBranchConsultService
     {
         $retryAfter = null;
 
-        if ($httpResponse !== null) {
+        if ($httpResponse instanceof \Illuminate\Http\Client\Response) {
             $retryAfterHeader = $httpResponse->header('Retry-After');
 
-            if ($retryAfterHeader !== '' && $retryAfterHeader !== null) {
+            if (! empty($retryAfterHeader)) {
                 $retryAfter = is_numeric($retryAfterHeader)
                     ? (int) $retryAfterHeader
-                    : (int) max(0, strtotime($retryAfterHeader) - time());
+                    : max(0, strtotime($retryAfterHeader) - time());
             }
         }
 
         $this->logWarning("HTTP {$status} del Portal Judicial — Max retries reached", [
-            'context'     => $context,
+            'context' => $context,
             'retry_after' => $retryAfter,
         ]);
 
@@ -489,26 +465,16 @@ class JudicialBranchConsultService
     {
         $message = $th->getMessage();
 
-        $isCurlError7  = str_contains($message, 'cURL error 7');
-        $isCurlError28 = str_contains($message, 'cURL error 28');
-        $isCurlError56 = str_contains($message, 'cURL error 56');
-
-        if (! $isCurlError7 && ! $isCurlError28 && ! $isCurlError56) {
+        if (! str_contains($message, 'cURL error')) {
             return;
         }
 
-        $label = match (true) {
-            $isCurlError7  => 'proxy gateway unreachable (CURLE_COULDNT_CONNECT)',
-            $isCurlError28 => 'proxy timeout (CURLE_OPERATION_TIMEDOUT)',
-            default        => 'proxy tunnel failed (CURLE_RECV_ERROR)',
-        };
-
-        $this->logWarning("Proxy fatal error — {$label}", [
+        $this->logWarning("Proxy fatal error — {$message}", [
             'context' => $context,
         ]);
 
         throw new ApiProxyFailureException(
-            "Proxy error on {$context}: {$label}. Max retries reached."
+            "Proxy curl error on {$context}: {$message}. Max retries reached."
         );
     }
 

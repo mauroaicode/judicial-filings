@@ -10,8 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-
-class ProcessImportFailedNotification extends Notification implements ShouldQueue, ShouldBroadcast
+class ProcessImportFailedNotification extends Notification implements ShouldBroadcast, ShouldQueue
 {
     use Queueable;
 
@@ -55,7 +54,7 @@ class ProcessImportFailedNotification extends Notification implements ShouldQueu
             'title' => __('process.import_failed_title'),
             'description' => __('process.import_failed_description', [
                 'number' => $this->processNumber,
-                'error' => $this->error
+                'error' => $this->error,
             ]),
             'type' => 'process-import-failed',
             'id' => $this->processNumber, // Using process number as ID since we don't have a model ID
@@ -72,7 +71,7 @@ class ProcessImportFailedNotification extends Notification implements ShouldQueu
             'title' => __('process.import_failed_title'),
             'description' => __('process.import_failed_description', [
                 'number' => $this->processNumber,
-                'error' => $this->error
+                'error' => $this->error,
             ]),
             'type' => 'process-import-failed',
             'id' => $this->processNumber,

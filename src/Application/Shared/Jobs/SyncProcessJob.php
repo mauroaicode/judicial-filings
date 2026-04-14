@@ -63,11 +63,11 @@ class SyncProcessJob implements ShouldQueue
             $delay = $this->resolveRateLimitDelay($e);
 
             Log::channel($channel)->warning('SyncProcessJob rate-limited, will retry', [
-                'process_number'  => $this->processNumber,
-                'attempt'         => $this->attempts(),
+                'process_number' => $this->processNumber,
+                'attempt' => $this->attempts(),
                 'release_seconds' => $delay,
-                'retry_after'     => $e->retryAfter,
-                'message'         => $e->getMessage(),
+                'retry_after' => $e->retryAfter,
+                'message' => $e->getMessage(),
             ]);
 
             $this->release($delay);
@@ -76,10 +76,10 @@ class SyncProcessJob implements ShouldQueue
             $delay = (int) config('judicial-sync.retry_release_seconds_for_proxy_failure', 5);
 
             Log::channel($channel)->warning('SyncProcessJob proxy failure, will retry with next IP', [
-                'process_number'  => $this->processNumber,
-                'attempt'         => $this->attempts(),
+                'process_number' => $this->processNumber,
+                'attempt' => $this->attempts(),
                 'release_seconds' => $delay,
-                'message'         => $e->getMessage(),
+                'message' => $e->getMessage(),
             ]);
 
             $this->release($delay);
@@ -87,8 +87,8 @@ class SyncProcessJob implements ShouldQueue
         } catch (Throwable $e) {
             Log::channel($channel)->error('SyncProcessJob failed', [
                 'process_number' => $this->processNumber,
-                'attempt'        => $this->attempts(),
-                'message'        => $e->getMessage(),
+                'attempt' => $this->attempts(),
+                'message' => $e->getMessage(),
             ]);
 
             throw $e;

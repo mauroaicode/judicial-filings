@@ -42,7 +42,7 @@ class AppUserResource extends Resource
             identification: $appUser->identification,
             slug: $appUser->slug,
             profile_image: $appUser->profile_image,
-            must_change_password: $appUser->must_change_password,
+            must_change_password: (bool) ($appUser->must_change_password ?? true),
             roles: $roles,
         );
     }

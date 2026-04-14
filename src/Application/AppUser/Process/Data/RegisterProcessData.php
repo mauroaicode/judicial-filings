@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Process\Data;
 
 use Illuminate\Validation\Validator;
+use Spatie\LaravelData\Attributes\Validation\Enum;
 use Spatie\LaravelData\Attributes\Validation\Regex;
 use Spatie\LaravelData\Attributes\Validation\Required;
 use Spatie\LaravelData\Data;
 use Src\Application\Shared\Traits\TranslatableDataAttributesTrait;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
 
 class RegisterProcessData extends Data
 {
@@ -17,6 +19,8 @@ class RegisterProcessData extends Data
     public function __construct(
         #[Required, Regex('/^\d{23}$/')]
         public readonly string $process_number,
+        #[Required, Enum(ProcessLawyerRole::class)]
+        public readonly ProcessLawyerRole $lawyer_role,
     ) {}
 
     public static function withValidator(Validator $validator): void

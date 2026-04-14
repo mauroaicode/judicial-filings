@@ -19,6 +19,7 @@ use Src\Domain\Organization\Models\Organization;
  * @property-read string $notifiable_id
  * @property-read string $notifiable_type
  * @property-read string $notification_type
+ * @property-read string|null $severity_color
  * @property-read bool $is_viewed
  * @property-read bool $is_notified
  * @property-read Carbon|null $viewed_at
@@ -50,7 +51,7 @@ class OrganizationNotification extends Model
      * @var list<string>
      */
     /** @phpstan-ignore-next-line property.phpDocType (composite key override; parent expects string) */
-    protected $primaryKey = ['organization_id', 'notifiable_id', 'notifiable_type', 'notification_type'];
+    protected $primaryKey = ['organization_id', 'notifiable_id', 'notifiable_type', 'notification_type', 'severity_color'];
 
     /**
      * @var list<string>
@@ -61,12 +62,14 @@ class OrganizationNotification extends Model
         'notifiable_id',
         'notifiable_type',
         'notification_type',
+        'severity_color',
         'is_viewed',
         'is_notified',
         'is_email_notified',
         'viewed_at',
         'notified_at',
         'email_notified_at',
+        'notification_digest_id',
     ];
 
     /**

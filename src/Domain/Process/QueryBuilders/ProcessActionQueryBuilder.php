@@ -98,6 +98,12 @@ class ProcessActionQueryBuilder extends Builder
         $this->applySearchFilter($data->search);
         $this->applyAlertSlugFilter($data->alert_slug);
 
+        // Smart Filters
+        $this->applyProcessNumberFilter($data->process_number);
+        $this->applyActionDateFilter($data->date_from, $data->date_to);
+        $this->applyAlertLevelFilter($data->alert_level);
+        $this->applyLawyerRoleFilter($data->lawyer_role);
+
         return $this;
     }
 
@@ -143,6 +149,48 @@ class ProcessActionQueryBuilder extends Builder
 
         $this->whereHas('alertActionKeywords', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($alertSlug): void {
             $q->where('slug', trim($alertSlug));
+        });
+    }
+
+    /**
+     * Filter by process number.
+     */
+    private function applyProcessNumberFilter(?string $processNumber): void
+    {
+        if (! $processNumber) {
+            return;
+        }
+
+        $this->whereHas('process', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($processNumber): void {
+            $q->where('process_number', 'LIKE', "%{$processNumber}%");
+        });
+    }
+
+    /**
+     * Filter by inactivity alert level in the organization_processes pivot.
+     */
+    private function applyAlertLevelFilter(?string $level): void
+    {
+        if (! $level) {
+            return;
+        }
+
+        $this->whereHas('process.organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($level): void {
+            $q->where('organization_processes.inactivity_alert_level', $level);
+        });
+    }
+
+    /**
+     * Filter by lawyer role in the organization_processes pivot.
+     */
+    private function applyLawyerRoleFilter(?string $role): void
+    {
+        if (! $role) {
+            return;
+        }
+
+        $this->whereHas('process.organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role): void {
+            $q->where('organization_processes.lawyer_role', $role);
         });
     }
 

@@ -36,6 +36,10 @@ class ProcessSubject extends Model
     use HasFactory;
     use Uuid;
 
+    public const TYPE_PLAINTIFF = 'Demandante';
+
+    public const TYPE_DEFENDANT = 'Demandado';
+
     protected $keyType = 'string';
 
     public $incrementing = false;

@@ -135,7 +135,7 @@ class Process extends Model
     /**
      * Get the subjects for the process (many-to-many via pivot).
      *
-     * @return EloquentBelongsToMany<ProcessSubject, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Process\Models\ProcessSubject, $this>
      */
     public function subjects(): EloquentBelongsToMany
     {
@@ -150,7 +150,7 @@ class Process extends Model
     /**
      * Get the organizations that have access to this process.
      *
-     * @return EloquentBelongsToMany<Organization, $this>
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany<\Src\Domain\Organization\Models\Organization, $this>
      */
     public function organizations(): BelongsToMany
     {
@@ -159,6 +159,16 @@ class Process extends Model
             'organization_processes',
             'process_id',
             'organization_id'
-        )->withPivot(['interest_date', 'is_active'])->withTimestamps();
+        )->withPivot(['interest_date', 'is_active', 'lawyer_role', 'inactivity_alert_level'])->withTimestamps();
+    }
+
+    /**
+     * Get the tasks for the organization.
+     *
+     * @return HasMany<\Src\Domain\Task\Models\Task, $this>
+     */
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(\Src\Domain\Task\Models\Task::class, 'process_id');
     }
 }

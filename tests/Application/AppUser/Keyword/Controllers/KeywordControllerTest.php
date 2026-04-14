@@ -56,7 +56,7 @@ it('returns paginated keywords for the user organization', function (): void {
         'organization_id' => $this->organization->id,
         'name' => 'My Keyword Two',
     ]);
-    
+
     // Keyword from another organization should not appear
     Keyword::factory()->create([
         'organization_id' => $this->otherOrganization->id,
@@ -69,7 +69,7 @@ it('returns paginated keywords for the user organization', function (): void {
     $response->assertStatus(200);
     $data = $response->json('data');
     expect($data)->toHaveCount(2);
-    
+
     $response->assertJsonFragment(['name' => 'My Keyword One']);
     $response->assertJsonFragment(['name' => 'My Keyword Two']);
     $response->assertJsonMissing(['name' => 'Other Keyword']);

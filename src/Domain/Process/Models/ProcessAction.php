@@ -11,10 +11,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Src\Domain\Process\QueryBuilders\ProcessActionQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 
@@ -25,6 +23,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read int $cons_action
  * @property-read Carbon $action_date
  * @property-read string $action
+ * @property-read bool $is_alert
  * @property-read string|null $annotation
  * @property-read Carbon|null $start_date
  * @property-read Carbon|null $end_date
@@ -135,20 +134,6 @@ class ProcessAction extends Model
             'process_action_alert_action_keyword',
             'process_action_id',
             'alert_action_keyword_id'
-        );
-    }
-
-    protected function action(): Attribute
-    {
-        return Attribute::make(
-            set: fn ($value) => is_string($value) ? Str::ucfirst(Str::lower($value)) : $value
-        );
-    }
-
-    protected function annotation(): Attribute
-    {
-        return Attribute::make(
-            set: fn ($value) => is_string($value) ? Str::ucfirst(Str::lower($value)) : $value
         );
     }
 }

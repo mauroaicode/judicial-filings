@@ -4,17 +4,12 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\DispatchOrganizationDigestsJob;
-use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Jobs\SyncProcessJob;
-use Src\Application\Shared\Services\JudicialBranchConsultService;
-use Src\Domain\Notification\Models\OrganizationNotification;
-use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\Process;
 
 class SyncJudicialProcessesCommand extends Command
@@ -34,9 +29,8 @@ class SyncJudicialProcessesCommand extends Command
      */
     protected $description = 'Sync processes with Judicial Branch API and dispatch notification jobs';
 
-    public function __construct(
-        private readonly JudicialBranchConsultService $judicialService
-    ) {
+    public function __construct()
+    {
         parent::__construct();
     }
 
@@ -87,14 +81,15 @@ class SyncJudicialProcessesCommand extends Command
                 'jobs_count' => count($jobs),
             ]);
 
-            $this->info("Dispatched " . count($jobs) . " sync jobs in a batch.");
-            $this->info("Notifications will be consolidated and sent upon batch completion.");
+            $this->info('Dispatched '.count($jobs).' sync jobs in a batch.');
+            $this->info('Notifications will be consolidated and sent upon batch completion.');
 
         } catch (\Throwable $e) {
-            $this->error("Failed to dispatch batch: " . $e->getMessage());
+            $this->error('Failed to dispatch batch: '.$e->getMessage());
             Log::channel($channel)->error('SyncJudicialProcessesCommand: Batch failing to dispatch', [
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ]);
+
             return self::FAILURE;
         }
 

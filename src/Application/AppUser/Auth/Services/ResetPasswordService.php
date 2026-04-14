@@ -40,7 +40,7 @@ class ResetPasswordService
             ->where('email', $email)
             ->first();
 
-        if (empty($record)) {
+        if ($record === []) {
             return false;
         }
 

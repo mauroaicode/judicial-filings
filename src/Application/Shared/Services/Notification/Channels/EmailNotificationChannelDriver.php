@@ -26,7 +26,7 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
             throw new \InvalidArgumentException('Email channel has no recipient address.');
         }
 
-        /** @var ProcessAction $action */
+        /** @var \Illuminate\Database\Eloquent\Model $action */
         $action = $notification->notifiable;
         if (! $action instanceof ProcessAction) {
             return;
@@ -36,7 +36,7 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
         $type = $notification->notification_type;
 
         // Add defensive delay to prevent Mailgun rate limiting for new accounts
-        sleep(2);
+        \Illuminate\Support\Sleep::sleep(2);
 
         try {
             Mail::to($to)->send(new JudicialActionDetectedMailable(
