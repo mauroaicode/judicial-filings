@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Src\Domain\Notification\QueryBuilders\NotificationDigestQueryBuilder;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Shared\Traits\Uuid;
@@ -18,11 +19,11 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property string $id
  * @property string $organization_id
  * @property array $data
- * @property \Illuminate\Support\Carbon|null $email_sent_at
- * @property \Illuminate\Support\Carbon|null $whatsapp_sent_at
- * @property \Illuminate\Support\Carbon|null $sms_sent_at
- * @property \Illuminate\Support\Carbon $created_at
- * @property \Illuminate\Support\Carbon $updated_at
+ * @property Carbon|null $email_sent_at
+ * @property Carbon|null $whatsapp_sent_at
+ * @property Carbon|null $sms_sent_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  *
  * @method static NotificationDigestQueryBuilder query()
  */
@@ -34,7 +35,7 @@ class NotificationDigest extends Model
     /**
      * Create a new Eloquent query builder for the model.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param Builder $query
      */
     public function newEloquentBuilder($query): NotificationDigestQueryBuilder
     {

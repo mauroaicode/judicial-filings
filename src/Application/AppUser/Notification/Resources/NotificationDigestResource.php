@@ -206,7 +206,8 @@ class NotificationDigestResource extends Resource
 
                 $item['lawyer_role'] = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
 
-                // Inyectamos el consecutivo para poder relacionar actuaciones
+                // Inyectamos el ID de la actuación y el consecutivo para poder relacionar actuaciones
+                $item['process_action_id'] = $actionModel->id;
                 $item['cons_action'] = $actionModel->cons_action;
             }
         } else {

@@ -9,83 +9,87 @@ use Illuminate\Support\Collection;
 class GroupProcessActionsService
 {
     /**
-     * Etiqueta actuaciones relacionadas de la Rama Judicial.
-     * Versión ultrarrobusta compatible con arrays y objetos.
+     * Etiqueta actuaciones relacionadas de la Rama Judicial (Fijaciones/Autos)
+     * buscando en toda la colección para inyectar notified_action_id y fijacion_action_id.
      */
     public function handle(Collection $actions): Collection
     {
-        if ($actions->isEmpty()) {
-            return $actions;
-        }
-
-        // Trabajamos con el array subyacente de la colección
-        $items = $actions->all();
-        
-        // 1. Agrupamos índices por radicado
-        $processGroups = [];
-        foreach ($items as $idx => $item) {
-            $radicado = (string) data_get($item, 'process_number', data_get($item, 'llaveProceso', 'unknown'));
-            $processGroups[$radicado][] = $idx;
-        }
-
-        foreach ($processGroups as $indices) {
-            $this->tagIndices($items, $indices);
-        }
-
-        return collect($items);
-    }
-
-    private function tagIndices(array &$items, array $indices): void
-    {
-        // Ordenamos los índices del grupo por consecutivo DESC
-        usort($indices, function($aIdx, $bIdx) use ($items) {
-            $aCons = (int) data_get($items[$aIdx], 'cons_action', data_get($items[$aIdx], 'consActuacion', 0));
-            $bCons = (int) data_get($items[$bIdx], 'cons_action', data_get($items[$bIdx], 'consActuacion', 0));
-            return $bCons <=> $aCons;
-        });
-
-        $count = count($indices);
+        $data = $actions->toArray();
+        $count = count($data);
 
         for ($i = 0; $i < $count; $i++) {
-            $currIdx = $indices[$i];
-            $actionText = (string) data_get($items[$currIdx], 'action', data_get($items[$currIdx], 'action_text', data_get($items[$currIdx], 'actuacion', '')));
-            
-            // Detección robusta de "Fijación Estado" (ignorando tildes, casos y espacios múltiples)
-            if ($this->isFijacionEstado($actionText)) {
-                $fijCons = (int) data_get($items[$currIdx], 'cons_action', data_get($items[$currIdx], 'consActuacion', 0));
-                
-                for ($j = $i + 1; $j < $count; $j++) {
-                    $nextIdx = $indices[$j];
-                    $nextCons = (int) data_get($items[$nextIdx], 'cons_action', data_get($items[$nextIdx], 'consActuacion', 0));
+            // Si no es una Fijación o ya tiene pareja, seguimos
+            if (! $this->isFijacion($data[$i]) || isset($data[$i]['notified_action_id'])) {
+                continue;
+            }
 
-                    if ($fijCons === $nextCons) {
-                        continue; // Saltamos duplicados de la misma actuación
+            // Buscamos su Auto correspondiente en el resto de la lista
+            for ($j = 0; $j < $count; $j++) {
+                if ($i === $j) continue;
+
+                if ($this->isActionPair($data[$i], $data[$j])) {
+                    // Extraemos los IDs (soportando varios nombres de campo por compatibilidad)
+                    $fijId = $data[$i]['process_action_id'] ?? $data[$i]['id'] ?? null;
+                    $autoId = $data[$j]['process_action_id'] ?? $data[$j]['id'] ?? null;
+
+                    if ($fijId && $autoId) {
+                        $data[$i]['notified_action_id'] = $autoId;
+                        $data[$j]['fijacion_action_id'] = $fijId;
+                        break; 
                     }
-
-                    $diff = $fijCons - $nextCons;
-
-                    // Si la diferencia es pequeña (hasta 5), los vinculamos
-                    if ($fijCons > 0 && $diff > 0 && $diff <= 5) {
-                        $fijId = data_get($items[$currIdx], 'id', data_get($items[$currIdx], 'process_action_id', data_get($items[$currIdx], 'idRegActuacion')));
-                        $autoId = data_get($items[$nextIdx], 'id', data_get($items[$nextIdx], 'process_action_id', data_get($items[$nextIdx], 'idRegActuacion')));
-
-                        if ($fijId && $autoId) {
-                            data_set($items[$currIdx], 'notified_action_id', $autoId);
-                            data_set($items[$nextIdx], 'fijacion_action_id', $fijId);
-                        }
-                    }
-                    break; // Solo intentamos vincular con el primer candidato distinto
                 }
             }
         }
+
+        return collect($data);
     }
 
-    private function isFijacionEstado(string $text): bool
+    private function isFijacion(array $action): bool
     {
-        $normalized = mb_strtolower($text, 'UTF-8');
-        // Quitamos tildes básicas para la comparación
-        $normalized = str_replace(['á', 'é', 'í', 'ó', 'ú'], ['a', 'e', 'i', 'o', 'u'], $normalized);
-        
-        return str_contains($normalized, 'fijacion') && str_contains($normalized, 'estado');
+        $text = strtolower($action['action_text'] ?? $action['action'] ?? '');
+        return str_contains($text, 'fijacion') || str_contains($text, 'fijación');
+    }
+
+    private function isActionPair(array $action1, array $action2): bool
+    {
+        // 1. Deben ser del mismo proceso
+        $rad1 = $action1['process_number'] ?? '';
+        $rad2 = $action2['process_number'] ?? '';
+        if ($rad1 === '' || $rad1 !== $rad2) {
+            return false;
+        }
+
+        // 2. Uno debe ser Fijación y el otro Auto o similar
+        $text1 = strtolower($action1['action_text'] ?? $action1['action'] ?? '');
+        $text2 = strtolower($action2['action_text'] ?? $action2['action'] ?? '');
+
+        $isFij1 = str_contains($text1, 'fijacion') || str_contains($text1, 'fijación');
+        $isFij2 = str_contains($text2, 'fijacion') || str_contains($text2, 'fijación');
+
+        if ($isFij1 === $isFij2) {
+            return false; 
+        }
+
+        // 3. El que NO es fijación debe ser Auto/Sentencia/Decide
+        $otherText = $isFij1 ? $text2 : $text1;
+        $isAutoOk = str_contains($otherText, 'auto') || 
+                    str_contains($otherText, 'sentencia') || 
+                    str_contains($otherText, 'decide') ||
+                    str_contains($otherText, 'requiere') ||
+                    str_contains($otherText, 'reconoce');
+
+        if (! $isAutoOk) {
+            return false;
+        }
+
+        // 4. Verificación por cons_action si están disponibles (tolerancia de 2)
+        $cons1 = (int) ($action1['cons_action'] ?? 0);
+        $cons2 = (int) ($action2['cons_action'] ?? 0);
+
+        if ($cons1 > 0 && $cons2 > 0) {
+            return abs($cons1 - $cons2) <= 2;
+        }
+
+        return true;
     }
 }

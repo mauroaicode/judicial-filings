@@ -107,8 +107,11 @@ class NotificationDigestService
 
     private function prepareData(Collection $notifications, string $organizationId): Collection
     {
-        return $notifications->map(function (OrganizationNotification $notif) use ($organizationId): ?array {
+        return $notifications->groupBy('notifiable_id')->map(function (Collection $group) use ($organizationId): ?array {
+            /** @var OrganizationNotification $notif */
+            $notif = $group->first();
             $action = $notif->notifiable;
+
             if (! $action instanceof ProcessAction) {
                 return null;
             }
@@ -126,8 +129,8 @@ class NotificationDigestService
             $demandadoNames = $parties->where('subject_type', 'Demandado')->pluck('name_or_business_name')->unique()->sort()->values();
             $demandado = $demandadoNames->map(fn (?string $name): ?string => StrParseHelper::toTitleCase($name))->implode(', ');
 
-            // Check for keywords if it's an alert
-            $isAlert = $notif->notification_type === 'actuacion_alerta';
+            // Check if any notification in this group is an alert
+            $isAlert = $group->contains('notification_type', 'actuacion_alerta');
             $matchedKeywords = null;
             $alertHighlights = [];
 
