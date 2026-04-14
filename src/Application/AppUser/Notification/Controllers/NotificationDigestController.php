@@ -58,7 +58,7 @@ readonly class NotificationDigestController
 
                 // Agrupamos las actuaciones dentro del digest
                 if (isset($resource['data']) && is_array($resource['data'])) {
-                    $resource['data'] = $this->groupProcessActionsService->handle(collect($resource['data']))->toArray();
+                    $resource['data'] = $this->groupProcessActionsService->handle(collect($resource['data']))->all();
                 }
 
                 return $resource;

@@ -10,7 +10,7 @@ class GroupProcessActionsService
 {
     /**
      * Etiqueta actuaciones relacionadas de la Rama Judicial.
-     * Soporta múltiples formatos de datos (ProcessAction list, Notification Digest data, API Judicial).
+     * Versión ultrarrobusta compatible con arrays y objetos.
      */
     public function handle(Collection $actions): Collection
     {
@@ -18,56 +18,74 @@ class GroupProcessActionsService
             return $actions;
         }
 
-        // 1. Agrupamos por radicado para evitar falsos positivos
-        $groupedByProcess = $actions->groupBy(fn (array $action): string => (string) ($action['process_number'] ?? $action['llaveProceso'] ?? 'unknown'));
-
-        $finalCollection = collect();
-
-        foreach ($groupedByProcess as $processGroup) {
-            $taggedGroup = $this->tagProcessGroup($processGroup);
-            foreach ($taggedGroup as $item) {
-                $finalCollection->push($item);
-            }
+        // Trabajamos con el array subyacente de la colección
+        $items = $actions->all();
+        
+        // 1. Agrupamos índices por radicado
+        $processGroups = [];
+        foreach ($items as $idx => $item) {
+            $radicado = (string) data_get($item, 'process_number', data_get($item, 'llaveProceso', 'unknown'));
+            $processGroups[$radicado][] = $idx;
         }
 
-        return $finalCollection;
+        foreach ($processGroups as $indices) {
+            $this->tagIndices($items, $indices);
+        }
+
+        return collect($items);
     }
 
-    private function tagProcessGroup(Collection $actions): array
+    private function tagIndices(array &$items, array $indices): void
     {
-        // Ordenamos por consecutivo DESC
-        $items = $actions->sortByDesc(fn ($a): int => (int) ($a['cons_action'] ?? $a['consActuacion'] ?? 0))->values()->all();
-        $count = count($items);
+        // Ordenamos los índices del grupo por consecutivo DESC
+        usort($indices, function($aIdx, $bIdx) use ($items) {
+            $aCons = (int) data_get($items[$aIdx], 'cons_action', data_get($items[$aIdx], 'consActuacion', 0));
+            $bCons = (int) data_get($items[$bIdx], 'cons_action', data_get($items[$bIdx], 'consActuacion', 0));
+            return $bCons <=> $aCons;
+        });
+
+        $count = count($indices);
 
         for ($i = 0; $i < $count; $i++) {
-            $current = &$items[$i];
+            $currIdx = $indices[$i];
+            $actionText = (string) data_get($items[$currIdx], 'action', data_get($items[$currIdx], 'action_text', data_get($items[$currIdx], 'actuacion', '')));
+            
+            // Detección robusta de "Fijación Estado" (ignorando tildes, casos y espacios múltiples)
+            if ($this->isFijacionEstado($actionText)) {
+                $fijCons = (int) data_get($items[$currIdx], 'cons_action', data_get($items[$currIdx], 'consActuacion', 0));
+                
+                for ($j = $i + 1; $j < $count; $j++) {
+                    $nextIdx = $indices[$j];
+                    $nextCons = (int) data_get($items[$nextIdx], 'cons_action', data_get($items[$nextIdx], 'consActuacion', 0));
 
-            $actionText = strtolower((string) ($current['action'] ?? $current['action_text'] ?? $current['actuacion'] ?? ''));
-
-            // Buscamos si el siguiente elemento en la lista es su providencia relacionada
-            if (str_contains($actionText, 'fijacion estado') && isset($items[$i + 1])) {
-                $next = &$items[$i + 1];
-                $fijCons = (int) ($current['cons_action'] ?? $current['consActuacion'] ?? 0);
-                $nextCons = (int) ($next['cons_action'] ?? $next['consActuacion'] ?? 0);
-                /**
-                 * FLEXIBILIZACIÓN:
-                 * A veces la Rama Judicial se salta consecutivos (ej: 75495219 y 75495217).
-                 * Si son vecinos inmediatos en la lista y la diferencia es pequeña (<= 2),
-                 * asumimos que son pareja.
-                 */
-                $diff = $fijCons - $nextCons;
-                if ($fijCons > 0 && $diff > 0 && $diff <= 2) {
-                    $currentId = $current['id'] ?? $current['process_action_id'] ?? $current['idRegActuacion'] ?? null;
-                    $nextId = $next['id'] ?? $next['process_action_id'] ?? $next['idRegActuacion'] ?? null;
-
-                    if ($currentId && $nextId) {
-                        $current['notified_action_id'] = $nextId;
-                        $next['fijacion_action_id'] = $currentId;
+                    if ($fijCons === $nextCons) {
+                        continue; // Saltamos duplicados de la misma actuación
                     }
+
+                    $diff = $fijCons - $nextCons;
+
+                    // Si la diferencia es pequeña (hasta 5), los vinculamos
+                    if ($fijCons > 0 && $diff > 0 && $diff <= 5) {
+                        $fijId = data_get($items[$currIdx], 'id', data_get($items[$currIdx], 'process_action_id', data_get($items[$currIdx], 'idRegActuacion')));
+                        $autoId = data_get($items[$nextIdx], 'id', data_get($items[$nextIdx], 'process_action_id', data_get($items[$nextIdx], 'idRegActuacion')));
+
+                        if ($fijId && $autoId) {
+                            data_set($items[$currIdx], 'notified_action_id', $autoId);
+                            data_set($items[$nextIdx], 'fijacion_action_id', $fijId);
+                        }
+                    }
+                    break; // Solo intentamos vincular con el primer candidato distinto
                 }
             }
         }
+    }
 
-        return $items;
+    private function isFijacionEstado(string $text): bool
+    {
+        $normalized = mb_strtolower($text, 'UTF-8');
+        // Quitamos tildes básicas para la comparación
+        $normalized = str_replace(['á', 'é', 'í', 'ó', 'ú'], ['a', 'e', 'i', 'o', 'u'], $normalized);
+        
+        return str_contains($normalized, 'fijacion') && str_contains($normalized, 'estado');
     }
 }
