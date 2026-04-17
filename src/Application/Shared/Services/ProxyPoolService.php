@@ -4,23 +4,25 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Provides the rotating residential proxy URL for outbound HTTP requests.
  *
- * Integration: Webshare Rotating Residential — Rotating Proxy Endpoint.
- *   - A single endpoint (p.webshare.io:80) handles all requests.
- *   - Webshare assigns a random residential IP on every new connection.
- *   - Country filter is configured in the Webshare dashboard (Colombia).
+ * Integration: ProxyScrape Rotating Residential gateway.
+ *   - A single endpoint (rp.scrapegw.com:6060) handles all requests.
+ *   - ProxyScrape rotates the residential exit IP by connection/session policy.
  *   - No pool, no database, no round-robin — just one URL with credentials.
  *
  * Required .env variables:
  *   JUDICIAL_BRANCH_PROXY_ENABLED=true
- *   JUDICIAL_BRANCH_PROXY_HOST=p.webshare.io
- *   JUDICIAL_BRANCH_PROXY_PORT=80
- *   JUDICIAL_BRANCH_PROXY_USERNAME=wfvehrrcresidential-CO-rotate
- *   JUDICIAL_BRANCH_PROXY_PASSWORD=ab7xwhoq3eip
+ *   JUDICIAL_BRANCH_PROXY_PROVIDER=proxyscrape
+ *   JUDICIAL_BRANCH_PROXY_PROTOCOL=http
+ *   JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
+ *   JUDICIAL_BRANCH_PROXY_PORT=6060
+ *   JUDICIAL_BRANCH_PROXY_USERNAME=...
+ *   JUDICIAL_BRANCH_PROXY_PASSWORD=...
  */
 class ProxyPoolService
 {
@@ -28,8 +30,7 @@ class ProxyPoolService
      * Returns the proxy URL to use for the next HTTP request, or null when
      * the proxy is disabled.
      *
-     * Format: http://username:password@host:port
-     * Webshare rotates the residential exit IP on every new TCP connection.
+     * Format: protocol://username:password@host:port
      */
     public function next(string $seed = ''): ?string
     {
@@ -42,6 +43,8 @@ class ProxyPoolService
         $port = (int) config('judicial-branch.proxy.port', 6060);
         $username = (string) config('judicial-branch.proxy.username', '');
         $password = (string) config('judicial-branch.proxy.password', '');
+        $provider = (string) config('judicial-branch.proxy.provider', 'proxyscrape');
+        $sessionMutationEnabled = (bool) config('judicial-branch.proxy.enable_session_mutation', false);
 
         if ($username === '' || $password === '') {
             $this->logWarning('Proxy credentials not configured (JUDICIAL_BRANCH_PROXY_USERNAME / PASSWORD)');
@@ -49,25 +52,40 @@ class ProxyPoolService
             return null;
         }
 
-        $sessionId = $seed !== ''
-            ? substr(hash('sha256', $seed), 0, 10)
-            : bin2hex(random_bytes(5));
+        if ($sessionMutationEnabled) {
+            $version = $seed !== '' ? (int) Cache::get("proxy_session_v:{$seed}", 0) : 0;
 
-        if (preg_match('/-session-[a-zA-Z0-9]+/', $username)) {
-            $username = preg_replace('/-session-[a-zA-Z0-9]+/', '-session-'.$sessionId, $username);
+            $sessionId = $seed !== ''
+                ? substr(hash('sha256', $seed.$version), 0, 10)
+                : bin2hex(random_bytes(5));
+
+            if (preg_match('/-session-[a-zA-Z0-9]+/', $username)) {
+                $username = preg_replace('/-session-[a-zA-Z0-9]+/', '-session-'.$sessionId, $username);
+            }
+        } elseif ($provider === 'proxyscrape' && preg_match('/-session-[a-zA-Z0-9]+/', $username)) {
+            $this->logWarning('Session mutation disabled for proxyscrape; using username as-is');
         }
 
         return "{$protocol}://{$username}:{$password}@{$host}:{$port}";
     }
 
     /**
-     * No-op: the rotating endpoint has no individual IPs to deactivate.
-     * Kept for interface compatibility with JudicialBranchConsultService.
+     * Increments the retry version for the given seed in cache, 
+     * forcing next() to return a different session ID.
      */
-    public function markFailed(string $proxyUrl): void
+    public function markFailed(string $seed): void
     {
-        $this->logWarning('Proxy connection error — Webshare will rotate to a new residential IP on next request', [
-            'proxy' => $this->maskProxy($proxyUrl),
+        if ($seed === '') {
+            return;
+        }
+
+        $key = "proxy_session_v:{$seed}";
+        $newVersion = Cache::increment($key);
+        Cache::put($key, $newVersion, now()->addHour());
+
+        $this->logWarning('Proxy session marked as failed — forcing rotation on next request', [
+            'seed' => $seed,
+            'new_version' => $newVersion,
         ]);
     }
 

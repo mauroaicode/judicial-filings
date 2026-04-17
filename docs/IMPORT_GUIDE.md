@@ -17,15 +17,19 @@ La importación es un proceso asíncrono diseñado para manejar grandes volúmen
 Para evitar el "bloqueo silencioso" y el error `cURL 97`, los proxies deben estar configurados así:
 
 ```env
-# Protocolo SOCKS5 con resolución remota (VITAL para Puerto 448)
-JUDICIAL_BRANCH_PROXY_PROTOCOL=socks5h
 JUDICIAL_BRANCH_PROXY_ENABLED=true
+JUDICIAL_BRANCH_PROXY_PROVIDER=proxyscrape
+JUDICIAL_BRANCH_PROXY_PROTOCOL=http
 
 # Credenciales Premium (ProxyScrape)
 JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
 JUDICIAL_BRANCH_PROXY_PORT=6060
-JUDICIAL_BRANCH_PROXY_USERNAME=0h4vq9nbevfld56-country-co
+JUDICIAL_BRANCH_PROXY_USERNAME=0h4vq9nbevfld56
 JUDICIAL_BRANCH_PROXY_PASSWORD=b8ednleaqn58oh8
+JUDICIAL_BRANCH_PROXY_ENABLE_SESSION_MUTATION=false
+JUDICIAL_BRANCH_PROXY_MAX_CONNECTION_RETRIES=2
+JUDICIAL_BRANCH_PROXY_CONNECTION_RETRY_BASE_MS=700
+JUDICIAL_BRANCH_PROXY_CONNECTION_CIRCUIT_BREAKER_MS=3000
 
 # Optimización de Tiempos (Human-Like Jitter)
 JUDICIAL_BRANCH_PROXY_CALL_DELAY_MIN_MS=1000
@@ -51,7 +55,7 @@ Para un procesamiento eficiente de 1000+ radicados, se deben correr los siguient
 ---
 
 ## 4. Mejores Prácticas y Mantenimiento
-*   **Sticky Sessions**: El sistema usa el número de radicado como "seed" para asegurar que todas las peticiones de ese radicado salgan por la misma IP y mantengan las mismas cookies.
+*   **Sticky Sessions**: Mantén `JUDICIAL_BRANCH_PROXY_ENABLE_SESSION_MUTATION=false` en ProxyScrape salvo confirmación explícita del formato soportado por tu plan.
 *   **Aislamiento de Doble Instancia**: Las actuaciones se validan por UUID de proceso, permitiendo que el Juzgado y el Tribunal tengan sus registros completos sin pisarse.
 *   **Logs**: Monitorea fallos en `storage/logs/process_import-YYYY-MM-DD.log`.
 *   **Retries**: El sistema tiene 6 reintentos internos por cada IP fallida del proxy antes de marcar el Job como fallido.

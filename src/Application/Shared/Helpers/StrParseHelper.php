@@ -65,7 +65,7 @@ class StrParseHelper
 
             // If it's the first word or not in lowercase list, capitalize first letter
             if ($index === 0 || ! in_array($lowerWord, $lowercaseWords, true)) {
-                $result[] = mb_ucfirst($lowerWord);
+                $result[] = \Illuminate\Support\Str::ucfirst($lowerWord);
 
                 continue;
             }

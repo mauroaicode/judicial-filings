@@ -20,12 +20,12 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Proxy Residencial Rotativo (ProxyScrape / Webshare)
+    | Proxy residencial rotativo (ProxyScrape)
     |--------------------------------------------------------------------------
     |
     | Variables .env requeridas:
     |   JUDICIAL_BRANCH_PROXY_ENABLED=true
-    |   JUDICIAL_BRANCH_PROXY_PROTOCOL=socks5h (recomendado para puerto 448)
+    |   JUDICIAL_BRANCH_PROXY_PROTOCOL=http
     |   JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
     |   JUDICIAL_BRANCH_PROXY_PORT=6060
     |   JUDICIAL_BRANCH_PROXY_USERNAME=...
@@ -33,13 +33,18 @@ return [
     |
     */
     'proxy' => [
+        'provider' => env('JUDICIAL_BRANCH_PROXY_PROVIDER', 'proxyscrape'),
         'enabled' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLED', false),
-        'protocol' => env('JUDICIAL_BRANCH_PROXY_PROTOCOL', 'socks5h'),
+        'protocol' => env('JUDICIAL_BRANCH_PROXY_PROTOCOL', 'http'),
         'host' => env('JUDICIAL_BRANCH_PROXY_HOST', 'rp.scrapegw.com'),
         'port' => (int) env('JUDICIAL_BRANCH_PROXY_PORT', 6060),
         'username' => env('JUDICIAL_BRANCH_PROXY_USERNAME', ''),
         'password' => env('JUDICIAL_BRANCH_PROXY_PASSWORD', ''),
         'timeout' => (int) env('JUDICIAL_BRANCH_PROXY_TIMEOUT', 30),
+        'enable_session_mutation' => (bool) env('JUDICIAL_BRANCH_PROXY_ENABLE_SESSION_MUTATION', true),
+        'max_connection_retries' => (int) env('JUDICIAL_BRANCH_PROXY_MAX_CONNECTION_RETRIES', 2),
+        'connection_retry_base_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CONNECTION_RETRY_BASE_MS', 700),
+        'connection_circuit_breaker_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CONNECTION_CIRCUIT_BREAKER_MS', 3000),
 
         /*
          * Jitter aleatorio entre peticiones al Portal Judicial.
