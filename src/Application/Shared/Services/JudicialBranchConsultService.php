@@ -106,7 +106,7 @@ class JudicialBranchConsultService
                 Log::channel(config('judicial-branch.log_channel', 'process_import'))
                     ->info('JudicialBranch: Fetching processes', ['url' => $endpoint]);
 
-                $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchProcesses');
+                $httpResponse = $this->performRequestWithRetries('get', $endpoint, 'fetchProcesses');
 
                 $response = $httpResponse->json();
                 if (! is_array($response)) {
@@ -157,7 +157,7 @@ class JudicialBranchConsultService
 
             $client = $this->buildHttpClient();
 
-            $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchDetailProcess');
+            $httpResponse = $this->performRequestWithRetries('get', $endpoint, 'fetchDetailProcess');
 
             $data = $httpResponse->json() ?? [];
 
@@ -197,7 +197,7 @@ class JudicialBranchConsultService
                 $params = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
-                $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchActionByProcess');
+                $httpResponse = $this->performRequestWithRetries('get', $endpoint, 'fetchActionByProcess');
 
                 $response = $httpResponse->json();
                 if (! is_array($response)) {
@@ -256,7 +256,7 @@ class JudicialBranchConsultService
                 $params = ['pagina' => $currentPage];
                 $endpoint = "{$baseUrl}?".http_build_query($params);
 
-                $httpResponse = $this->performRequestWithRetries(fn () => $client->get($endpoint), 'fetchSubjectsByProcess');
+                $httpResponse = $this->performRequestWithRetries('get', $endpoint, 'fetchSubjectsByProcess');
 
                 $response = $httpResponse->json();
                 if (! is_array($response)) {
@@ -328,7 +328,7 @@ class JudicialBranchConsultService
                 ]);
 
                 $this->logInfo('Executing request', [
-                    'proxy_url' => $proxyUrl,
+                    'proxy_url' => $this->maskProxy($proxyUrl),
                     'user_agent' => $userAgent,
                 ]);
             } else {
@@ -345,47 +345,74 @@ class JudicialBranchConsultService
         return $client;
     }
 
-    private function performRequestWithRetries(callable $request, string $context): Response
+    private function performRequestWithRetries(string $method, string $url, string $context): Response
     {
-        try {
-            /** @var Response $response */
-            $response = $request();
+        $maxAttempts = max(1, ((int) config('judicial-branch.proxy.max_connection_retries', 2)) + 1);
 
-            $status = $response->status();
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                $client = $this->buildHttpClient();
+                /** @var Response $response */
+                $response = $client->$method($url);
 
-            // If successful (or not a retryable error like 404), return immediately
-            if ($status < 400 || $status === 404) {
-                // Soft-block detection: If we expect JSON but receive an HTML 200 OK,
-                // it means the proxy or Azure WAF returned a Captcha or SPA fallback page.
-                $contentType = $response->header('Content-Type');
-                if ($status === 200 && str_contains($contentType, 'text/html')) {
-                    $this->throwIfForbiddenOrRateLimit(403, $context, $response);
+                $status = $response->status();
+
+                // If successful (or not a retryable error like 404), return immediately
+                if ($status < 400 || $status === 404) {
+                    // Soft-block detection: If we expect JSON but receive an HTML 200 OK,
+                    // it means the proxy or Azure WAF returned a Captcha or SPA fallback page.
+                    $contentType = $response->header('Content-Type');
+                    if ($status === 200 && str_contains($contentType, 'text/html')) {
+                        $this->throwIfForbiddenOrRateLimit(403, $context, $response);
+                    }
+
+                    return $response;
                 }
 
+                // Handle 403 (Forbidden) or 429 (Too Many Requests)
+                if ($status === 403 || $status === 429) {
+                    // ¡FALLO RÁPIDO!
+                    $this->throwIfForbiddenOrRateLimit($status, $context, $response);
+                }
+
+                // For other errors, just return the response and let the caller handle it
                 return $response;
-            }
 
-            // Handle 403 (Forbidden) or 429 (Too Many Requests)
-            if ($status === 403 || $status === 429) {
-                // ¡FALLO RÁPIDO!
-                $this->throwIfForbiddenOrRateLimit($status, $context, $response);
-            }
+            } catch (Throwable $th) {
+                // Ignore API exceptions we just threw
+                if ($th instanceof ApiForbiddenOrRateLimitException) {
+                    throw $th;
+                }
 
-            // For other errors, just return the response and let the caller handle it
-            return $response;
+                $curlErrorCode = $this->extractCurlErrorCode($th->getMessage());
 
-        } catch (Throwable $th) {
-            // Ignore API exceptions we just threw
-            if ($th instanceof ApiForbiddenOrRateLimitException) {
+                if ($attempt < $maxAttempts && $this->isRetryableConnectionError($curlErrorCode)) {
+                    $delayMs = $this->computeConnectionRetryDelayMs($attempt, $curlErrorCode);
+
+                    $this->proxyPool->markFailed($this->radicadoSeed);
+
+                    $this->logWarning('Retryable proxy/network error — rotated session and retrying request', [
+                        'context' => $context,
+                        'attempt' => $attempt,
+                        'max_attempts' => $maxAttempts,
+                        'curl_error' => $curlErrorCode,
+                        'delay_ms' => $delayMs,
+                    ]);
+
+                    Sleep::usleep($delayMs * 1000);
+
+                    continue;
+                }
+
+                // Tratamos todo error de conexión (timeout, proxy drop) como fallo rápido
+                // para que Laravel genere una nueva sesión y pase de proxy.
+                $this->throwIfProxyFailure($th, $context);
+
                 throw $th;
             }
-
-            // Tratamos todo error de conexión (timeout, proxy drop) como fallo rápido
-            // para que Laravel genere una nueva sesión y pase de proxy.
-            $this->throwIfProxyFailure($th, $context);
-
-            throw $th;
         }
+
+        throw new \RuntimeException("Unexpected retry flow termination in {$context}");
     }
 
     /**
@@ -476,6 +503,44 @@ class JudicialBranchConsultService
         throw new ApiProxyFailureException(
             "Proxy curl error on {$context}: {$message}. Max retries reached."
         );
+    }
+
+    private function extractCurlErrorCode(string $message): ?int
+    {
+        if (! preg_match('/cURL error (\d+)/', $message, $matches)) {
+            return null;
+        }
+
+        return isset($matches[1]) ? (int) $matches[1] : null;
+    }
+
+    private function isRetryableConnectionError(?int $curlErrorCode): bool
+    {
+        if ($curlErrorCode === null) {
+            return false;
+        }
+
+        // Retry transient transport/proxy errors.
+        return in_array($curlErrorCode, [7, 28, 35, 52, 55, 56, 97], true);
+    }
+
+    private function computeConnectionRetryDelayMs(int $attempt, ?int $curlErrorCode): int
+    {
+        $baseMs = (int) config('judicial-branch.proxy.connection_retry_base_ms', 700);
+        $delayMs = (2 ** $attempt) * $baseMs;
+        $jitterMs = random_int(80, 280);
+
+        if ($curlErrorCode === 97) {
+            // Give SOCKS/handshake close events a longer cool-down window.
+            $delayMs += (int) config('judicial-branch.proxy.connection_circuit_breaker_ms', 3000);
+        }
+
+        return min(15000, $delayMs + $jitterMs);
+    }
+
+    private function maskProxy(string $proxy): string
+    {
+        return preg_replace('/(:)[^@:\/]+(@)/', '$1***$2', $proxy) ?? $proxy;
     }
 
     private function logInfo(string $message, array $context = []): void
