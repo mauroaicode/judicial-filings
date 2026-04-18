@@ -199,8 +199,12 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
-
         'process_import' => [
+            'driver' => 'stack',
+            'channels' => ['process_import_file', 'nightwatch'],
+            'ignore_exceptions' => false,
+        ],
+        'process_import_file' => [
             'driver' => 'daily',
             'path' => storage_path('logs/process_import.log'),
             'level' => env('LOG_LEVEL', 'info'),
