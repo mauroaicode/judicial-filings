@@ -39,21 +39,21 @@ class SyncJudicialProcessesCommand extends Command
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
         $radicado = $this->option('radicado');
 
+        Log::channel($channel)->info('SyncJudicialProcessesCommand started', [
+            'radicado_filter' => $radicado,
+        ]);
+
         $processNumbers = $this->getProcessNumbersToSync($radicado);
         $total = $processNumbers->count();
 
         if ($total === 0) {
             $this->info('No radicados to sync.');
+            Log::channel($channel)->info('SyncJudicialProcessesCommand: No radicados to sync.');
 
             return self::SUCCESS;
         }
 
         $this->info("Found {$total} radicados to sync.");
-
-        Log::channel($channel)->info('SyncJudicialProcessesCommand started', [
-            'radicados_count' => $total,
-            'radicado_filter' => $radicado,
-        ]);
 
         $bar = $this->output->createProgressBar($total);
         $bar->start();
