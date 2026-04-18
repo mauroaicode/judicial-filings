@@ -55,7 +55,7 @@ return [
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', env('LOG_STACK', 'single')),
-            'ignore_exceptions' => false,
+            'ignore_exceptions' => true,
         ],
 
         'single' => [
@@ -193,6 +193,12 @@ return [
         ],
 
         'judicial_sync_notifications' => [
+            'driver' => 'stack',
+            'channels' => ['judicial_sync_notifications_file', 'nightwatch'],
+            'ignore_exceptions' => true,
+        ],
+
+        'judicial_sync_notifications_file' => [
             'driver' => 'daily',
             'path' => storage_path('logs/judicial_sync_notifications.log'),
             'level' => env('LOG_LEVEL', 'info'),
@@ -202,7 +208,7 @@ return [
         'process_import' => [
             'driver' => 'stack',
             'channels' => ['process_import_file', 'nightwatch'],
-            'ignore_exceptions' => false,
+            'ignore_exceptions' => true,
         ],
         'process_import_file' => [
             'driver' => 'daily',
