@@ -6,6 +6,7 @@ return [
     'last_name' => 'Apellido',
     'name' => 'Nombre',
     'password' => 'Contraseña',
+    'generate_password' => 'Generar contraseña',
     'profile_image' => 'Imagen de perfil',
     'process_number' => 'Número de radicado',
     'slug' => 'Slug',

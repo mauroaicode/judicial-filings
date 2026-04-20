@@ -22,10 +22,22 @@ class OrganizationResource extends Resource
         public bool $is_active,
         public ?string $created_at,
         public ?string $updated_at,
+        public ?string $password = null,
+        public bool $is_receiving_notifications = false,
     ) {}
 
     public static function fromModel(Organization $organization): self
     {
+        $isReceiving = (bool) ($organization->is_receiving_notifications ?? false);
+
+        // Fallback for cases where it's not pre-loaded via withExists (e.g. after creation)
+        if (! isset($organization->is_receiving_notifications) && $organization->relationLoaded('notificationChannels')) {
+            $isReceiving = $organization->notificationChannels
+                ->whereIn('channel_type', ['email', 'whatsapp', 'sms'])
+                ->where('is_active', true)
+                ->isNotEmpty();
+        }
+
         return new self(
             id: $organization->id,
             name: $organization->name,
@@ -39,6 +51,8 @@ class OrganizationResource extends Resource
             is_active: $organization->is_active,
             created_at: $organization->created_at->format('Y-m-d H:i:s'),
             updated_at: $organization->updated_at->format('Y-m-d H:i:s'),
+            password: $organization->createdPassword ?? null,
+            is_receiving_notifications: $isReceiving,
         );
     }
 }

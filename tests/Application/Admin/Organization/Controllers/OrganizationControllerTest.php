@@ -355,3 +355,34 @@ it('creates juridical organization with contact person', function (): void {
     expect($owner->name)->toBe('María');
     expect($owner->last_name)->toBe('García');
 });
+
+it('creates organization and returns password when generate_password is true', function (): void {
+    Notification::fake();
+
+    $payload = [
+        'name' => 'Internal Org',
+        'type' => 'natural',
+        'identification' => '11111111-1',
+        'address' => 'Test Address',
+        'phone' => '1234567890',
+        'email' => 'internal@example.com',
+        'generate_password' => true,
+    ];
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/admin/organizations', $payload);
+
+    $response->assertStatus(201);
+    $response->assertJsonStructure(['password']);
+    $password = $response->json('password');
+    expect($password)->not->toBeNull();
+    expect(strlen($password))->toBeGreaterThan(8);
+
+    Notification::assertNothingSent();
+
+    $org = Organization::query()->where('email', 'internal@example.com')->first();
+    $owner = $org->appUsers()->wherePivot('is_owner', true)->first();
+
+    // Verify password actually works (hashed correctly)
+    expect(Hash::check($password, $owner->password))->toBeTrue();
+});

@@ -6,6 +6,7 @@ return [
     'last_name' => 'Last Name',
     'name' => 'Name',
     'password' => 'Password',
+    'generate_password' => 'Generate password',
     'profile_image' => 'Profile Image',
     'process_number' => 'Filing Number',
     'slug' => 'Slug',
