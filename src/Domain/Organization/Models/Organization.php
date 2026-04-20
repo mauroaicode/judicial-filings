@@ -26,6 +26,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string|null $email
  * @property-read string|null $contact_person
  * @property-read bool $is_active
+ * @property-read bool $is_ai_enabled
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  *
@@ -60,6 +61,7 @@ class Organization extends Model
         'email',
         'contact_person',
         'is_active',
+        'is_ai_enabled',
     ];
 
     /**
@@ -72,6 +74,7 @@ class Organization extends Model
         return [
             'type' => 'string',
             'is_active' => 'boolean',
+            'is_ai_enabled' => 'boolean',
         ];
     }
 

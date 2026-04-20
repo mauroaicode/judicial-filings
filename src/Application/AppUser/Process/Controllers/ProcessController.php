@@ -131,7 +131,9 @@ readonly class ProcessController
         $result = $this->registerProcessService->handle(
             $data->process_number,
             $organization->id,
-            $data->lawyer_role
+            $data->lawyer_role,
+            '',
+            $appUser->id
         );
 
         return response()->json([
