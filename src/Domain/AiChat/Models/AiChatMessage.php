@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Domain\AiChat\Models;
 
+use Database\Factories\AiChatMessageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,7 +21,6 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read array|null $metadata
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
- *
  * @property-read AiChat $chat
  */
 class AiChatMessage extends Model
@@ -50,6 +50,14 @@ class AiChatMessage extends Model
         ];
     }
 
+    protected static function newFactory(): AiChatMessageFactory
+    {
+        return AiChatMessageFactory::new();
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\AiChat\Models\AiChat, $this>
+     */
     public function chat(): BelongsTo
     {
         return $this->belongsTo(AiChat::class, 'ai_chat_id');

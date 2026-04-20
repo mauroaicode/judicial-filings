@@ -79,6 +79,6 @@ class StrParseHelper
 
     public static function buildAiTenantId(string $slug, string $id): string
     {
-        return $slug . '_' . $id;
+        return $slug.'_'.$id;
     }
 }

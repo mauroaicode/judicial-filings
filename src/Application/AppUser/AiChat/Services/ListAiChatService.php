@@ -22,12 +22,15 @@ readonly class ListAiChatService
      */
     private function getChats(string $organizationId, string $processId, string $appUserId): Collection
     {
-        return AiChat::query()
+        /** @var \Illuminate\Database\Eloquent\Collection<int, AiChat> $chats */
+        $chats = AiChat::query()
             ->whereOrganization($organizationId)
             ->whereProcess($processId)
             ->whereActive()
             ->wherePublicOrTransitive($appUserId)
             ->orderedByRecent()
             ->get();
+
+        return $chats;
     }
 }

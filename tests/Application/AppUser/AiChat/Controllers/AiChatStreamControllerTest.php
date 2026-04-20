@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Application\AppUser\AiChat\Controllers;
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Queue;
 use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
 use Src\Domain\AiChat\Models\AiChat;
@@ -14,19 +15,26 @@ use Tests\TestCase;
 
 class AiChatStreamControllerTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private AppUser $appUser;
+
     private Organization $organization;
+
     private Process $process;
+
     private AiChat $chat;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->organization = Organization::factory()->create();
+        $this->organization = Organization::factory()->create([
+            'is_ai_enabled' => true,
+        ]);
         $this->appUser = AppUser::factory()->create();
         $this->appUser->organizations()->attach($this->organization->id);
-        
+
         $this->process = Process::factory()->public()->create();
         $this->process->organizations()->attach($this->organization->id, [
             'is_active' => true,
@@ -52,7 +60,7 @@ class AiChatStreamControllerTest extends TestCase
         // Nota: El test fallará en la parte del streaming real si el RAG API no está encendido,
         // pero podemos verificar que el mensaje se guardó ANTES de que el servicio intente conectar.
         // Sin embargo, como el servicio es síncrono en la parte inicial...
-        
+
         // Vamos a simular la petición.
         $response = $this->actingAs($this->appUser, 'sanctum')
             ->postJson("/api/app-user/ai-chats/{$this->chat->id}/stream", $payload);

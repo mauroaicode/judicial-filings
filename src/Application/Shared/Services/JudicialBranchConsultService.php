@@ -511,7 +511,7 @@ class JudicialBranchConsultService
             return null;
         }
 
-        return isset($matches[1]) ? (int) $matches[1] : null;
+        return (int) $matches[1];
     }
 
     private function isRetryableConnectionError(?int $curlErrorCode): bool

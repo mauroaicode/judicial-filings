@@ -7,6 +7,7 @@ namespace Src\Application\AppUser\AiChat\Resources;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Domain\AiChat\Models\AiChat;
+use Src\Domain\AppUser\Models\AppUser;
 
 class AiChatResource extends Resource
 {
@@ -21,13 +22,16 @@ class AiChatResource extends Resource
 
     public static function fromModel(AiChat $chat): self
     {
+        /** @var AppUser|null $appUser */
+        $appUser = $chat->appUser;
+
         return new self(
-            id: $chat->id,
-            title: $chat->title,
-            is_private: $chat->is_private,
+            id: (string) $chat->id,
+            title: str_contains((string) $chat->title, 'process.') ? __((string) $chat->title) : (string) $chat->title,
+            is_private: (bool) $chat->is_private,
             created_at: DateFormatHelper::formatDateTimeWithDayOfWeek($chat->created_at),
             diff_for_humans: $chat->created_at->diffForHumans(),
-            app_user_name: $chat->appUser?->name . ' ' . $chat->appUser?->last_name,
+            app_user_name: $appUser ? $appUser->name.' '.$appUser->last_name : null,
         );
     }
 }

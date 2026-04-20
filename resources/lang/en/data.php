@@ -58,5 +58,12 @@ return [
     'date_to' => 'Date To',
     'total_recent_actions' => 'Total Recent Actions',
     'severity_color' => 'Severity Color',
+    'id' => 'ID',
     'is_ai_enabled' => 'AI Enabled',
+    'content' => 'Content',
+    'role' => 'Role',
+    'search_mode' => 'Search Mode',
+    'is_private' => 'Private',
+    'process_id' => 'Process',
+    'title' => 'Title',
 ];

@@ -54,7 +54,7 @@ class OrganizationFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'type' => 'natural',
-            'name' => $this->faker->name(),
+            'name' => $this->faker->unique()->name(),
             'identification' => $this->faker->numerify('########-#'),
             'contact_person' => null,
         ]);
@@ -67,7 +67,7 @@ class OrganizationFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'type' => 'juridical',
-            'name' => $this->faker->company(),
+            'name' => $this->faker->unique()->company(),
             'identification' => $this->faker->numerify('##.###.###-#'),
             'contact_person' => $this->faker->name(),
         ]);

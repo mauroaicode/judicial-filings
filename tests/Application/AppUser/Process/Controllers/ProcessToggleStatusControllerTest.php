@@ -3,12 +3,15 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 
 beforeEach(function (): void {
-    $this->organization = Organization::factory()->create();
+    $this->organization = Organization::factory()->create([
+        'name' => 'Toggle Org '.Str::uuid(),
+    ]);
     $this->appUser = AppUser::factory()->create([
         'email' => 'toggle-status@example.com',
         'password' => Hash::make('password1234'),

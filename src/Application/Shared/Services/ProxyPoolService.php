@@ -70,7 +70,7 @@ class ProxyPoolService
     }
 
     /**
-     * Increments the retry version for the given seed in cache, 
+     * Increments the retry version for the given seed in cache,
      * forcing next() to return a different session ID.
      */
     public function markFailed(string $seed): void
@@ -92,11 +92,6 @@ class ProxyPoolService
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
-
-    private function maskProxy(string $proxy): string
-    {
-        return preg_replace('/(:)[^@:\/]+(@)/', '$1***$2', $proxy) ?? $proxy;
-    }
 
     private function logWarning(string $message, array $context = []): void
     {

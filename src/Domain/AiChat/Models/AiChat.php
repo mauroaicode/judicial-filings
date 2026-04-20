@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Src\Domain\AiChat\QueryBuilders\AiChatQueryBuilder;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
-use Illuminate\Support\Carbon;
 use Src\Domain\Shared\Traits\Uuid;
 
 /**
@@ -71,21 +71,33 @@ class AiChat extends Model
         return new AiChatQueryBuilder($query);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Organization\Models\Organization, $this>
+     */
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Process\Models\Process, $this>
+     */
     public function process(): BelongsTo
     {
         return $this->belongsTo(Process::class);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\AppUser\Models\AppUser, $this>
+     */
     public function appUser(): BelongsTo
     {
         return $this->belongsTo(AppUser::class);
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Src\Domain\AiChat\Models\AiChatMessage, $this>
+     */
     public function messages(): HasMany
     {
         return $this->hasMany(AiChatMessage::class, 'ai_chat_id');

@@ -30,7 +30,7 @@ class AiChatQueryBuilder extends Builder
 
     public function wherePublicOrTransitive(string $appUserId): self
     {
-        return $this->where(function ($query) use ($appUserId) {
+        return $this->where(function (\Illuminate\Contracts\Database\Query\Builder $query) use ($appUserId): void {
             $query->where('is_private', false)
                 ->orWhere('app_user_id', $appUserId);
         });

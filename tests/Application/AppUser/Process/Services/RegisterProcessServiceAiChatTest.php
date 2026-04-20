@@ -8,7 +8,6 @@ use Mockery;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
-use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
@@ -17,7 +16,9 @@ use Tests\TestCase;
 class RegisterProcessServiceAiChatTest extends TestCase
 {
     private RegisterProcessService $service;
+
     private Organization $organization;
+
     private AppUser $appUser;
 
     protected function setUp(): void

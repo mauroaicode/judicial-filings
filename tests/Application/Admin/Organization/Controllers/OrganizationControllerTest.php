@@ -82,7 +82,7 @@ it('returns organizations ordered by created_at descending', function (): void {
     ]);
 
     $response = $this->actingAs($this->user)
-        ->getJson('/api/admin/organizations');
+        ->getJson('/api/admin/organizations?per_page=100');
 
     $response->assertStatus(200);
     $data = $response->json('data');

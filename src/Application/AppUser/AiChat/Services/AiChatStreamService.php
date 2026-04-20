@@ -12,6 +12,7 @@ use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
+use Src\Domain\Organization\Models\Organization;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 readonly class AiChatStreamService
@@ -22,13 +23,13 @@ readonly class AiChatStreamService
         $history = $this->getChatHistory($chat);
 
         // 2. Guardar mensaje del usuario
-        $this->saveUserMessage($chat, $data, $appUserId);
+        $this->saveUserMessage($chat, $data);
 
         $ragOptions = $this->prepareRagRequestData($chat, $data);
 
-        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions) {
+        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions): void {
             try {
-                $client = new Client();
+                $client = new Client;
 
                 $body = [
                     'query' => $data->content,
@@ -37,7 +38,7 @@ readonly class AiChatStreamService
                     'user_prompt' => $ragOptions['user_prompt'],
                 ];
 
-                if (!empty($history)) {
+                if ($history !== []) {
                     $body['conversation_history'] = $history;
                 }
 
@@ -50,7 +51,7 @@ readonly class AiChatStreamService
                 $body = $response->getBody();
                 $fullResponseContent = '';
 
-                while (!$body->eof()) {
+                while (! $body->eof()) {
                     $chunk = $body->read(1024);
                     echo $chunk;
 
@@ -59,20 +60,21 @@ readonly class AiChatStreamService
                     if (ob_get_level() > 0) {
                         ob_flush();
                     }
+
                     flush();
                 }
 
-                if (!empty($fullResponseContent)) {
+                if ($fullResponseContent !== '' && $fullResponseContent !== '0') {
                     $this->saveAssistantMessage($chat, $fullResponseContent, $data->search_mode);
                 }
 
             } catch (ClientException $e) {
                 $responseBody = $e->getResponse()->getBody()->getContents();
-                Log::error('RAG API Validation Error (422): ' . $responseBody);
-                echo "data: " . json_encode(['error' => 'Error de validación en el motor de IA: ' . $responseBody]) . "\n\n";
+                Log::error('RAG API Validation Error (422): '.$responseBody);
+                echo 'data: '.json_encode(['error' => 'Error de validación en el motor de IA: '.$responseBody])."\n\n";
             } catch (\Throwable $e) {
-                Log::error('RAG API Error: ' . $e->getMessage());
-                echo "data: " . json_encode(['error' => 'Error de conexión con el motor de IA']) . "\n\n";
+                Log::error('RAG API Error: '.$e->getMessage());
+                echo 'data: '.json_encode(['error' => 'Error de conexión con el motor de IA'])."\n\n";
             }
         }, 200, [
             'Cache-Control' => 'no-cache',
@@ -81,7 +83,7 @@ readonly class AiChatStreamService
         ]);
     }
 
-    private function saveUserMessage(AiChat $chat, SendMessageData $data, string $appUserId): void
+    private function saveUserMessage(AiChat $chat, SendMessageData $data): void
     {
         AiChatMessage::query()->create([
             'ai_chat_id' => $chat->id,
@@ -108,17 +110,18 @@ readonly class AiChatStreamService
 
     private function getChatHistory(AiChat $chat): array
     {
-        return $chat->messages()
-            ->orderBy('created_at', 'desc')
+        /** @var \Illuminate\Database\Eloquent\Collection<int, AiChatMessage> $messages */
+        $messages = $chat->messages()->latest()
             ->limit(10)
-            ->get()
-            ->reverse()
+            ->get();
+
+        return $messages->reverse()
             ->values()
-            ->map(fn($msg) => [
+            ->map(fn (AiChatMessage $msg): array => [
                 'role' => $msg->role,
-                'content' => $msg->content
+                'content' => $msg->content,
             ])
-            ->toArray();
+            ->all();
     }
 
     private function extractContentFromChunk(string $chunk): string
@@ -133,6 +136,7 @@ readonly class AiChatStreamService
                 }
             }
         }
+
         return $content;
     }
 
@@ -141,11 +145,13 @@ readonly class AiChatStreamService
      */
     private function prepareRagRequestData(AiChat $chat, SendMessageData $data): array
     {
+        /** @var Organization $organization */
         $organization = $chat->organization;
+        /** @var \Src\Domain\Process\Models\Process $process */
         $process = $chat->process;
 
-        $tenantId = StrParseHelper::buildAiTenantId($organization->slug, $organization->id);
-        $url = config('ia-rag.base_url') . '/query/stream?tenant_id=' . $tenantId;
+        $tenantId = StrParseHelper::buildAiTenantId((string) $organization->slug, (string) $organization->id);
+        $url = config('ia-rag.base_url').'/query/stream?tenant_id='.$tenantId;
 
         $modeMapping = config('ai-chat.modes_mapping', []);
         $mode = $modeMapping[$data->search_mode] ?? 'naive';

@@ -46,7 +46,9 @@ class GroupProcessActionsService
 
             // Buscamos su Auto correspondiente
             for ($j = 0; $j < $count; $j++) {
-                if ($i === $j) continue;
+                if ($i === $j) {
+                    continue;
+                }
 
                 // El Auto NO debe estar ya reclamado por otra notificación
                 if (isset($data[$j]['fijacion_action_id'])) {
@@ -60,7 +62,7 @@ class GroupProcessActionsService
                     if ($fijId && $autoId) {
                         $data[$i]['notified_action_id'] = $autoId;
                         $data[$j]['fijacion_action_id'] = $fijId;
-                        break; 
+                        break;
                     }
                 }
             }
@@ -70,14 +72,16 @@ class GroupProcessActionsService
     private function isHighPriorityFijacion(array $action): bool
     {
         $text = strtolower($action['action_text'] ?? $action['action'] ?? '');
+
         return str_contains($text, 'estado') || str_contains($text, 'fijacion') || str_contains($text, 'fijación');
     }
 
     private function isFijacion(array $action): bool
     {
         $text = strtolower($action['action_text'] ?? $action['action'] ?? '');
-        return str_contains($text, 'fijacion') || 
-               str_contains($text, 'fijación') || 
+
+        return str_contains($text, 'fijacion') ||
+               str_contains($text, 'fijación') ||
                str_contains($text, 'notificacion') ||
                str_contains($text, 'notificación');
     }
@@ -99,16 +103,15 @@ class GroupProcessActionsService
         $isFij2 = $this->isFijacion($action2);
 
         if ($isFij1 === $isFij2) {
-            return false; 
+            return false;
         }
 
         // 3. El que NO es fijación debe ser Auto/Sentencia/Decide/etc.
         $otherText = $isFij1 ? $text2 : $text1;
         $fijAction = $isFij1 ? $action1 : $action2;
-        $autoAction = $isFij1 ? $action2 : $action1;
 
-        $isAutoOk = str_contains($otherText, 'auto') || 
-                    str_contains($otherText, 'sentencia') || 
+        $isAutoOk = str_contains($otherText, 'auto') ||
+                    str_contains($otherText, 'sentencia') ||
                     str_contains($otherText, 'decide') ||
                     str_contains($otherText, 'requiere') ||
                     str_contains($otherText, 'reconoce') ||
@@ -131,10 +134,8 @@ class GroupProcessActionsService
         $cons1 = (int) ($action1['cons_action'] ?? 0);
         $cons2 = (int) ($action2['cons_action'] ?? 0);
 
-        if ($cons1 > 0 && $cons2 > 0) {
-            if (abs($cons1 - $cons2) > 4) {
-                return false;
-            }
+        if ($cons1 > 0 && $cons2 > 0 && abs($cons1 - $cons2) > 4) {
+            return false;
         }
 
         // 6. Deben ser relativamente cercanos en fecha (máximo 15 días para Notificaciones)
@@ -143,9 +144,9 @@ class GroupProcessActionsService
 
         if ($date1Str && $date2Str) {
             try {
-                $d1 = \Illuminate\Support\Carbon::parse($date1Str);
-                $d2 = \Illuminate\Support\Carbon::parse($date2Str);
-                
+                $d1 = \Illuminate\Support\Facades\Date::parse($date1Str);
+                $d2 = \Illuminate\Support\Facades\Date::parse($date2Str);
+
                 if ($d1->diffInDays($d2) > 15) {
                     return false;
                 }

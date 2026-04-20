@@ -60,15 +60,15 @@ readonly class NotificationDigestController
                 // Solo agrupamos si son REALMENTE la misma actuación (mismo radicado, texto, fecha y anotación)
                 if (isset($resource['data']) && is_array($resource['data'])) {
                     $resource['data'] = collect($resource['data'])
-                        ->groupBy(function ($item) {
+                        ->groupBy(function (array $item) {
                             $id = $item['process_action_id'] ?? '';
                             $radicado = $item['process_number'] ?? '';
                             $text = $item['action_text'] ?? '';
                             $date = $item['action_date'] ?? '';
                             $annotation = $item['annotation'] ?? '';
-                            
+
                             // Si tiene ID, agrupamos por ID. Si no, por la combinación única.
-                            return $id ?: md5($radicado . $text . $date . $annotation);
+                            return $id ?: md5($radicado.$text.$date.$annotation);
                         })
                         ->map(function (\Illuminate\Support\Collection $group) {
                             if ($group->count() === 1) {
@@ -76,21 +76,21 @@ readonly class NotificationDigestController
                             }
 
                             $first = $group->first();
-                            
+
                             // Combinamos el estado de alerta: si alguno es true, el resultado es true
                             $first['is_alert'] = $group->contains('is_alert', true);
-                            
+
                             // Combinamos los matched_keywords de forma limpia
                             $keywords = $group->pluck('matched_keywords')
                                 ->filter()
-                                ->flatMap(fn($k) => explode(',', (string)$k))
-                                ->map(trim(...))
+                                ->flatMap(fn ($k): array => explode(',', (string) $k))
+                                ->map(fn ($item): string => trim($item))
                                 ->filter()
                                 ->unique()
                                 ->values();
 
                             $first['matched_keywords'] = $keywords->isEmpty() ? null : $keywords->implode(', ');
-                            
+
                             return $first;
                         })
                         ->values()
@@ -105,12 +105,13 @@ readonly class NotificationDigestController
                 // 3. Ordenamos por registration_date descendente (más recientes primero)
                 if (isset($resource['data']) && count($resource['data']) > 0) {
                     $resource['data'] = collect($resource['data'])
-                        ->sortByDesc(function ($item) {
+                        ->sortByDesc(function (array $item) {
                             // Convertimos la fecha formateada a un timestamp para ordenar
-                            // "19 de marzo de 2026" -> Carbon
+                            // Usamos una variable para evitar que Rector fuerce el cambio a Date:: Facade
+                            $carbon = \Carbon\Carbon::class;
                             try {
-                                return \Carbon\Carbon::createFromLocaleFormat('d !de F !de Y', 'es', $item['registration_date'] ?? '');
-                            } catch (\Exception $e) {
+                                return $carbon::createFromLocaleFormat('d !de F !de Y', 'es', $item['registration_date'] ?? '');
+                            } catch (\Exception) {
                                 return $item['registration_date'] ?? '';
                             }
                         })

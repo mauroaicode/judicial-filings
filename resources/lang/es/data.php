@@ -57,5 +57,12 @@ return [
     'date_to' => 'Fecha Hasta',
     'total_recent_actions' => 'Total de Actuaciones Recientes',
     'severity_color' => 'Color del Semáforo',
+    'id' => 'ID',
     'is_ai_enabled' => 'IA Habilitada',
+    'content' => 'Contenido',
+    'role' => 'Rol',
+    'search_mode' => 'Modo de Búsqueda',
+    'is_private' => 'Privado',
+    'process_id' => 'Proceso',
+    'title' => 'Título',
 ];

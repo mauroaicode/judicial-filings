@@ -35,7 +35,7 @@ class NotificationDigest extends Model
     /**
      * Create a new Eloquent query builder for the model.
      *
-     * @param Builder $query
+     * @param  Builder  $query
      */
     public function newEloquentBuilder($query): NotificationDigestQueryBuilder
     {

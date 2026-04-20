@@ -18,12 +18,13 @@ use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessActionAlertHighlight;
 use Src\Domain\Process\Services\GroupProcessActionsService;
- 
+
 class NotificationDigestService
 {
     public function __construct(
         private readonly GroupProcessActionsService $groupProcessActionsService
     ) {}
+
     public function sendDigest(Organization $organization): void
     {
         // 1. Get all pending email notifications for this organization
@@ -184,21 +185,19 @@ class NotificationDigestService
     {
         // 1. Tag pairs using the existing service
         $tagged = $this->groupProcessActionsService->handle($data);
-        
+
         $toRemove = collect();
         $merged = $tagged->map(function (array $item) use ($tagged, $toRemove): array {
             // If it's an Auto that was already 'claimed' by a Fijación, we ignore it here (as it will be removed later)
-            if (isset($item['fijacion_action_id'])) {
-                // Check if the Fijación actually exists in this collection
-                if ($tagged->contains('process_action_id', $item['fijacion_action_id'])) {
-                    $toRemove->push($item['process_action_id'] ?? $item['id']);
-                }
+            // Check if the Fijación actually exists in this collection
+            if (isset($item['fijacion_action_id']) && $tagged->contains('process_action_id', $item['fijacion_action_id'])) {
+                $toRemove->push($item['process_action_id'] ?? $item['id']);
             }
 
             // If it's a Fijación with a linked Auto, we merge the Auto's text into this one
             if (isset($item['notified_action_id'])) {
                 $auto = $tagged->firstWhere('process_action_id', $item['notified_action_id']);
-                
+
                 if ($auto) {
                     $item['is_merged'] = true;
                     // Store the 'Pair' info for the Blade template
@@ -217,7 +216,7 @@ class NotificationDigestService
         });
 
         // 2. Remove the "independent" rows of Autos that are now part of a Fijación row
-        return $merged->reject(fn(array $item) => $toRemove->contains($item['process_action_id'] ?? $item['id']))->values();
+        return $merged->reject(fn (array $item) => $toRemove->contains($item['process_action_id'] ?? $item['id']))->values();
     }
 
     private function markAsNotified(Collection $notifications, string $digestId): void
