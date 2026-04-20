@@ -58,7 +58,14 @@ class ImportRadicadoJob implements ShouldQueue
 
         try {
             $seed = $this->processNumber.':'.$this->attempts();
-            $result = $registerProcessService->handle($this->processNumber, $this->organizationId, null, $seed);
+            $batch = ProcessImportBatch::query()->find($this->processImportBatchId);
+            $result = $registerProcessService->handle(
+                $this->processNumber,
+                $this->organizationId,
+                null,
+                $seed,
+                $batch?->requested_by
+            );
 
             $this->incrementBatchSuccess($result->registeredCount);
 
@@ -284,7 +291,7 @@ class ImportRadicadoJob implements ShouldQueue
         DB::transaction(function () use ($reason): void {
             $batch = $this->findBatchForUpdate();
 
-            if (! $batch instanceof \Src\Domain\Process\Models\ProcessImportBatch) {
+            if (! $batch instanceof ProcessImportBatch) {
                 return;
             }
 

@@ -23,6 +23,7 @@ class OrganizationIndexResource extends Resource
         public bool $is_active,
         public ?string $created_at,
         public ?string $updated_at,
+        public bool $is_receiving_notifications = false,
     ) {}
 
     public static function fromModel(Organization $organization, int $index = 0): self
@@ -41,6 +42,7 @@ class OrganizationIndexResource extends Resource
             is_active: $organization->is_active,
             created_at: $organization->created_at->format('Y-m-d H:i:s'),
             updated_at: $organization->updated_at->format('Y-m-d H:i:s'),
+            is_receiving_notifications: (bool) ($organization->is_receiving_notifications ?? false),
         );
     }
 }

@@ -22,6 +22,7 @@ class AppUserResource extends Resource
         public ?string $profile_image = null,
         public bool $must_change_password = true,
         public ?array $roles = null,
+        public ?string $organization_id = null,
     ) {}
 
     public static function fromModel(AppUser $appUser): self
@@ -44,6 +45,7 @@ class AppUserResource extends Resource
             profile_image: $appUser->profile_image,
             must_change_password: (bool) ($appUser->must_change_password ?? true),
             roles: $roles,
+            organization_id: $appUser->organizations()->first()?->id,
         );
     }
 }

@@ -58,9 +58,14 @@ class OrganizationCreatorService
 
             $this->createDefaultNotificationChannel($organization, $appUser);
 
-            DB::afterCommit(function () use ($appUser, $password): void {
-                $appUser->notify(new AccountCreatedNotification($password));
-            });
+            if ($data->generate_password) {
+                // @phpstan-ignore-next-line
+                $organization->createdPassword = $password;
+            } else {
+                DB::afterCommit(function () use ($appUser, $password): void {
+                    $appUser->notify(new AccountCreatedNotification($password));
+                });
+            }
 
             return $organization->load('appUsers');
         });

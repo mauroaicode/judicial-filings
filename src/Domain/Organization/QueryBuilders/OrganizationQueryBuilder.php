@@ -21,7 +21,11 @@ class OrganizationQueryBuilder extends Builder
      */
     public function withRelations(): self
     {
-        return $this->with(['appUsers']);
+        return $this->with(['appUsers'])
+            ->withExists(['notificationChannels as is_receiving_notifications' => function ($query): void {
+                $query->whereIn('channel_type', ['email', 'whatsapp', 'sms', 'internal'])
+                    ->where('is_active', true);
+            }]);
     }
 
     /**

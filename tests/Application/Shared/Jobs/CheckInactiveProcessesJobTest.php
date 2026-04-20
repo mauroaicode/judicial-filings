@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Src\Application\Shared\Jobs\CheckInactiveProcessesJob;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -11,7 +12,9 @@ use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 
 beforeEach(function (): void {
-    $this->organization = Organization::factory()->create();
+    $this->organization = Organization::factory()->create([
+        'name' => 'Job Org '.Str::uuid(),
+    ]);
     $this->appUser = AppUser::factory()->create();
     $this->appUser->organizations()->attach($this->organization->id, ['is_owner' => true]);
 });

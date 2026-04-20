@@ -40,6 +40,8 @@ class StoreOrganizationData extends Data
 
         #[RequiredIf('type', OrganizationType::JURIDICAL->value), StringType]
         public readonly ?string $contact_person = null,
+
+        public readonly bool $generate_password = false,
     ) {}
 
     public static function withValidator(Validator $validator): void

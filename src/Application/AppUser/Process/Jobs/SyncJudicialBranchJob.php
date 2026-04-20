@@ -14,6 +14,7 @@ use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
+use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
 use Throwable;
 
@@ -41,19 +42,20 @@ class SyncJudicialBranchJob implements ShouldQueue
                 $this->processNumber,
                 $this->organizationId,
                 $this->lawyerRole,
-                $this->processNumber
+                $this->processNumber,
+                $this->appUser->id
             );
 
             $process = $result->getFirstProcess();
 
-            if ($process instanceof \Src\Domain\Process\Models\Process) {
+            if ($process instanceof Process) {
 
                 $this->updateLogStatus('success');
 
                 $this->appUser->notify(new ProcessDataImportedNotification($process));
 
                 if (config('ia-rag.enabled')) {
-                    dispatch(new \Src\Application\AppUser\Process\Jobs\GenerateProcessAiSummaryJob($process, $this->organizationId, $this->appUser))
+                    dispatch(new GenerateProcessAiSummaryJob($process, $this->organizationId, $this->appUser))
                         ->onQueue(config('ia-rag.queues.ai'));
                 }
             } else {

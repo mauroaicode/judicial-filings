@@ -91,4 +91,5 @@ return [
     'relationship_not_found' => 'No se encontró la asociación entre el proceso y su organización.',
     'not_found_in_organization' => 'El proceso especificado no pertenece a esta organización.',
     'invalid_none_combination' => 'No es posible filtrar por "Sin Rol" y "Sin Semáforo" al mismo tiempo.',
+    'initial_chat' => 'Chat Inicial',
 ];

@@ -12,6 +12,8 @@ use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Traits\ParseDateTrait;
+use Src\Domain\AiChat\Models\AiChat;
+use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Enums\SeverityColor;
@@ -39,7 +41,7 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    public function handle(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole = null, string $proxySeed = ''): RegisterProcessResult
+    public function handle(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole = null, string $proxySeed = '', ?string $appUserId = null): RegisterProcessResult
     {
         if ($proxySeed !== '') {
             $this->judicialBranchConsultService->withSeed($proxySeed);
@@ -50,10 +52,10 @@ readonly class RegisterProcessService
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
 
         if ($existingProcesses->isNotEmpty()) {
-            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole);
+            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId);
         }
 
-        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole);
+        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole, $appUserId);
     }
 
     /**
@@ -67,9 +69,9 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole): RegisterProcessResult
+    private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId): RegisterProcessResult
     {
-        return DB::transaction(function () use ($processes, $organizationId, $lawyerRole): RegisterProcessResult {
+        return DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId): RegisterProcessResult {
             /** @var Collection<int, Process> $attached */
             $attached = collect();
             $privateCount = 0;
@@ -81,7 +83,7 @@ readonly class RegisterProcessService
                     continue;
                 }
 
-                $this->attachProcessToOrganization($process, $organizationId, $lawyerRole);
+                $this->attachProcessToOrganization($process, $organizationId, $lawyerRole, $appUserId);
                 $attached->push($process);
             }
 
@@ -111,7 +113,7 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    private function registerFromApi(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole): RegisterProcessResult
+    private function registerFromApi(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId): RegisterProcessResult
     {
         $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber);
 
@@ -122,7 +124,7 @@ readonly class RegisterProcessService
         $registeredProcesses = collect();
         $privateCount = 0;
 
-        return DB::transaction(function () use ($processNumber, $organizationId, $lawyerRole, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
+        return DB::transaction(function () use ($processNumber, $organizationId, $lawyerRole, $appUserId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
             foreach ($processesData as $processData) {
                 $isPrivate = $processData['esPrivado'] ?? false;
 
@@ -160,7 +162,7 @@ readonly class RegisterProcessService
 
                     $globalProcess->update($updateData);
 
-                    $this->attachProcessToOrganization($globalProcess, $organizationId, $lawyerRole);
+                    $this->attachProcessToOrganization($globalProcess, $organizationId, $lawyerRole, $appUserId);
                     $registeredProcesses->push($globalProcess);
 
                     continue;
@@ -170,7 +172,7 @@ readonly class RegisterProcessService
                 $fechaUltimaActuacion = $processData['fechaUltimaActuacion'] ?? null;
 
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
-                $this->attachProcessToOrganization($process, $organizationId, $lawyerRole);
+                $this->attachProcessToOrganization($process, $organizationId, $lawyerRole, $appUserId);
                 $this->processSyncService->handle($process, false);
 
                 // After sync, last_activity_date is now populated from actuaciones.
@@ -295,7 +297,7 @@ readonly class RegisterProcessService
      * @param  Process  $process  The process to attach.
      * @param  string  $organizationId  The organization ID.
      */
-    private function attachProcessToOrganization(Process $process, string $organizationId, ?ProcessLawyerRole $lawyerRole): void
+    private function attachProcessToOrganization(Process $process, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId): void
     {
         $alertLevel = $this->calculateInitialAlertLevel($process, $lawyerRole);
 
@@ -307,6 +309,16 @@ readonly class RegisterProcessService
                 'inactivity_alert_level' => $alertLevel,
             ],
         ]);
+
+        if (! AiChat::query()->whereProcess($process->id)->whereOrganization($organizationId)->exists()) {
+            AiChat::query()->create([
+                'organization_id' => $organizationId,
+                'process_id' => $process->id,
+                'app_user_id' => $appUserId ?? Organization::query()->find($organizationId)?->owners()->first()?->id,
+                'title' => __('process.initial_chat'),
+                'is_private' => false,
+            ]);
+        }
     }
 
     /**
