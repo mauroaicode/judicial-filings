@@ -8,15 +8,34 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
 use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
+use Src\Application\AppUser\Notification\Services\GetNotificationDigestDetailsService;
+use Src\Application\AppUser\Notification\Services\ListNotificationDigestHistoryService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\NotificationDigest;
+use Src\Domain\Process\Services\GroupProcessActionsService;
 
 readonly class NotificationDigestController
 {
     public function __construct(
         private NotificationDigestFinderService $notificationDigestFinderService,
-        private \Src\Domain\Process\Services\GroupProcessActionsService $groupProcessActionsService
+        private ListNotificationDigestHistoryService $listNotificationDigestHistoryService,
+        private GroupProcessActionsService $groupProcessActionsService,
+        private GetNotificationDigestDetailsService $getNotificationDigestDetailsService
     ) {}
+
+    public function show(string $id, NotificationDigestFilterData $filters): LengthAwarePaginator
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        return $this->getNotificationDigestDetailsService->handle($organization->id, $id, $filters);
+    }
 
     public function index(NotificationDigestFilterData $filters): LengthAwarePaginator
     {
@@ -126,5 +145,23 @@ readonly class NotificationDigestController
         $paginatedDigests->setCollection($mergedCollection);
 
         return $paginatedDigests;
+    }
+
+    public function history(NotificationDigestFilterData $filters): LengthAwarePaginator
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        $digests = $this->listNotificationDigestHistoryService->handle($organization->id, $filters);
+
+        $digests->through(fn($digest) => \Src\Application\AppUser\Notification\Resources\NotificationDigestHistoryResource::fromModel($digest));
+
+        return $digests;
     }
 }

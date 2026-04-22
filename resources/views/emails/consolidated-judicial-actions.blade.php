@@ -10,33 +10,33 @@
             .mobile-block { display: block !important; width: 100% !important; box-sizing: border-box !important; }
             .stack-table { border: none !important; min-width: 100% !important; }
             .stack-table thead { display: none !important; }
-            .stack-table tr { 
-                display: block !important; 
-                margin-bottom: 25px !important; 
-                border: 1px solid #E5E7EB !important; 
-                border-radius: 12px !important; 
-                background-color: #FFFFFF !important; 
+            .stack-table tr {
+                display: block !important;
+                margin-bottom: 25px !important;
+                border: 1px solid #E5E7EB !important;
+                border-radius: 12px !important;
+                background-color: #FFFFFF !important;
                 overflow: hidden !important;
                 box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
             }
-            .stack-table td { 
-                display: block !important; 
-                width: 100% !important; 
-                text-align: left !important; 
-                padding: 12px 15px !important; 
-                border: none !important; 
-                border-bottom: 1px solid #F3F4F6 !important; 
+            .stack-table td {
+                display: block !important;
+                width: 100% !important;
+                text-align: left !important;
+                padding: 12px 15px !important;
+                border: none !important;
+                border-bottom: 1px solid #F3F4F6 !important;
                 box-sizing: border-box !important;
             }
             .stack-table td:last-child { border-bottom: none !important; }
-            .stack-table td:before { 
-                content: attr(data-label); 
-                display: block !important; 
-                font-size: 10px !important; 
-                font-weight: 800 !important; 
-                color: #4B2A7D !important; 
-                text-transform: uppercase !important; 
-                margin-bottom: 5px !important; 
+            .stack-table td:before {
+                content: attr(data-label);
+                display: block !important;
+                font-size: 10px !important;
+                font-weight: 800 !important;
+                color: #4B2A7D !important;
+                text-transform: uppercase !important;
+                margin-bottom: 5px !important;
                 letter-spacing: 0.5px !important;
             }
             .stack-table td .fijacion-badge { font-size: 8px !important; }
@@ -142,7 +142,7 @@
     {{--    </div>--}}
 
     <div style="text-align: center; margin-top: 30px;">
-        <a href="{{ config('app.url') }}/processes"
+        <a href="{{ config('notification.mail.frontend_url_email_consolidated') }}"
            style="background-color: #24163E; color: #FFFFFF; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block;">
             Ir a Mis Actuaciones Recientes
         </a>

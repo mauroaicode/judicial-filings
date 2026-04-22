@@ -18,10 +18,14 @@ class NotificationDigestResource extends Resource
     public function __construct(
         public string $id,
         public array $data,
-        public string $created_at,
-        public ?string $email_sent_at = null,
-        public ?string $whatsapp_sent_at = null,
-        public ?string $sms_sent_at = null,
+        public string $date,
+        public string $time,
+        public string $period,
+        public int $actions_count,
+        public bool $is_notified,
+        public ?string $email_notified_at = null,
+        public ?string $whatsapp_notified_at = null,
+        public ?string $sms_notified_at = null,
     ) {}
 
     public static function fromModel(NotificationDigest $digest, ?NotificationDigestFilterData $filters = null): self
@@ -33,7 +37,7 @@ class NotificationDigestResource extends Resource
 
         $notifLookup = self::buildNotificationLookup($digest);
 
-        $formattedData = array_map(function (array $item) use ($notifLookup, $filters): ?array {
+        $formattedData = array_map(function (array $item) use (&$notifLookup, $filters): ?array {
 
             // 1. Internal filtering logic
             if ($filters instanceof NotificationDigestFilterData && ! self::shouldIncludeItem($item, $filters)) {
@@ -60,13 +64,19 @@ class NotificationDigestResource extends Resource
         // Clean, Sort and Strip metadata
         $finalData = self::processFinalCollection($formattedData);
 
+        $notified = $digest->email_sent_at !== null || $digest->whatsapp_sent_at !== null || $digest->sms_sent_at !== null;
+
         return new self(
             id: $digest->id,
             data: $finalData,
-            created_at: DateFormatHelper::formatDate($digest->created_at),
-            email_sent_at: $digest->email_sent_at ? DateFormatHelper::formatDate($digest->email_sent_at) : null,
-            whatsapp_sent_at: $digest->whatsapp_sent_at ? DateFormatHelper::formatDate($digest->whatsapp_sent_at) : null,
-            sms_sent_at: $digest->sms_sent_at ? DateFormatHelper::formatDate($digest->sms_sent_at) : null,
+            date: DateFormatHelper::formatDate($digest->created_at),
+            time: $digest->created_at->format('g:ia'),
+            period: DateFormatHelper::getPeriodFromHour((int) $digest->created_at->format('H')),
+            actions_count: count($finalData), // Initial base count, will be overwritten dynamically by GetNotificationDigestDetailsService
+            is_notified: $notified,
+            email_notified_at: $digest->email_sent_at ? DateFormatHelper::formatDateWithTime($digest->email_sent_at) : null,
+            whatsapp_notified_at: $digest->whatsapp_sent_at ? DateFormatHelper::formatDateWithTime($digest->whatsapp_sent_at) : null,
+            sms_notified_at: $digest->sms_sent_at ? DateFormatHelper::formatDateWithTime($digest->sms_sent_at) : null,
         );
     }
 
@@ -77,12 +87,16 @@ class NotificationDigestResource extends Resource
             $action = $notif->notifiable;
             if ($action instanceof ProcessAction) {
                 $key = "{$action->process->process_number}|{$action->action}";
-                $notifLookup[$key] = $notif;
+                if (!isset($notifLookup[$key])) {
+                    $notifLookup[$key] = [];
+                }
+                $notifLookup[$key][] = $notif;
             }
         }
 
         return $notifLookup;
     }
+
 
     private static function shouldIncludeItem(array $item, NotificationDigestFilterData $filters): bool
     {
@@ -167,11 +181,14 @@ class NotificationDigestResource extends Resource
         return $item;
     }
 
-    private static function enrichItemData(array $item, array $notifLookup): array
+    private static function enrichItemData(array $item, array &$notifLookup): array
     {
         $lookupKey = ($item['process_number'] ?? '').'|'.($item['action_text'] ?? '');
         /** @var OrganizationNotification|null $matchedNotif */
-        $matchedNotif = $notifLookup[$lookupKey] ?? null;
+        $matchedNotif = null;
+        if (isset($notifLookup[$lookupKey]) && count($notifLookup[$lookupKey]) > 0) {
+            $matchedNotif = array_shift($notifLookup[$lookupKey]);
+        }
 
         // 1. Alert Highlights
         if ($matchedNotif && (empty($item['alert_highlights']))) {
@@ -215,6 +232,12 @@ class NotificationDigestResource extends Resource
             $item['alert_level'] ??= null;
             $item['lawyer_role'] ??= null;
             $item['cons_action'] ??= 0;
+            
+            // Si la actuación es residual (ya no existe en la base de datos de notificaciones), 
+            // le inyectamos un ID sintético basado en su hash para permitir que las validaciones de emparejamiento sigan funcionando
+            if (empty($item['process_action_id']) && empty($item['id'])) {
+                $item['process_action_id'] = 'synth-' . md5(($item['process_number'] ?? '') . ($item['action_text'] ?? '') . ($item['annotation'] ?? ''));
+            }
         }
 
         // 3. Subjects (Title Case & Pluralization)

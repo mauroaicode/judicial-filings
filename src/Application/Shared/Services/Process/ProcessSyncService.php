@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Contracts\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
@@ -88,7 +89,7 @@ class ProcessSyncService
             $hasNewActions = true;
 
             $actionDate = Date::parse($attributes['action_date']);
-            if (! $maxActionDate instanceof \Illuminate\Support\Carbon || $actionDate->greaterThan($maxActionDate)) {
+            if (! $maxActionDate instanceof Carbon || $actionDate->greaterThan($maxActionDate)) {
                 $maxActionDate = $actionDate;
             }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Notification\Services;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Date;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Domain\Notification\Models\NotificationDigest;
 
@@ -21,11 +22,11 @@ readonly class NotificationDigestFinderService
     public function handle(NotificationDigestFilterData $filters, string $organizationId, int $perPage = 20): LengthAwarePaginator
     {
         if (! $filters->hasCriterialFilters()) {
-            $lastDigestDate = \Src\Domain\Notification\Models\NotificationDigest::query()
+            $lastDigestDate = NotificationDigest::query()
                 ->where('organization_id', $organizationId)
                 ->max('created_at');
 
-            $activeDate = $lastDigestDate ? \Illuminate\Support\Facades\Date::parse($lastDigestDate)->format('Y-m-d') : now()->format('Y-m-d');
+            $activeDate = $lastDigestDate ? Date::parse($lastDigestDate)->format('Y-m-d') : now()->format('Y-m-d');
 
             $filters->created_at_from = $activeDate;
             $filters->created_at_to = $activeDate;
