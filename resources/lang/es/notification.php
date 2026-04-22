@@ -8,4 +8,7 @@ return [
     'time_ago_hours' => 'hace :count horas',
     'yesterday' => 'ayer',
     'date_time' => ':date a las :time',
+    'morning' => 'Mañana',
+    'afternoon' => 'Tarde',
+    'night' => 'Noche',
 ];
