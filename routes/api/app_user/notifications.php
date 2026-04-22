@@ -16,4 +16,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     Route::get('notification-digests', [NotificationDigestController::class, 'index']);
+    Route::get('notification-digests/{id}', [NotificationDigestController::class, 'show'])->whereUuid('id');
+    Route::get('notification-digests/history', [NotificationDigestController::class, 'history']);
 });
