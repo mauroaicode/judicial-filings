@@ -25,10 +25,8 @@ beforeEach(function (): void {
     ]);
 
     // Assign admin role to user
-    $adminRole = Role::query()->where('guard_name', 'admin')->first();
-    if ($adminRole) {
-        $this->user->roles()->attach($adminRole->id);
-    }
+    $adminRole = Role::query()->firstOrCreate(['name' => 'admin', 'guard_name' => 'admin']);
+    $this->user->roles()->attach($adminRole->id);
 });
 
 it('requires authentication to list processes', function (): void {

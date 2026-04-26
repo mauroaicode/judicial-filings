@@ -68,7 +68,7 @@ class ConsolidatedJudicialActionsNotification extends Notification implements Sh
         $description .= ' en sus procesos seguidos.';
 
         return [
-            'digest_id' => $this->digest->id,
+            'id' => $this->digest->id,
             'title' => 'Resumen de actuaciones judiciales',
             'description' => $description,
             'type' => 'consolidated-digest',

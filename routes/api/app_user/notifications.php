@@ -12,6 +12,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/unread-count', [AppUserNotificationController::class, 'unreadCount']);
         Route::post('/{id}/read', [AppUserNotificationController::class, 'markAsRead']);
         Route::post('/mark-all-read', [AppUserNotificationController::class, 'markAllAsRead']);
+        Route::post('/mark-all-opened', [AppUserNotificationController::class, 'markAllAsOpened']);
         Route::delete('/{id}', [AppUserNotificationController::class, 'destroy']);
     });
 
