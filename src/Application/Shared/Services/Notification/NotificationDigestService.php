@@ -74,7 +74,7 @@ class NotificationDigestService
         //    and links notifications regardless of whether channels succeed.
         $digest = NotificationDigest::query()->create([
             'organization_id' => $organization->id,
-            'data'            => $digestData->toArray(),
+            'data' => $digestData->toArray(),
             // Channel timestamps are set individually AFTER each successful send.
         ]);
 
@@ -89,7 +89,7 @@ class NotificationDigestService
         $users = $organization->appUsers;
         if ($users->isNotEmpty()) {
             $actionsCount = $digestData->where('is_alert', false)->count();
-            $alertsCount  = $digestData->where('is_alert', true)->count();
+            $alertsCount = $digestData->where('is_alert', true)->count();
 
             try {
                 Notification::send(
@@ -100,8 +100,8 @@ class NotificationDigestService
                 Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
                     ->error('NotificationDigestService: Failed to send internal notification', [
                         'organization_id' => $organization->id,
-                        'digest_id'       => $digest->id,
-                        'message'         => $e->getMessage(),
+                        'digest_id' => $digest->id,
+                        'message' => $e->getMessage(),
                     ]);
             }
         }
@@ -130,16 +130,16 @@ class NotificationDigestService
 
             Log::channel($logChannel)->info('NotificationDigestService: Email sent successfully', [
                 'organization_id' => $organizationId,
-                'digest_id'       => $digest->id,
-                'recipient'       => $recipientEmail,
+                'digest_id' => $digest->id,
+                'recipient' => $recipientEmail,
             ]);
 
         } catch (\Throwable $e) {
             Log::channel($logChannel)->error('NotificationDigestService: Failed to send email channel', [
                 'organization_id' => $organizationId,
-                'digest_id'       => $digest->id,
-                'recipient'       => $recipientEmail,
-                'message'         => $e->getMessage(),
+                'digest_id' => $digest->id,
+                'recipient' => $recipientEmail,
+                'message' => $e->getMessage(),
             ]);
             // email_sent_at remains null — queryable to detect and retry failed sends.
         }

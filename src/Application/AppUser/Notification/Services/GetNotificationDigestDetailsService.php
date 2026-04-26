@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Notification\Services;
 
+use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
@@ -33,14 +34,13 @@ class GetNotificationDigestDetailsService
             $resource['data']
         );
 
-
         $resource['data'] = $this->sortByRegistrationDate(
             $resource['data']
         )->all();
 
         $totalActions = count($resource['data']);
         $resource['actions_count'] = $totalActions;
-        
+
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
         $perPage = $filters->per_page ?: 20;
 
@@ -48,23 +48,15 @@ class GetNotificationDigestDetailsService
         $resource['data'] = $pagedActions;
 
         // Calculamos los campos "from" y "to" correctos basados en las actuaciones internas (no en el wrapper)
-        $paginator = new class(
-            [$resource],
-            $totalActions,
-            $perPage,
-            $currentPage,
-            [
-                'path' => request()->url(),
-                'query' => array_merge(request()->query(), $filters->toArray()),
-            ]
-        ) extends LengthAwarePaginator {
+        $paginator = new class([$resource], $totalActions, $perPage, $currentPage, ['path' => request()->url(), 'query' => array_merge(request()->query(), $filters->toArray())]) extends LengthAwarePaginator
+        {
             public function toArray()
             {
                 $array = parent::toArray();
-                
+
                 // Extraemos cuántas actuaciones reales vinieron en esta página
                 $actualItemsCount = count(func_num_args() === 0 ? $this->items->first()['data'] ?? [] : []);
-                
+
                 // Recalculamos matemáticamente from y to
                 if ($actualItemsCount > 0) {
                     $array['from'] = ($this->currentPage() - 1) * $this->perPage() + 1;
@@ -73,7 +65,7 @@ class GetNotificationDigestDetailsService
                     $array['from'] = null;
                     $array['to'] = null;
                 }
-                
+
                 return $array;
             }
         };
@@ -98,15 +90,15 @@ class GetNotificationDigestDetailsService
             return collect();
         }
 
-        return $data->groupBy(function (array $item) {
-                $id = $item['process_action_id'] ?? '';
-                $radicado = $item['process_number'] ?? '';
-                $text = $item['action_text'] ?? '';
-                $date = $item['action_date'] ?? '';
-                $annotation = $item['annotation'] ?? '';
+        return $data->groupBy(function (array $item): string {
+            $id = $item['process_action_id'] ?? '';
+            $radicado = $item['process_number'] ?? '';
+            $text = $item['action_text'] ?? '';
+            $date = $item['action_date'] ?? '';
+            $annotation = $item['annotation'] ?? '';
 
-                return md5($radicado . $text . $date . $annotation);
-            })
+            return md5($radicado.$text.$date.$annotation);
+        })
             ->map(function (Collection $group) {
                 if ($group->count() === 1) {
                     return $group->first();
@@ -117,8 +109,8 @@ class GetNotificationDigestDetailsService
 
                 $keywords = $group->pluck('matched_keywords')
                     ->filter()
-                    ->flatMap(fn($k): array => explode(',', (string) $k))
-                    ->map(fn($item): string => trim($item))
+                    ->flatMap(fn ($k): array => explode(',', (string) $k))
+                    ->map(fn ($item): string => trim($item))
                     ->filter()
                     ->unique()
                     ->values();
@@ -154,10 +146,10 @@ class GetNotificationDigestDetailsService
                     $item['is_merged'] = true;
                     $item['linked_action_text'] = $auto['action_text'] ?? '';
                     $item['linked_annotation'] = $auto['annotation'] ?? '';
-                    
+
                     // Mezclamos el estatus de alerta
                     $item['is_alert'] = ($item['is_alert'] ?? false) || ($auto['is_alert'] ?? false);
-                    
+
                     // Unimos keywords
                     $item['matched_keywords'] = collect([$item['matched_keywords'] ?? '', $auto['matched_keywords'] ?? ''])
                         ->filter()
@@ -170,7 +162,7 @@ class GetNotificationDigestDetailsService
         });
 
         // 2. Removemos los Autos huérfanos que ahora son parte de un Estado
-        return $merged->reject(fn (array $item) => !empty($item['process_action_id']) && $toRemove->contains($item['process_action_id']))->values();
+        return $merged->reject(fn (array $item): bool => ! empty($item['process_action_id']) && $toRemove->contains($item['process_action_id']))->values();
     }
 
     private function sortByRegistrationDate(Collection $data): Collection
@@ -180,13 +172,13 @@ class GetNotificationDigestDetailsService
         }
 
         return $data->sortByDesc(function (array $item) {
-                $carbon = \Carbon\Carbon::class;
-                try {
-                    return $carbon::createFromLocaleFormat('d !de F !de Y', 'es', $item['registration_date'] ?? '');
-                } catch (\Exception) {
-                    return $item['registration_date'] ?? '';
-                }
-            })
+            $carbon = Carbon::class;
+            try {
+                return $carbon::createFromLocaleFormat('d !de F !de Y', 'es', $item['registration_date'] ?? '');
+            } catch (\Exception) {
+                return $item['registration_date'] ?? '';
+            }
+        })
             ->values();
     }
 }

@@ -87,16 +87,16 @@ class NotificationDigestResource extends Resource
             $action = $notif->notifiable;
             if ($action instanceof ProcessAction) {
                 $key = "{$action->process->process_number}|{$action->action}";
-                if (!isset($notifLookup[$key])) {
+                if (! isset($notifLookup[$key])) {
                     $notifLookup[$key] = [];
                 }
+
                 $notifLookup[$key][] = $notif;
             }
         }
 
         return $notifLookup;
     }
-
 
     private static function shouldIncludeItem(array $item, NotificationDigestFilterData $filters): bool
     {
@@ -232,11 +232,23 @@ class NotificationDigestResource extends Resource
             $item['alert_level'] ??= null;
             $item['lawyer_role'] ??= null;
             $item['cons_action'] ??= 0;
-            
-            // Si la actuación es residual (ya no existe en la base de datos de notificaciones), 
+
+            // Fallback: Si no hay match exacto por actuación pero tenemos radicado,
+            // intentamos recuperar el process_id buscando el proceso en la organización
+            if (empty($item['process_id']) && ! empty($item['process_number'])) {
+                $process = \Src\Domain\Process\Models\Process::query()
+                    ->where('process_number', $item['process_number'])
+                    ->first();
+
+                if ($process) {
+                    $item['process_id'] = $process->id;
+                }
+            }
+
+            // Si la actuación es residual (ya no existe en la base de datos de notificaciones),
             // le inyectamos un ID sintético basado en su hash para permitir que las validaciones de emparejamiento sigan funcionando
             if (empty($item['process_action_id']) && empty($item['id'])) {
-                $item['process_action_id'] = 'synth-' . md5(($item['process_number'] ?? '') . ($item['action_text'] ?? '') . ($item['annotation'] ?? ''));
+                $item['process_action_id'] = 'synth-'.md5(($item['process_number'] ?? '').($item['action_text'] ?? '').($item['annotation'] ?? ''));
             }
         }
 

@@ -6,10 +6,11 @@ namespace Src\Application\AppUser\Notification\Controllers;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
+use Src\Application\AppUser\Notification\Resources\NotificationDigestHistoryResource;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
-use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
 use Src\Application\AppUser\Notification\Services\GetNotificationDigestDetailsService;
 use Src\Application\AppUser\Notification\Services\ListNotificationDigestHistoryService;
+use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Process\Services\GroupProcessActionsService;
@@ -158,9 +159,10 @@ readonly class NotificationDigestController
             abort(422, __('process.user_has_no_organization'));
         }
 
+        /** @var LengthAwarePaginator $digests */
         $digests = $this->listNotificationDigestHistoryService->handle($organization->id, $filters);
 
-        $digests->through(fn($digest) => \Src\Application\AppUser\Notification\Resources\NotificationDigestHistoryResource::fromModel($digest));
+        $digests->through(fn (NotificationDigest $digest): NotificationDigestHistoryResource => NotificationDigestHistoryResource::fromModel($digest));
 
         return $digests;
     }
