@@ -20,4 +20,6 @@ return [
     'user_not_found' => 'No user was found with that identification.',
     'invalid_token' => 'The recovery token is invalid or has expired.',
     'password_reset_successful' => 'Your password has been successfully reset.',
+    'password_incorrect' => 'The password is incorrect.',
+    'session_unlocked' => 'Session unlocked successfully.',
 ];
