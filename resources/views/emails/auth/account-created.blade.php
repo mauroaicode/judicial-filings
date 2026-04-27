@@ -38,7 +38,7 @@
     </div>
 
     <div style="text-align: center; margin: 40px 0;">
-        <a href="{{ config('app.url') }}/login" style="background-color: #24163E; color: #FFFFFF; padding: 16px 40px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
+        <a href="{{ config('app.frontend_url')}}/sign-in" style="background-color: #24163E; color: #FFFFFF; padding: 16px 40px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 16px; display: inline-block;">
             Ingresar al Sistema
         </a>
     </div>

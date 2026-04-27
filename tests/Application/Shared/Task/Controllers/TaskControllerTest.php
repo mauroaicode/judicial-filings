@@ -6,7 +6,9 @@ use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Role\Models\Role;
 use Src\Domain\Task\Models\Task;
+use Src\Domain\User\Models\User;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create();
@@ -21,6 +23,9 @@ beforeEach(function (): void {
     $this->user = AppUser::factory()->create([
         'password' => Hash::make('password'),
     ]);
+
+    // Relate user and organization
+    $this->user->organizations()->attach($this->organization->id, ['is_owner' => true]);
 });
 
 it('can list tasks', function (): void {
@@ -107,12 +112,19 @@ it('can update a task', function (): void {
     $this->assertDatabaseHas('tasks', [
         'id' => $task->id,
         'title' => 'Updated Title',
-        'is_admin' => true,
+        'is_admin' => false,
     ]);
     $response->assertJsonPath('title', 'Updated Title');
+    $response->assertJsonPath('is_admin', false);
 });
 
 it('fails to update a task if organization does not exist', function (): void {
+    $admin = User::factory()->create(['password' => 'password']);
+
+    // Relate admin user and role
+    $adminRole = Role::query()->firstOrCreate(['name' => 'admin', 'guard_name' => 'admin']);
+    $admin->roles()->attach($adminRole->id);
+
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
     ]);
@@ -125,8 +137,8 @@ it('fails to update a task if organization does not exist', function (): void {
         'organization_id' => (string) \Illuminate\Support\Str::uuid(), // Non-existent
     ];
 
-    $response = $this->actingAs($this->user)
-        ->putJson("/api/app-user/tasks/{$task->id}", $data);
+    $response = $this->actingAs($admin)
+        ->putJson("/api/admin/tasks/{$task->id}", $data);
 
     $response->assertStatus(422);
     $response->assertJsonValidationErrors(['organization_id']);

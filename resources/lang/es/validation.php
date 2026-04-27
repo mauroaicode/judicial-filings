@@ -4,10 +4,23 @@ return [
     'required' => 'El campo :attribute es obligatorio.',
     'enum' => 'El valor seleccionado para :attribute es inválido.',
     'array' => 'El campo :attribute debe ser un arreglo.',
+    'email' => 'El campo :attribute debe ser una dirección de correo válida.',
     'regex' => 'El formato de :attribute es inválido.',
+    'unique' => 'El campo :attribute ya ha sido registrado.',
+    'confirmed' => 'La confirmación de :attribute no coincide.',
     'min' => [
         'array' => 'El campo :attribute debe tener al menos :min elementos.',
+        'file' => 'El archivo :attribute debe pesar al menos :min kilobytes.',
+        'numeric' => 'El campo :attribute debe ser al menos :min.',
+        'string' => 'El campo :attribute debe tener al menos :min caracteres.',
     ],
+    'max' => [
+        'array' => 'El campo :attribute no debe tener más de :max elementos.',
+        'file' => 'El archivo :attribute no debe pesar más de :max kilobytes.',
+        'numeric' => 'El campo :attribute no debe ser mayor a :max.',
+        'string' => 'El campo :attribute no debe tener más de :max caracteres.',
+    ],
+    'string' => 'El campo :attribute debe ser una cadena de caracteres.',
     'process_number' => [
         'regex' => 'El número de radicado debe tener exactamente 23 dígitos numéricos.',
     ],

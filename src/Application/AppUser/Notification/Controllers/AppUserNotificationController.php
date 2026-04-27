@@ -6,6 +6,8 @@ namespace Src\Application\AppUser\Notification\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\DatabaseNotification;
+use Src\Application\AppUser\Notification\Resources\AppUserNotificationResource;
 
 class AppUserNotificationController
 {
@@ -17,18 +19,22 @@ class AppUserNotificationController
         $notifications = $request->user()
             ->notifications()
             ->paginate(20)
-            ->through(fn (\Illuminate\Notifications\DatabaseNotification $notification): \Src\Application\AppUser\Notification\Resources\AppUserNotificationResource => \Src\Application\AppUser\Notification\Resources\AppUserNotificationResource::fromModel($notification));
+            ->through(fn (DatabaseNotification $notification): AppUserNotificationResource => AppUserNotificationResource::fromModel($notification));
 
         return response()->json($notifications);
     }
 
     /**
-     * Get the count of unread app user notifications.
+     * Get the count of unread and new app user notifications.
      */
     public function unreadCount(Request $request): JsonResponse
     {
+        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        $user = $request->user();
+
         return response()->json([
-            'unread_count' => $request->user()->unreadNotifications()->count(),
+            'unread_count' => $user->unreadNotifications()->count(),
+            'new_count' => $user->notifications()->whereNull('opened_at')->count(),
         ]);
     }
 
@@ -40,6 +46,10 @@ class AppUserNotificationController
         $notification = $request->user()->notifications()->findOrFail($id);
         $notification->markAsRead();
 
+        if (is_null($notification->opened_at)) {
+            $notification->update(['opened_at' => now()]);
+        }
+
         return response()->json(['success' => true]);
     }
 
@@ -50,7 +60,22 @@ class AppUserNotificationController
     {
         /** @var \Src\Domain\AppUser\Models\AppUser $user */
         $user = $request->user();
-        $user->unreadNotifications()->update(['read_at' => now()]);
+        $user->unreadNotifications()->update([
+            'read_at' => now(),
+            'opened_at' => now(),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Mark all app user notifications as opened.
+     */
+    public function markAllAsOpened(Request $request): JsonResponse
+    {
+        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        $user = $request->user();
+        $user->notifications()->whereNull('opened_at')->update(['opened_at' => now()]);
 
         return response()->json(['success' => true]);
     }

@@ -23,4 +23,6 @@ return [
     'user_not_found' => 'No se encontró ningún usuario con esa identificación.',
     'invalid_token' => 'El token de recuperación es inválido o ha expirado.',
     'password_reset_successful' => 'Tu contraseña ha sido restablecida exitosamente.',
+    'password_incorrect' => 'La contraseña es incorrecta.',
+    'session_unlocked' => 'Sesión desbloqueada correctamente.',
 ];

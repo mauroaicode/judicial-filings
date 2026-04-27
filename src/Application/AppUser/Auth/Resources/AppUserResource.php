@@ -23,6 +23,7 @@ class AppUserResource extends Resource
         public bool $must_change_password = true,
         public ?array $roles = null,
         public ?string $organization_id = null,
+        public int $session_lock_timeout = 5,
     ) {}
 
     public static function fromModel(AppUser $appUser): self
@@ -46,6 +47,7 @@ class AppUserResource extends Resource
             must_change_password: (bool) ($appUser->must_change_password ?? true),
             roles: $roles,
             organization_id: $appUser->organizations()->first()?->id,
+            session_lock_timeout: (int) config('session-lock.inactivity_timeout', 5),
         );
     }
 }

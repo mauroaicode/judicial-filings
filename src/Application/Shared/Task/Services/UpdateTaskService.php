@@ -14,9 +14,9 @@ class UpdateTaskService
     /**
      * Update a task by its ID with new data.
      */
-    public function handle(string $id, TaskData $data): Task
+    public function handle(string $id, TaskData $data, ?string $organizationId = null): Task
     {
-        $task = $this->findTask($id);
+        $task = $this->findTask($id, $organizationId);
 
         $this->validateRelations($data);
 
@@ -25,9 +25,11 @@ class UpdateTaskService
         return $task->fresh()->load('process');
     }
 
-    private function findTask(string $id): Task
+    private function findTask(string $id, ?string $organizationId = null): Task
     {
-        return Task::query()->findOrFail($id);
+        return Task::query()
+            ->when($organizationId, fn ($q): \Src\Domain\Task\QueryBuilders\TaskQueryBuilder => $q->whereOrganization($organizationId))
+            ->findOrFail($id);
     }
 
     private function validateRelations(TaskData $data): void

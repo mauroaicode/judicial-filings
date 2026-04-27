@@ -31,4 +31,9 @@ return [
         'plaintiff' => 'Demandante',
         'defendant' => 'Demandado',
     ],
+    'process_import_batch_status' => [
+        'processing' => 'En proceso',
+        'completed' => 'Completado',
+        'failed' => 'Fallido',
+    ],
 ];

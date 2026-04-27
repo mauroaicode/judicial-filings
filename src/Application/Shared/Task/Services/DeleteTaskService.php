@@ -11,16 +11,18 @@ class DeleteTaskService
     /**
      * Delete a task by its ID.
      */
-    public function handle(string $id): void
+    public function handle(string $id, ?string $organizationId = null): void
     {
-        $task = $this->findTask($id);
+        $task = $this->findTask($id, $organizationId);
 
         $this->deleteTask($task);
     }
 
-    private function findTask(string $id): Task
+    private function findTask(string $id, ?string $organizationId = null): Task
     {
-        return Task::query()->findOrFail($id);
+        return Task::query()
+            ->when($organizationId, fn ($q): \Src\Domain\Task\QueryBuilders\TaskQueryBuilder => $q->whereOrganization($organizationId))
+            ->findOrFail($id);
     }
 
     private function deleteTask(Task $task): void

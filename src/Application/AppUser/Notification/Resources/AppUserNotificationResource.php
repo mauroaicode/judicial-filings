@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Notification\Resources;
 
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Date;
 use Spatie\LaravelData\Resource;
 
 class AppUserNotificationResource extends Resource
@@ -16,6 +17,7 @@ class AppUserNotificationResource extends Resource
         public string|int $notifiable_id,
         public array $data,
         public ?string $read_at,
+        public ?string $opened_at,
         public ?string $created_at,
         public ?string $updated_at,
         public ?string $created_at_human,
@@ -30,6 +32,9 @@ class AppUserNotificationResource extends Resource
             notifiable_id: $notification->notifiable_id,
             data: $notification->data,
             read_at: $notification->read_at?->toISOString(),
+            opened_at: isset($notification->opened_at)
+                ? Date::parse($notification->opened_at)->toISOString()
+                : null,
             created_at: $notification->created_at?->toISOString(),
             updated_at: $notification->updated_at?->toISOString(),
             created_at_human: $notification->created_at?->diffForHumans(),

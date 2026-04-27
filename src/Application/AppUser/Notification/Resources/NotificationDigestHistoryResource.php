@@ -27,7 +27,7 @@ class NotificationDigestHistoryResource extends Resource
         $notified = $digest->email_sent_at !== null || $digest->whatsapp_sent_at !== null || $digest->sms_sent_at !== null;
 
         $actionsCount = 0;
-        if (is_array($digest->data)) {
+        if (! empty($digest->data)) {
             $deduped = collect($digest->data)->unique(function (array $item) {
                 $id = $item['process_action_id'] ?? '';
                 $radicado = $item['process_number'] ?? '';
@@ -35,37 +35,39 @@ class NotificationDigestHistoryResource extends Resource
                 $date = $item['action_date'] ?? '';
                 $annotation = $item['annotation'] ?? '';
 
-                return $id ?: md5($radicado . $text . $date . $annotation);
+                return $id ?: md5($radicado.$text.$date.$annotation);
             })->values();
 
             // Inject temporary synthetic ID if missing so pairing mechanisms work
-            $deduped = $deduped->map(function ($item, $index) {
+            $deduped = $deduped->map(function (array $item, int|string $index): array {
                 if (empty($item['process_action_id']) && empty($item['id'])) {
-                    $item['id'] = 'synth-' . md5(json_encode($item) . $index);
+                    $item['id'] = 'synth-'.md5(json_encode($item).$index);
                 }
+
                 return $item;
             });
 
             // Re-use Group Process Service to compute Condensed Count
-            $groupService = app(\Src\Domain\Process\Services\GroupProcessActionsService::class);
+            $groupService = resolve(\Src\Domain\Process\Services\GroupProcessActionsService::class);
             $tagged = $groupService->handle($deduped);
 
             // Calculate orphans
             $toRemove = collect();
-            $tagged->each(function (array $item) use ($tagged, $toRemove) {
+            $tagged->each(function (array $item) use ($tagged, $toRemove): void {
                 $myId = $item['process_action_id'] ?? $item['id'] ?? null;
                 if ($myId && isset($item['fijacion_action_id'])) {
                     // Check if parent fijiacion exists
                     $parentId = $item['fijacion_action_id'];
-                    $hasFijacion = $tagged->contains(fn($t) => ($t['process_action_id'] ?? $t['id'] ?? null) === $parentId);
+                    $hasFijacion = $tagged->contains(fn (array $t): bool => ($t['process_action_id'] ?? $t['id'] ?? null) === $parentId);
                     if ($hasFijacion) {
                         $toRemove->push($myId);
                     }
                 }
             });
 
-            $actionsCount = $tagged->reject(function (array $item) use ($toRemove) {
+            $actionsCount = $tagged->reject(function (array $item) use ($toRemove): bool {
                 $myId = $item['process_action_id'] ?? $item['id'] ?? null;
+
                 return $myId && $toRemove->contains($myId);
             })->count();
         }

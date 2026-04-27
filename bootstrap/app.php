@@ -40,7 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 return response()->json(
                     data: [
-                        'messages' => [$e->getMessage()],
+                        'messages' => [__($e->getMessage())],
                         'code' => $e->getStatusCode(),
                     ],
                     status: $e->getStatusCode(),

@@ -12,6 +12,7 @@ use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Traits\ParseDateTrait;
+use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Enums\SeverityColor;
@@ -307,6 +308,18 @@ readonly class RegisterProcessService
                 'inactivity_alert_level' => $alertLevel,
             ],
         ]);
+
+        if ($appUserId !== null) {
+            AiChat::query()->firstOrCreate([
+                'process_id' => $process->id,
+                'organization_id' => $organizationId,
+            ], [
+                'app_user_id' => $appUserId,
+                'title' => 'Chat Inicial',
+                'is_private' => false,
+                'is_active' => true,
+            ]);
+        }
     }
 
     /**
