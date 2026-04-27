@@ -3,11 +3,16 @@
 use Illuminate\Support\Facades\Route;
 use Src\Application\AppUser\Process\Controllers\ProcessConfigController;
 use Src\Application\AppUser\Process\Controllers\ProcessController;
+use Src\Application\AppUser\Process\Controllers\ProcessImportHistoryController;
 use Src\Application\AppUser\Process\Controllers\ProcessInstancesController;
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('processes', [ProcessController::class, 'index']);
     Route::post('processes', [ProcessController::class, 'store']);
+
+    // Specific named routes must come before wildcard {id} routes
+    Route::get('processes/import-history', [ProcessImportHistoryController::class, 'index']);
+
     Route::get('processes/{id}', [ProcessController::class, 'show']);
     Route::patch('processes/{id}/status', [ProcessController::class, 'toggleStatus']);
     Route::get('processes/{id}/instances', [ProcessInstancesController::class, 'index']);

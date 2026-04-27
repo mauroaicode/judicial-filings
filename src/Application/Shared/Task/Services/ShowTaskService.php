@@ -11,13 +11,16 @@ class ShowTaskService
     /**
      * Get a specific task by its ID.
      */
-    public function handle(string $id): Task
+    public function handle(string $id, ?string $organizationId = null): Task
     {
-        return $this->findTask($id);
+        return $this->findTask($id, $organizationId);
     }
 
-    private function findTask(string $id): Task
+    private function findTask(string $id, ?string $organizationId = null): Task
     {
-        return Task::query()->with('process')->findOrFail($id);
+        return Task::query()
+            ->with('process')
+            ->when($organizationId, fn ($q): \Src\Domain\Task\QueryBuilders\TaskQueryBuilder => $q->whereOrganization($organizationId))
+            ->findOrFail($id);
     }
 }

@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Src\Domain\Process\Models;
 
+use Database\Factories\ProcessImportBatchFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\QueryBuilders\ProcessImportBatchQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 use Src\Domain\User\Models\User;
 
@@ -32,6 +35,9 @@ use Src\Domain\User\Models\User;
  */
 class ProcessImportBatch extends Model
 {
+    /** @use HasFactory<ProcessImportBatchFactory> */
+    use HasFactory;
+
     use Uuid;
 
     public const STATUS_PROCESSING = 'processing';
@@ -74,6 +80,19 @@ class ProcessImportBatch extends Model
         'failed_count' => 'integer',
         'multiple_instances_count' => 'integer',
     ];
+
+    /**
+     * Create a new factory instance for the model.
+     */
+    protected static function newFactory(): ProcessImportBatchFactory
+    {
+        return ProcessImportBatchFactory::new();
+    }
+
+    public function newEloquentBuilder($query): ProcessImportBatchQueryBuilder
+    {
+        return new ProcessImportBatchQueryBuilder($query);
+    }
 
     /**
      * @return BelongsTo<Organization, $this>
