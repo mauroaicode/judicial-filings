@@ -27,6 +27,7 @@ return [
     'last_api_update_to' => 'Última Actualización API Hasta',
     'has_multiple_instances' => 'Tiene Múltiples Instancias',
     'status' => 'Estado',
+    'status_on_process_table' => 'Filtrar estado en el registro del proceso',
     'action_date_from' => 'Fecha de Actuación Desde',
     'action_date_to' => 'Fecha de Actuación Hasta',
     'registration_date_from' => 'Fecha de Registro Desde',

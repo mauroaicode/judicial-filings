@@ -8,7 +8,6 @@ use Illuminate\Support\Carbon;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
-use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
 class AdminProcessIndexResource extends Resource
@@ -45,7 +44,7 @@ class AdminProcessIndexResource extends Resource
 
     public static function fromModel(Process $process, int $index = 0): self
     {
-        [$createdAt, $status] = self::getEarliestRegistrationDateAndStatus($process);
+        [$createdAt, $statusLabel] = self::getEarliestRegistrationDateAndJudicialStatusLabel($process);
         [$organization, $organizationsCount, $organizationsList] = self::getOrganizationInfo($process);
         [$plaintiff, $plaintiffsCount, $plaintiffsList] = self::getPlaintiffInfo($process);
         [$defendant, $defendantsCount, $defendantsList] = self::getDefendantInfo($process);
@@ -62,7 +61,7 @@ class AdminProcessIndexResource extends Resource
             last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : ($process->last_api_update ? DateFormatHelper::formatDateTime($process->last_api_update) : null),
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
-            status_label: $status->getLabel(),
+            status_label: $statusLabel,
             created_at: DateFormatHelper::formatDate($createdAt),
             term_start_date: '-',
             term_end_date: '-',
@@ -79,22 +78,21 @@ class AdminProcessIndexResource extends Resource
     }
 
     /**
-     * Get the earliest registration date and status from organizations.
+     * Earliest org registration date from pivot; status label from `processes.status`.
      *
-     * @return array{0: Carbon, 1: OrganizationProcessStatus}
+     * @return array{0: Carbon, 1: string}
      */
-    private static function getEarliestRegistrationDateAndStatus(Process $process): array
+    private static function getEarliestRegistrationDateAndJudicialStatusLabel(Process $process): array
     {
         $createdAt = $process->created_at;
-        $isActive = false;
 
         if (! $process->relationLoaded('organizations')) {
-            return [$createdAt, OrganizationProcessStatus::fromBoolean($isActive)];
+            return [$createdAt, self::judicialStatusLabel($process)];
         }
 
         $organizations = $process->organizations;
         if ($organizations->isEmpty()) {
-            return [$createdAt, OrganizationProcessStatus::fromBoolean($isActive)];
+            return [$createdAt, self::judicialStatusLabel($process)];
         }
 
         $earliestOrg = $organizations->sortBy(function ($org) {
@@ -106,10 +104,22 @@ class AdminProcessIndexResource extends Resource
         if ($earliestOrg && $earliestOrg->pivot) {
             $pivotCreatedAt = $earliestOrg->pivot->created_at;
             $createdAt = $pivotCreatedAt ?? $process->created_at;
-            $isActive = (bool) $earliestOrg->pivot->is_active;
         }
 
-        return [$createdAt, OrganizationProcessStatus::fromBoolean($isActive)];
+        return [$createdAt, self::judicialStatusLabel($process)];
+    }
+
+    private static function judicialStatusLabel(Process $process): string
+    {
+        $raw = (string) ($process->status ?? '');
+
+        return match ($raw) {
+            'activo', 'active' => (string) __('enums.process_status.active'),
+            'inactivo', 'inactive' => (string) __('enums.process_status.inactive'),
+            'pending' => (string) __('enums.process_status.pending'),
+            'closed', 'cerrado' => (string) __('enums.process_status.closed'),
+            default => $raw !== '' ? $raw : '-',
+        };
     }
 
     /**

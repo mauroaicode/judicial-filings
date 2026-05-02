@@ -6,7 +6,9 @@ namespace Src\Application\Admin\Notification\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\DatabaseNotification;
 use Src\Application\Admin\Notification\Resources\AdminNotificationResource;
+use Src\Domain\User\Models\User;
 
 class AdminNotificationController
 {
@@ -18,18 +20,22 @@ class AdminNotificationController
         $notifications = $request->user()
             ->notifications()
             ->paginate(20)
-            ->through(fn (\Illuminate\Notifications\DatabaseNotification $notification): \Src\Application\Admin\Notification\Resources\AdminNotificationResource => AdminNotificationResource::fromModel($notification));
+            ->through(fn (DatabaseNotification $notification): AdminNotificationResource => AdminNotificationResource::fromModel($notification));
 
         return response()->json($notifications);
     }
 
     /**
-     * Get the count of unread admin notifications.
+     * Unread (sin leer) y “nuevas” (campanita: aún no abiertas / sin opened_at).
      */
     public function unreadCount(Request $request): JsonResponse
     {
+        /** @var User $user */
+        $user = $request->user();
+
         return response()->json([
-            'unread_count' => $request->user()->unreadNotifications()->count(),
+            'unread_count' => $user->unreadNotifications()->count(),
+            'new_count' => $user->notifications()->whereNull('opened_at')->count(),
         ]);
     }
 
@@ -41,17 +47,36 @@ class AdminNotificationController
         $notification = $request->user()->notifications()->findOrFail($id);
         $notification->markAsRead();
 
+        if (is_null($notification->opened_at)) {
+            $notification->update(['opened_at' => now()]);
+        }
+
         return response()->json(['success' => true]);
     }
 
     /**
-     * Mark all admin notifications as read.
+     * Mark all admin notifications as read (y como abiertas).
      */
     public function markAllAsRead(Request $request): JsonResponse
     {
-        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        /** @var User $user */
         $user = $request->user();
-        $user->unreadNotifications()->update(['read_at' => now()]);
+        $user->unreadNotifications()->update([
+            'read_at' => now(),
+            'opened_at' => now(),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Solo quita el contador de “nuevas” (campanita abierta); no marca como leídas.
+     */
+    public function markAllAsOpened(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->notifications()->whereNull('opened_at')->update(['opened_at' => now()]);
 
         return response()->json(['success' => true]);
     }

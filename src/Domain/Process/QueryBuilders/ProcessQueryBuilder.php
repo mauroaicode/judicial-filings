@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\Process\Enums\ProcessStatus;
 use Src\Domain\Process\Models\Process;
 
 /**
@@ -78,6 +79,30 @@ class ProcessQueryBuilder extends Builder
     public function whereCourtLike(string $court): self
     {
         return $this->where('court', 'LIKE', "%{$court}%");
+    }
+
+    /**
+     * Estado judicial en Rama (columna processes.status): activo en trámite.
+     *
+     * @return $this
+     */
+    public function whereJudiciallyActive(): self
+    {
+        $this->whereIn('status', ['activo', ProcessStatus::ACTIVE->value]);
+
+        return $this;
+    }
+
+    /**
+     * Estado judicial inactivo/archivado-like en tabla maestra (huérfano sin trámite).
+     *
+     * @return $this
+     */
+    public function whereJudiciallyInactive(): self
+    {
+        $this->whereIn('status', ['inactivo', ProcessStatus::INACTIVE->value]);
+
+        return $this;
     }
 
     /**
@@ -202,7 +227,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyCreatedAtFilter($data->created_at, $data->created_at_from, $data->created_at_to);
         $this->applyProcessDateFilter($data->process_date, $data->process_date_from, $data->process_date_to);
         $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
-        $this->applyStatusFilter($data->status);
+        $this->applyStatusFilter($data->status, $data->status_on_process_table);
         $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
         $this->applyRoleFilter($data->lawyer_role);
         $this->applySeverityColorFilter($data->severity_color);
@@ -336,9 +361,9 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Apply status filter.
+     * Apply status filter: subscription (pivote) or judicial state on `processes.status` when requested (admin).
      */
-    private function applyStatusFilter(?string $status): void
+    private function applyStatusFilter(?string $status, bool $statusOnProcessTable = false): void
     {
         if (! $status) {
             return;
@@ -346,6 +371,16 @@ class ProcessQueryBuilder extends Builder
 
         $statusEnum = OrganizationProcessStatus::tryFrom($status);
         if (! $statusEnum) {
+            return;
+        }
+
+        if ($statusOnProcessTable) {
+            if ($statusEnum === OrganizationProcessStatus::ACTIVE) {
+                $this->whereJudiciallyActive();
+            } else {
+                $this->whereJudiciallyInactive();
+            }
+
             return;
         }
 

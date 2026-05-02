@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Src\Application\AppUser\Notification\Resources\AppUserNotificationResource;
+use Src\Domain\AppUser\Models\AppUser;
 
 class AppUserNotificationController
 {
@@ -29,7 +30,7 @@ class AppUserNotificationController
      */
     public function unreadCount(Request $request): JsonResponse
     {
-        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        /** @var AppUser $user */
         $user = $request->user();
 
         return response()->json([
@@ -58,7 +59,7 @@ class AppUserNotificationController
      */
     public function markAllAsRead(Request $request): JsonResponse
     {
-        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        /** @var AppUser $user */
         $user = $request->user();
         $user->unreadNotifications()->update([
             'read_at' => now(),
@@ -73,7 +74,7 @@ class AppUserNotificationController
      */
     public function markAllAsOpened(Request $request): JsonResponse
     {
-        /** @var \Src\Domain\AppUser\Models\AppUser $user */
+        /** @var AppUser $user */
         $user = $request->user();
         $user->notifications()->whereNull('opened_at')->update(['opened_at' => now()]);
 

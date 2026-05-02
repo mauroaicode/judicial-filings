@@ -27,6 +27,7 @@ return [
     'last_api_update_to' => 'Last API Update To',
     'has_multiple_instances' => 'Has Multiple Instances',
     'status' => 'Status',
+    'status_on_process_table' => 'Filter status on process record',
     'action_date_from' => 'Action Date From',
     'action_date_to' => 'Action Date To',
     'registration_date_from' => 'Registration Date From',

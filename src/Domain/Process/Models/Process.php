@@ -16,6 +16,7 @@ use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\QueryBuilders\ProcessQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
+use Src\Domain\Task\Models\Task;
 
 /**
  * @property-read string $id
@@ -35,6 +36,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read bool $is_private
  * @property-read bool $has_multiple_instances
  * @property-read Carbon|null $last_api_update
+ * @property-read string|null $status
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  *
@@ -50,6 +52,8 @@ use Src\Domain\Shared\Traits\Uuid;
  * @method ProcessQueryBuilder orderedByLastApiUpdate()
  * @method ProcessQueryBuilder orderedByLastActivityDate()
  * @method ProcessQueryBuilder filters(ProcessFilterData $data)
+ * @method ProcessQueryBuilder whereJudiciallyActive()
+ * @method ProcessQueryBuilder whereJudiciallyInactive()
  */
 class Process extends Model
 {
@@ -165,10 +169,10 @@ class Process extends Model
     /**
      * Get the tasks for the organization.
      *
-     * @return HasMany<\Src\Domain\Task\Models\Task, $this>
+     * @return HasMany<Task, $this>
      */
     public function tasks(): HasMany
     {
-        return $this->hasMany(\Src\Domain\Task\Models\Task::class, 'process_id');
+        return $this->hasMany(Task::class, 'process_id');
     }
 }
