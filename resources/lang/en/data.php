@@ -68,4 +68,6 @@ return [
     'is_private' => 'Private',
     'process_id' => 'Process',
     'title' => 'Title',
+    'file_name' => 'File name',
+    'has_errors' => 'Has import errors',
 ];

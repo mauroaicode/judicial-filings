@@ -67,4 +67,6 @@ return [
     'is_private' => 'Privado',
     'process_id' => 'Proceso',
     'title' => 'Título',
+    'file_name' => 'Nombre del archivo',
+    'has_errors' => 'Con errores de importación',
 ];
