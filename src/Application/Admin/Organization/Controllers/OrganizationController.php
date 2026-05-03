@@ -10,8 +10,10 @@ use Illuminate\Http\Response;
 use Src\Application\Admin\Organization\Data\OrganizationFilterData;
 use Src\Application\Admin\Organization\Data\StoreOrganizationData;
 use Src\Application\Admin\Organization\Resources\OrganizationResource;
+use Src\Application\Admin\Organization\Resources\OrganizationStatsResource;
 use Src\Application\Admin\Organization\Services\OrganizationCreatorService;
 use Src\Application\Admin\Organization\Services\OrganizationFinderService;
+use Src\Application\Admin\Organization\Services\OrganizationStatsService;
 use Throwable;
 
 readonly class OrganizationController
@@ -26,6 +28,14 @@ readonly class OrganizationController
         $page = (int) $request->query('page', 1);
 
         return $organizationFinderService->handle($filters, $perPage, $page);
+    }
+
+    /**
+     * Aggregate counts for organizations (total, active/inactive, natural/juridical).
+     */
+    public function stats(OrganizationStatsService $organizationStatsService): OrganizationStatsResource
+    {
+        return $organizationStatsService->handle();
     }
 
     /**

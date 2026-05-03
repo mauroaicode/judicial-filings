@@ -7,6 +7,7 @@ namespace Src\Domain\Organization\QueryBuilders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
 use Src\Application\Admin\Organization\Data\OrganizationFilterData;
+use Src\Domain\Organization\Enums\OrganizationType;
 use Src\Domain\Organization\Models\Organization;
 
 /**
@@ -36,6 +37,54 @@ class OrganizationQueryBuilder extends Builder
     public function orderedByCreatedAt(): self
     {
         $this->latest();
+
+        return $this;
+    }
+
+    /**
+     * Organizations with `is_active` = true.
+     *
+     * @return $this
+     */
+    public function whereActive(): self
+    {
+        $this->where('is_active', true);
+
+        return $this;
+    }
+
+    /**
+     * Organizations with `is_active` = false.
+     *
+     * @return $this
+     */
+    public function whereInactive(): self
+    {
+        $this->where('is_active', false);
+
+        return $this;
+    }
+
+    /**
+     * Organizations with type `natural`.
+     *
+     * @return $this
+     */
+    public function whereNatural(): self
+    {
+        $this->where('type', OrganizationType::NATURAL->value);
+
+        return $this;
+    }
+
+    /**
+     * Organizations with type `juridical`.
+     *
+     * @return $this
+     */
+    public function whereJuridical(): self
+    {
+        $this->where('type', OrganizationType::JURIDICAL->value);
 
         return $this;
     }

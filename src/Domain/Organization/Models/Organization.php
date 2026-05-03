@@ -33,6 +33,10 @@ use Src\Domain\Shared\Traits\Uuid;
  * @method static OrganizationQueryBuilder query()
  * @method OrganizationQueryBuilder withRelations()
  * @method OrganizationQueryBuilder orderedByCreatedAt()
+ * @method OrganizationQueryBuilder whereActive()
+ * @method OrganizationQueryBuilder whereInactive()
+ * @method OrganizationQueryBuilder whereNatural()
+ * @method OrganizationQueryBuilder whereJuridical()
  * @method OrganizationQueryBuilder filters(\Src\Application\Admin\Organization\Data\OrganizationFilterData $data)
  */
 class Organization extends Model
