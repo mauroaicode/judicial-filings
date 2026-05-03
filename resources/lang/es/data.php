@@ -9,6 +9,7 @@ return [
     'generate_password' => 'Generar contraseña',
     'profile_image' => 'Imagen de perfil',
     'process_number' => 'Número de radicado',
+    'radicado' => 'Radicado',
     'slug' => 'Slug',
     'court' => 'Despacho',
     'process_class' => 'Clase de Proceso',
@@ -69,4 +70,6 @@ return [
     'title' => 'Título',
     'file_name' => 'Nombre del archivo',
     'has_errors' => 'Con errores de importación',
+    'started_at_from' => 'Inicio desde',
+    'started_at_to' => 'Inicio hasta',
 ];

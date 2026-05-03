@@ -54,6 +54,7 @@ use Src\Domain\Task\Models\Task;
  * @method ProcessQueryBuilder filters(ProcessFilterData $data)
  * @method ProcessQueryBuilder whereJudiciallyActive()
  * @method ProcessQueryBuilder whereJudiciallyInactive()
+ * @method ProcessQueryBuilder forJudicialDailySync(?string $radicadoFilter = null)
  */
 class Process extends Model
 {

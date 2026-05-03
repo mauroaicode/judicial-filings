@@ -92,4 +92,5 @@ return [
     'not_found_in_organization' => 'El proceso especificado no pertenece a esta organización.',
     'invalid_none_combination' => 'No es posible filtrar por "Sin Rol" y "Sin Semáforo" al mismo tiempo.',
     'initial_chat' => 'Chat Inicial',
+    'judicial_sync_command_failed' => 'No se pudo ejecutar la sincronización con la Rama Judicial. Intente de nuevo o revise los registros del sistema.',
 ];

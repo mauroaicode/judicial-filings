@@ -62,6 +62,25 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Case numbers (radicados) with at least one active organization_process link (daily or manual judicial-branch sync).
+     *
+     * @return $this
+     */
+    public function forJudicialDailySync(?string $radicadoFilter = null): self
+    {
+        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
+            ->where('organization_processes.is_active', true);
+
+        if ($radicadoFilter !== null && $radicadoFilter !== '') {
+            $this->where('processes.process_number', $radicadoFilter);
+        }
+
+        $this->distinct()->select('processes.process_number');
+
+        return $this;
+    }
+
+    /**
      * Filter processes by process number (LIKE search).
      *
      * @return $this
@@ -82,7 +101,7 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Estado judicial en Rama (columna processes.status): activo en trámite.
+     * Judicial case state on the master record (processes.status): in progress / active.
      *
      * @return $this
      */
@@ -94,7 +113,7 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Estado judicial inactivo/archivado-like en tabla maestra (huérfano sin trámite).
+     * Judicial case state inactive or archived on the master record (no open proceedings).
      *
      * @return $this
      */

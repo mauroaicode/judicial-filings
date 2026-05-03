@@ -36,4 +36,13 @@ return [
         'completed' => 'Completado',
         'failed' => 'Fallido',
     ],
+    'judicial_sync_run_status' => [
+        'started' => 'Iniciado',
+        'no_processes' => 'Sin radicados a sincronizar',
+        'dispatch_failed' => 'Error al encolar el batch',
+        'batch_pending' => 'Batch en cola',
+        'batch_completed' => 'Completado',
+        'batch_completed_with_failures' => 'Completado con fallos',
+        'batch_cancelled' => 'Cancelado',
+    ],
 ];

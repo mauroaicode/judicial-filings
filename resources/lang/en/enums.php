@@ -36,4 +36,13 @@ return [
         'completed' => 'Completed',
         'failed' => 'Failed',
     ],
+    'judicial_sync_run_status' => [
+        'started' => 'Started',
+        'no_processes' => 'No filings to sync',
+        'dispatch_failed' => 'Failed to dispatch batch',
+        'batch_pending' => 'Batch queued',
+        'batch_completed' => 'Completed',
+        'batch_completed_with_failures' => 'Completed with failures',
+        'batch_cancelled' => 'Cancelled',
+    ],
 ];
