@@ -13,6 +13,7 @@ use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
+use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Enums\SeverityColor;
@@ -318,7 +319,7 @@ readonly class RegisterProcessService
             ],
         ]);
 
-        if ($appUserId !== null) {
+        if ($appUserId !== null && AppUser::query()->whereKey($appUserId)->exists()) {
             AiChat::query()->firstOrCreate([
                 'process_id' => $process->id,
                 'organization_id' => $organizationId,

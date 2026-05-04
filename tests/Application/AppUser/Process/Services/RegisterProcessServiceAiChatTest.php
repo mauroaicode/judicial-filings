@@ -59,4 +59,20 @@ class RegisterProcessServiceAiChatTest extends TestCase
             'is_private' => false,
         ]);
     }
+
+    public function test_it_skips_ai_chat_when_app_user_id_is_not_an_app_user_row(): void
+    {
+        $process = Process::factory()->public()->create();
+
+        $this->service->handle(
+            processNumber: $process->process_number,
+            organizationId: $this->organization->id,
+            appUserId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+        );
+
+        $this->assertDatabaseMissing('ai_chats', [
+            'process_id' => $process->id,
+            'organization_id' => $this->organization->id,
+        ]);
+    }
 }
