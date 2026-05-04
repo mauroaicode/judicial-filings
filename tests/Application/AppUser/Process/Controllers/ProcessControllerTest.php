@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
+use Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
@@ -20,6 +23,8 @@ beforeEach(function (): void {
     $this->appUser->organizations()->attach($this->organization->id, [
         'is_owner' => true,
     ]);
+
+    Notification::fake();
 });
 
 it('requires authentication to register a process', function (): void {
@@ -362,7 +367,6 @@ it('registers a new process successfully', function (): void {
     expect($response->json('registered_count'))->toBe(1);
     expect($response->json('private_count'))->toBe(0);
 
-    // Verify process was created (use response id so we assert on the process just registered)
     $processUuid = $response->json('process.id');
     $process = Process::query()->find($processUuid);
 
@@ -374,10 +378,13 @@ it('registers a new process successfully', function (): void {
 });
 
 it('attaches existing process to organization if process already exists globally', function (): void {
+    // Radicado exclusivo de este test: el número compartido 76001333301320170009301 acumula filas entre tests (sin RefreshDatabase).
+    $attachOnlyRadicado = '76001333301320997777003';
+
     // Use a different process_id to avoid conflicts
     $existingProcessId = random_int(1000000000, 1999999999);
     $existingProcess = Process::factory()->create([
-        'process_number' => '76001333301320170009301',
+        'process_number' => $attachOnlyRadicado,
         'process_id' => $existingProcessId,
         'is_private' => false,
     ]);
@@ -412,14 +419,58 @@ it('attaches existing process to organization if process already exists globally
 
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
-            'process_number' => '76001333301320170009301',
+            'process_number' => $attachOnlyRadicado,
             'lawyer_role' => 'plaintiff',
         ]);
 
     $response->assertStatus(201);
+    expect($response->json('message'))->toBe(__('process.registered_successfully'));
 
     // Verify process is attached to organization
+    $existingProcess->refresh();
     expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
+});
+
+it('defers registration to queue when actuaciones exceed inline page threshold', function (): void {
+    Queue::fake();
+
+    $peekProcessId = 7777666555;
+    $radicado = '76009999901320990000001';
+
+    Http::fake([
+        config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion*' => Http::response([
+            'procesos' => [
+                [
+                    'idProceso' => $peekProcessId,
+                    'esPrivado' => false,
+                ],
+            ],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Actuaciones/{$peekProcessId}*" => Http::response([
+            'actuaciones' => [],
+            'paginacion' => [
+                'cantidadPaginas' => 10,
+            ],
+        ], 200),
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => $radicado,
+            'lawyer_role' => 'plaintiff',
+        ]);
+
+    $response->assertStatus(201);
+    $response->assertExactJson([
+        'message' => __('process.registration_dispatched'),
+    ]);
+
+    Queue::assertPushed(SyncJudicialBranchJob::class, fn (SyncJudicialBranchJob $job): bool => $job->processNumber === $radicado);
+
+    expect(Process::query()->where('process_number', $radicado)->exists())->toBeFalse();
 });
 
 it('registers multiple instances successfully', function (): void {

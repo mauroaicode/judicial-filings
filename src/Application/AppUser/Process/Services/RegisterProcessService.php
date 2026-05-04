@@ -37,10 +37,11 @@ readonly class RegisterProcessService
      * @param  string  $processNumber  23-digit radicado number
      * @param  string  $organizationId  Organization UUID
      * @param  string  $proxySeed  Seed for proxy pool selection (e.g. processNumber:attempt)
+     * @param  array<int, array<string, mixed>>|null  $prefetchedApiProcessesFromPortal  Resultado de fetchProcesses (procesos[]) cuando ya se resolvió en ProcessRegistrationSyncModeResolver.
      *
      * @throws Throwable
      */
-    public function handle(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole = null, string $proxySeed = '', ?string $appUserId = null): RegisterProcessResult
+    public function handle(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole = null, string $proxySeed = '', ?string $appUserId = null, ?array $prefetchedApiProcessesFromPortal = null): RegisterProcessResult
     {
         if ($proxySeed !== '') {
             $this->judicialBranchConsultService->withSeed($proxySeed);
@@ -54,7 +55,7 @@ readonly class RegisterProcessService
             return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId);
         }
 
-        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole, $appUserId);
+        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole, $appUserId, $prefetchedApiProcessesFromPortal);
     }
 
     /**
@@ -112,9 +113,9 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    private function registerFromApi(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId): RegisterProcessResult
+    private function registerFromApi(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId, ?array $prefetchedApiProcessesFromPortal = null): RegisterProcessResult
     {
-        $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber);
+        $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber, $prefetchedApiProcessesFromPortal);
 
         $hasMultipleInstances = count($processesData) > 1;
         $totalProcesses = count($processesData);
@@ -253,11 +254,19 @@ readonly class RegisterProcessService
     /**
      * Validate that the process exists in the portal judicial and get all processes.
      *
-     * @param  string  $processNumber  The process number to validate.
+     * @param  array<int, array<string, mixed>>|null  $prefetched  Cuando no es null, evita un segundo fetchProcesses.
      * @return array<int, array<string, mixed>> The processes data from the API.
      */
-    private function validateAndGetProcessesFromPortalJudicial(string $processNumber): array
+    private function validateAndGetProcessesFromPortalJudicial(string $processNumber, ?array $prefetched = null): array
     {
+        if ($prefetched !== null) {
+            if ($prefetched === []) {
+                abort(404, __('process.not_found_in_judicial_branch'));
+            }
+
+            return $prefetched;
+        }
+
         try {
             $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
         } catch (ApiEmptyProcessesException) {
