@@ -15,6 +15,7 @@ use Src\Domain\Notification\Notifications\ProcessAiSummaryReadyNotification;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
 
@@ -35,7 +36,28 @@ beforeEach(function (): void {
 it('dispatches the process registration flow asynchronously without placeholders', function (): void {
     Queue::fake();
 
-    $processNumber = '76001333301320170009301';
+    $processNumber = '76001333301320998888001';
+    $peekProcessId = 6060606060;
+
+    Http::fake([
+        config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion*' => Http::response([
+            'procesos' => [
+                [
+                    'idProceso' => $peekProcessId,
+                    'esPrivado' => false,
+                ],
+            ],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Actuaciones/{$peekProcessId}*" => Http::response([
+            'actuaciones' => [],
+            'paginacion' => [
+                'cantidadPaginas' => 10,
+            ],
+        ], 200),
+    ]);
 
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
@@ -50,7 +72,8 @@ it('dispatches the process registration flow asynchronously without placeholders
     Queue::assertPushed(SyncJudicialBranchJob::class, function ($job) use ($processNumber) {
         return $job->processNumber === $processNumber
             && $job->organizationId === $this->organization->id
-            && $job->appUser->id === $this->appUser->id;
+            && $job->appUser->id === $this->appUser->id
+            && $job->lawyerRole === ProcessLawyerRole::PLAINTIFF;
     });
 
     // Verify Log was created

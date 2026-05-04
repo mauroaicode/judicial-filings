@@ -8,7 +8,8 @@ use Src\Application\Admin\Notification\Controllers\AdminNotificationController;
 Route::middleware(['auth:sanctum', 'admin.role'])->prefix('notifications')->group(function () {
     Route::get('/', [AdminNotificationController::class, 'index']);
     Route::get('/unread-count', [AdminNotificationController::class, 'unreadCount']);
-    Route::post('/{id}/read', [AdminNotificationController::class, 'markAsRead']);
     Route::post('/mark-all-read', [AdminNotificationController::class, 'markAllAsRead']);
+    Route::post('/mark-all-opened', [AdminNotificationController::class, 'markAllAsOpened']);
+    Route::post('/{id}/read', [AdminNotificationController::class, 'markAsRead']);
     Route::delete('/{id}', [AdminNotificationController::class, 'destroy']);
 });

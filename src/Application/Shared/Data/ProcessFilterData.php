@@ -38,6 +38,8 @@ class ProcessFilterData extends Data
         public ?string $last_api_update_to = null,
         #[In(['active', 'inactive'])]
         public ?string $status = null,
+        /** Admin uses judicial `processes.status`; AppUser keeps pivot subscription. */
+        public bool $status_on_process_table = false,
         public mixed $has_multiple_instances = null,
         #[In(['plaintiff', 'defendant'])]
         public ?string $lawyer_role = null,

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Services;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\LengthAwarePaginator as LengthAwarePaginatorImpl;
 use Src\Application\AppUser\Process\Resources\ProcessIndexResource;
 use Src\Application\Shared\Data\ProcessFilterData;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
 readonly class ProcessFinderService
@@ -37,11 +39,11 @@ readonly class ProcessFinderService
 
         $baseQuery = (fn () => Process::query()
             // Strict organization-aware pivot filtering
-            ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId, $filters): void {
+            ->whereHas('organizations', function (Builder $query) use ($organizationId, $filters): void {
                 $query->where('organizations.id', $organizationId);
 
                 if ($filters->status) {
-                    $isActive = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::tryFrom($filters->status) === \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE;
+                    $isActive = OrganizationProcessStatus::tryFrom($filters->status) === OrganizationProcessStatus::ACTIVE;
                     $query->where('organization_processes.is_active', $isActive);
                 }
 
@@ -55,9 +57,9 @@ readonly class ProcessFinderService
 
                 if ($filters->severity_color) {
                     if ($filters->severity_color === 'none') {
-                        $query->where(function (\Illuminate\Contracts\Database\Query\Builder $q): void {
+                        $query->where(function (Builder $q): void {
                             $q->whereNull('organization_processes.inactivity_alert_level')
-                                ->orWhereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $p) => $p->whereNull('last_activity_date'));
+                                ->orWhereHas('process', fn (Builder $p) => $p->whereNull('last_activity_date'));
                         });
                     } else {
                         $query->where('organization_processes.inactivity_alert_level', $filters->severity_color);
@@ -95,11 +97,11 @@ readonly class ProcessFinderService
         $processes = Process::query()
             ->whereIn('process_number', $processNumbers)
             // Apply SAME filters here for consistency in instances
-            ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId, $filters): void {
+            ->whereHas('organizations', function (Builder $query) use ($organizationId, $filters): void {
                 $query->where('organizations.id', $organizationId);
                 // ... Re-apply pivot logic exactly as in baseQuery for strict results
                 if ($filters->status) {
-                    $isActive = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::tryFrom($filters->status) === \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE;
+                    $isActive = OrganizationProcessStatus::tryFrom($filters->status) === OrganizationProcessStatus::ACTIVE;
                     $query->where('organization_processes.is_active', $isActive);
                 }
 
@@ -113,9 +115,9 @@ readonly class ProcessFinderService
 
                 if ($filters->severity_color) {
                     if ($filters->severity_color === 'none') {
-                        $query->where(function (\Illuminate\Contracts\Database\Query\Builder $q): void {
+                        $query->where(function (Builder $q): void {
                             $q->whereNull('organization_processes.inactivity_alert_level')
-                                ->orWhereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $p) => $p->whereNull('last_activity_date'));
+                                ->orWhereHas('process', fn (Builder $p) => $p->whereNull('last_activity_date'));
                         });
                     } else {
                         $query->where('organization_processes.inactivity_alert_level', $filters->severity_color);

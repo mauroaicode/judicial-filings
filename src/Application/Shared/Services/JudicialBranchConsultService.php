@@ -232,6 +232,41 @@ class JudicialBranchConsultService
     }
 
     /**
+     * Reads total actuaciones pages from page 1 only (for registration routing).
+     *
+     * @return object{isSuccessful: bool, totalPages: int}
+     */
+    public function peekActuacionesPagination(int $processId): object
+    {
+        try {
+            $this->applyJitter();
+
+            $baseUrl = config('judicial-branch.api_url')."/Proceso/Actuaciones/{$processId}";
+            $endpoint = "{$baseUrl}?".http_build_query(['pagina' => 1]);
+
+            Log::channel(config('judicial-branch.log_channel', 'process_import'))
+                ->info('JudicialBranch: Peek actuaciones pagination', ['url' => $endpoint]);
+
+            $httpResponse = $this->performRequestWithRetries('get', $endpoint, 'peekActuacionesPagination');
+
+            $response = $httpResponse->json();
+            if (! is_array($response)) {
+                $response = [];
+            }
+
+            $totalPages = (int) ($response['paginacion']['cantidadPaginas'] ?? 1);
+
+            return (object) ['isSuccessful' => true, 'totalPages' => max(1, $totalPages)];
+        } catch (ApiForbiddenOrRateLimitException|ApiProxyFailureException $e) {
+            throw $e;
+        } catch (Throwable $th) {
+            $this->logError('Error peeking actuaciones pagination', $th);
+
+            return (object) ['isSuccessful' => false, 'totalPages' => 1];
+        }
+    }
+
+    /**
      * Fetches all subjects for a specific process, handling pagination.
      *
      * @param  int  $processId  Unique ID of the process.

@@ -23,11 +23,13 @@ return [
     | Proxy residencial rotativo (ProxyScrape)
     |--------------------------------------------------------------------------
     |
-    | Variables .env requeridas:
+    | HTTPS en puerto 448: si CONNECT HTTP falla (cURL 56), usar SOCKS5 según el dashboard.
+    |
+    | Variables .env habituales:
     |   JUDICIAL_BRANCH_PROXY_ENABLED=true
-    |   JUDICIAL_BRANCH_PROXY_PROTOCOL=http
+    |   JUDICIAL_BRANCH_PROXY_PROTOCOL=http (o socks5)
     |   JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
-    |   JUDICIAL_BRANCH_PROXY_PORT=6060
+    |   JUDICIAL_BRANCH_PROXY_PORT=6060 (HTTP) u otro para SOCKS5
     |   JUDICIAL_BRANCH_PROXY_USERNAME=...
     |   JUDICIAL_BRANCH_PROXY_PASSWORD=...
     |
@@ -56,4 +58,16 @@ return [
         'call_delay_min_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MIN_MS', 2500),
         'call_delay_max_ms' => (int) env('JUDICIAL_BRANCH_PROXY_CALL_DELAY_MAX_MS', 5500),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Registro AppUser: inline vs cola según volumen de actuaciones
+    |--------------------------------------------------------------------------
+    |
+    | Si alguna instancia nueva del radicado tiene más de este número de páginas
+    | de actuaciones en el Portal, el alta va en cola (SyncJudicialBranchJob).
+    | Con cantidadPaginas <= este valor, el registro termina en la misma petición HTTP.
+    |
+    */
+    'registration_inline_max_actuacion_pages' => (int) env('JUDICIAL_BRANCH_REGISTRATION_INLINE_MAX_ACTUACION_PAGES', 2),
 ];

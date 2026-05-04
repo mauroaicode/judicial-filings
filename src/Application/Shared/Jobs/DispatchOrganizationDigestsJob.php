@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Jobs;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -30,9 +31,8 @@ class DispatchOrganizationDigestsJob implements ShouldQueue
 
         Log::channel($channel)->info('DispatchOrganizationDigestsJob: Starting global digest dispatch');
 
-        // Find organizations with pending notifications
         $organizations = Organization::query()
-            ->whereHas('notifications', function (\Illuminate\Contracts\Database\Query\Builder $query): void {
+            ->whereHas('notifications', function (Builder $query): void {
                 $query->where('is_email_notified', false);
             })
             ->get();
@@ -42,7 +42,7 @@ class DispatchOrganizationDigestsJob implements ShouldQueue
         ]);
 
         foreach ($organizations as $organization) {
-            dispatch(new \Src\Application\Shared\Jobs\SendOrganizationDigestJob($organization));
+            dispatch(new SendOrganizationDigestJob($organization));
         }
 
         Log::channel($channel)->info('DispatchOrganizationDigestsJob: Finished global digest dispatch');

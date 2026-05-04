@@ -7,7 +7,6 @@ namespace Src\Application\AppUser\Process\Controllers;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Queue;
 use Src\Application\AppUser\Process\Data\StoreProcessData;
 use Src\Application\AppUser\Process\Data\ToggleProcessStatusData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
@@ -17,6 +16,7 @@ use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
 use Src\Application\AppUser\Process\Services\DispatchProcessRegistrationService;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
+use Src\Application\AppUser\Process\Services\ProcessRegistrationSyncModeResolver;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\AppUser\Process\Services\ToggleProcessStatusService;
 use Src\Application\Shared\Data\ProcessFilterData;
@@ -28,11 +28,12 @@ use Throwable;
 readonly class ProcessController
 {
     public function __construct(
-        private RegisterProcessService $registerProcessService,
         private ProcessFinderService $processFinderService,
         private ProcessDetailService $processDetailService,
         private ToggleProcessStatusService $toggleProcessStatusService,
         private DispatchProcessRegistrationService $dispatchProcessRegistrationService,
+        private ProcessRegistrationSyncModeResolver $processRegistrationSyncModeResolver,
+        private RegisterProcessService $registerProcessService,
     ) {}
 
     /**
@@ -107,7 +108,7 @@ readonly class ProcessController
     }
 
     /**
-     * Register a new process.
+     * Register a new process: inline when actuaciones pages are few; otherwise queued (SyncJudicialBranchJob).
      *
      * @throws Throwable
      */
@@ -122,7 +123,9 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        if (Queue::isFake()) {
+        $routing = $this->processRegistrationSyncModeResolver->decide($data->process_number, $organization->id);
+
+        if ($routing->deferToQueue) {
             $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);
 
             return response()->json(['message' => __('process.registration_dispatched')], 201);
@@ -133,7 +136,8 @@ readonly class ProcessController
             $organization->id,
             $data->lawyer_role,
             '',
-            $appUser->id
+            $appUser->id,
+            $routing->prefetchedApiProcesses,
         );
 
         return response()->json([

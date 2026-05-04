@@ -89,4 +89,5 @@ return [
     'relationship_not_found' => 'The association between the process and your organization was not found.',
     'not_found_in_organization' => 'The specified process does not belong to this organization.',
     'initial_chat' => 'Initial Chat',
+    'judicial_sync_command_failed' => 'Could not run judicial branch sync. Please try again or check the system logs.',
 ];

@@ -426,27 +426,34 @@ it('filters processes by court', function (): void {
     expect($response->json('data.0.court'))->toContain('017');
 });
 
-it('filters processes by status', function (): void {
+it('filters processes by judicial status on processes table not pivot', function (): void {
     $organization = Organization::factory()->create();
 
-    $process1 = Process::factory()->create();
-    $process2 = Process::factory()->create();
+    $processActive = Process::factory()->create(['status' => 'activo']);
+    $processInactive = Process::factory()->create(['status' => 'inactivo']);
 
-    $process1->organizations()->attach($organization->id, [
+    $processActive->organizations()->attach($organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $process2->organizations()->attach($organization->id, [
+    $processInactive->organizations()->attach($organization->id, [
         'interest_date' => now()->toDateString(),
-        'is_active' => false,
+        'is_active' => true,
     ]);
 
-    $response = $this->actingAs($this->user)
+    $responseActive = $this->actingAs($this->user)
         ->getJson('/api/admin/processes?status=active');
 
-    $response->assertStatus(200);
-    expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data.0.id'))->toBe($process1->id);
+    $responseActive->assertStatus(200);
+    expect($responseActive->json('data'))->toHaveCount(1);
+    expect($responseActive->json('data.0.id'))->toBe($processActive->id);
+
+    $responseInactive = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?status=inactive');
+
+    $responseInactive->assertStatus(200);
+    expect($responseInactive->json('data'))->toHaveCount(1);
+    expect($responseInactive->json('data.0.id'))->toBe($processInactive->id);
 });
 
 it('filters processes by organization name', function (): void {

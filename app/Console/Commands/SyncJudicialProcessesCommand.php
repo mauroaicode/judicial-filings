@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use Illuminate\Bus\Batch;
 use Illuminate\Console\Command;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\DispatchOrganizationDigestsJob;
 use Src\Application\Shared\Jobs\SyncProcessJob;
+use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Process\Models\Process;
 
 class SyncJudicialProcessesCommand extends Command
@@ -37,18 +38,27 @@ class SyncJudicialProcessesCommand extends Command
     public function handle(): int
     {
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
-        $radicado = $this->option('radicado');
+        $filingOption = $this->option('radicado');
+        $filingFilter = ($filingOption !== null && $filingOption !== '') ? $filingOption : null;
+
+        $run = JudicialSyncRun::startRun($filingFilter);
 
         Log::channel($channel)->info('SyncJudicialProcessesCommand started', [
-            'radicado_filter' => $radicado,
+            'run_id' => $run->id,
+            'radicado_filter' => $filingFilter,
         ]);
 
-        $processNumbers = $this->getProcessNumbersToSync($radicado);
+        $processNumbers = Process::query()
+            ->forJudicialDailySync($filingFilter)
+            ->pluck('processes.process_number');
         $total = $processNumbers->count();
 
         if ($total === 0) {
+            $run->markNoProcesses();
             $this->info('No radicados to sync.');
-            Log::channel($channel)->info('SyncJudicialProcessesCommand: No radicados to sync.');
+            Log::channel($channel)->info('SyncJudicialProcessesCommand: No radicados to sync.', [
+                'run_id' => $run->id,
+            ]);
 
             return self::SUCCESS;
         }
@@ -64,11 +74,16 @@ class SyncJudicialProcessesCommand extends Command
             $bar->advance();
         }
 
+        $runId = $run->id;
+
         try {
-            Bus::batch($jobs)
+            $laravelBatch = Bus::batch($jobs)
                 ->name('Sync Judicial Processes Batch')
-                ->finally(function () {
-                    // This runs after all jobs in the batch are finished (success or failure)
+                ->finally(function (Batch $batch) use ($runId): void {
+                    $record = JudicialSyncRun::query()->find($runId);
+                    if ($record !== null) {
+                        $record->completeBatch($batch);
+                    }
                     DispatchOrganizationDigestsJob::dispatch();
                 })
                 ->onQueue('judicial-sync')
@@ -77,16 +92,22 @@ class SyncJudicialProcessesCommand extends Command
             $bar->finish();
             $this->newLine();
 
+            $run->markBatchQueued($laravelBatch->id, count($jobs), $laravelBatch);
+
             Log::channel($channel)->info('SyncJudicialProcessesCommand: Batch dispatched', [
+                'run_id' => $run->id,
                 'jobs_count' => count($jobs),
+                'laravel_batch_id' => $laravelBatch->id,
             ]);
 
             $this->info('Dispatched '.count($jobs).' sync jobs in a batch.');
             $this->info('Notifications will be consolidated and sent upon batch completion.');
 
         } catch (\Throwable $e) {
+            $run->markDispatchFailed($e->getMessage());
             $this->error('Failed to dispatch batch: '.$e->getMessage());
             Log::channel($channel)->error('SyncJudicialProcessesCommand: Batch failing to dispatch', [
+                'run_id' => $run->id,
                 'message' => $e->getMessage(),
             ]);
 
@@ -94,27 +115,5 @@ class SyncJudicialProcessesCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Get distinct process_number (radicados) to sync.
-     * Only radicados where at least one organization has the process active (is_active=1).
-     * Avoids wasting API requests when no one is interested.
-     *
-     * @return Collection<int, string>
-     */
-    private function getProcessNumbersToSync(?string $radicadoFilter): Collection
-    {
-        $query = Process::query()
-            ->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
-            ->where('organization_processes.is_active', true)
-            ->distinct()
-            ->select('processes.process_number');
-
-        if ($radicadoFilter !== null && $radicadoFilter !== '') {
-            $query->where('processes.process_number', $radicadoFilter);
-        }
-
-        return $query->pluck('processes.process_number');
     }
 }

@@ -73,3 +73,41 @@ it('filters organizations by is_active', function (): void {
     expect($results)->toHaveCount(1);
     expect($results->first()->is_active)->toBeFalse();
 });
+
+it('scopes active organizations', function (): void {
+    $active = Organization::factory()->create(['email' => 'scope-active@qb.test', 'is_active' => true]);
+    Organization::factory()->create(['email' => 'scope-inactive@qb.test', 'is_active' => false]);
+
+    $results = Organization::query()->whereActive()->get();
+
+    expect($results->pluck('id')->toArray())->toContain($active->id);
+    expect($results->every(fn ($org) => $org->is_active))->toBeTrue();
+});
+
+it('scopes inactive organizations', function (): void {
+    $inactive = Organization::factory()->create(['email' => 'scope-off@qb.test', 'is_active' => false]);
+    Organization::factory()->create(['email' => 'scope-on@qb.test', 'is_active' => true]);
+
+    $results = Organization::query()->whereInactive()->get();
+
+    expect($results->pluck('id')->toArray())->toContain($inactive->id);
+    expect($results->every(fn ($org) => ! $org->is_active))->toBeTrue();
+});
+
+it('scopes natural organizations', function (): void {
+    $natural = Organization::factory()->natural()->create(['email' => 'scope-nat@qb.test']);
+
+    $results = Organization::query()->whereNatural()->get();
+
+    expect($results->pluck('id')->toArray())->toContain($natural->id);
+    expect($results->every(fn ($org) => $org->type === 'natural'))->toBeTrue();
+});
+
+it('scopes juridical organizations', function (): void {
+    $juridical = Organization::factory()->juridical()->create(['email' => 'scope-jur@qb.test']);
+
+    $results = Organization::query()->whereJuridical()->get();
+
+    expect($results->pluck('id')->toArray())->toContain($juridical->id);
+    expect($results->every(fn ($org) => $org->type === 'juridical'))->toBeTrue();
+});

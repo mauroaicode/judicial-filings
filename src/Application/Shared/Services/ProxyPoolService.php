@@ -11,16 +11,15 @@ use Illuminate\Support\Facades\Log;
  * Provides the rotating residential proxy URL for outbound HTTP requests.
  *
  * Integration: ProxyScrape Rotating Residential gateway.
- *   - A single endpoint (rp.scrapegw.com:6060) handles all requests.
- *   - ProxyScrape rotates the residential exit IP by connection/session policy.
- *   - No pool, no database, no round-robin — just one URL with credentials.
+ *   - URL única con credenciales; rotación por política del proveedor.
+ *   - HTTPS al puerto 448: si CONNECT HTTP falla (cURL 56), usar SOCKS5 (ver dashboard).
  *
  * Required .env variables:
  *   JUDICIAL_BRANCH_PROXY_ENABLED=true
  *   JUDICIAL_BRANCH_PROXY_PROVIDER=proxyscrape
- *   JUDICIAL_BRANCH_PROXY_PROTOCOL=http
+ *   JUDICIAL_BRANCH_PROXY_PROTOCOL=http (o socks5)
  *   JUDICIAL_BRANCH_PROXY_HOST=rp.scrapegw.com
- *   JUDICIAL_BRANCH_PROXY_PORT=6060
+ *   JUDICIAL_BRANCH_PROXY_PORT=6060 (u otro para SOCKS5)
  *   JUDICIAL_BRANCH_PROXY_USERNAME=...
  *   JUDICIAL_BRANCH_PROXY_PASSWORD=...
  */
