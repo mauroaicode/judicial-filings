@@ -163,6 +163,37 @@ it('skips actions without registration id', function (): void {
     expect($actions)->toHaveCount(0);
 });
 
+it('uses registration date as action date when fechaActuacion is missing', function (): void {
+    Http::fake([
+        config('judicial-branch.api_url')."/Proceso/Actuaciones/{$this->processId}*" => Http::response([
+            'actuaciones' => [
+                [
+                    'idRegActuacion' => 1058979302,
+                    'consActuacion' => 8,
+                    'actuacion' => 'Fijacion estado',
+                    'anotacion' => 'Actuación registrada el 11/09/2020 a las 17:22:26.',
+                    'fechaInicial' => '2020-09-14',
+                    'fechaFinal' => '2020-09-14',
+                    'fechaRegistro' => '2020-09-11',
+                ],
+            ],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+    ]);
+
+    $this->processActionService->handle($this->process, $this->processId);
+
+    $action = ProcessAction::query()
+        ->whereProcess($this->process->id)
+        ->first();
+
+    expect($action)->not->toBeNull();
+    expect($action->action_date->format('Y-m-d'))->toBe('2020-09-11');
+    expect($action->registration_date->format('Y-m-d'))->toBe('2020-09-11');
+});
+
 it('parses dates correctly', function (): void {
     Http::fake([
         config('judicial-branch.api_url')."/Proceso/Actuaciones/{$this->processId}*" => Http::response([

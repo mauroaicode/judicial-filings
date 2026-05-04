@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Services\JudicialBranchConsultService;
+use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
@@ -24,8 +26,8 @@ readonly class RegisterProcessService
     use ParseDateTrait;
 
     public function __construct(
-        private \Src\Application\Shared\Services\JudicialBranchConsultService $judicialBranchConsultService,
-        private \Src\Application\Shared\Services\Process\ProcessSyncService $processSyncService
+        private JudicialBranchConsultService $judicialBranchConsultService,
+        private ProcessSyncService $processSyncService
     ) {}
 
     /**
@@ -38,7 +40,7 @@ readonly class RegisterProcessService
      * @param  string  $processNumber  23-digit radicado number
      * @param  string  $organizationId  Organization UUID
      * @param  string  $proxySeed  Seed for proxy pool selection (e.g. processNumber:attempt)
-     * @param  array<int, array<string, mixed>>|null  $prefetchedApiProcessesFromPortal  Resultado de fetchProcesses (procesos[]) cuando ya se resolvió en ProcessRegistrationSyncModeResolver.
+     * @param  array<int, array<string, mixed>>|null  $prefetchedApiProcessesFromPortal  Resultado de fetchProcesses (procesos[]) cuando ya se resolvió en ProcessRegistrationSyncModeResolverService.
      *
      * @throws Throwable
      */
@@ -343,7 +345,7 @@ readonly class RegisterProcessService
 
         $alertLevel = $this->calculateInitialAlertLevel($process, $lawyerRole);
 
-        \Illuminate\Support\Facades\DB::table('organization_processes')
+        DB::table('organization_processes')
             ->where('organization_id', $organizationId)
             ->where('process_id', $process->id)
             ->update(['inactivity_alert_level' => $alertLevel, 'updated_at' => now()]);

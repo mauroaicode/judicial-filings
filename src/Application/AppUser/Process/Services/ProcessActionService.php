@@ -86,16 +86,22 @@ readonly class ProcessActionService
             return;
         }
 
+        $registrationDate = $this->parseDate($actionData['fechaRegistro'] ?? null)
+            ?? now()->format('Y-m-d');
+
+        $actionDate = $this->parseDate($actionData['fechaActuacion'] ?? null)
+            ?? $registrationDate;
+
         ProcessAction::query()->create([
             'process_id' => $process->id,
             'action_registration_id' => $actionRegistrationId,
             'cons_action' => (int) ($actionData['consActuacion'] ?? 0),
-            'action_date' => $this->parseDate($actionData['fechaActuacion'] ?? null),
+            'action_date' => $actionDate,
             'action' => $actionData['actuacion'] ?? '',
             'annotation' => $actionData['anotacion'] ?? null,
             'start_date' => $this->parseDate($actionData['fechaInicial'] ?? null),
             'end_date' => $this->parseDate($actionData['fechaFinal'] ?? null),
-            'registration_date' => $this->parseDate($actionData['fechaRegistro'] ?? null),
+            'registration_date' => $registrationDate,
         ]);
     }
 }

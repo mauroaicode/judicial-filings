@@ -13,13 +13,13 @@ use Src\Domain\Process\Models\Process;
 /**
  * Decide si el alta por API debe ir en cola (muchas páginas de actuaciones) o ejecutarse inline para mejor UX.
  */
-readonly class ProcessRegistrationSyncModeResolver
+readonly class ProcessRegistrationSyncModeResolverService
 {
     public function __construct(
         private JudicialBranchConsultService $judicialBranchConsultService,
     ) {}
 
-    public function decide(string $processNumber, string $organizationId): ProcessRegistrationRoutingDecision
+    public function handle(string $processNumber, string $organizationId): ProcessRegistrationRoutingDecision
     {
         $this->assertProcessNotAlreadyRegisteredForOrganization($processNumber, $organizationId);
 
@@ -27,7 +27,7 @@ readonly class ProcessRegistrationSyncModeResolver
 
         $existingGlobally = Process::query()->whereProcessNumber($processNumber)->exists();
         if ($existingGlobally) {
-            return new ProcessRegistrationRoutingDecision(deferToQueue: false, prefetchedApiProcesses: null);
+            return new ProcessRegistrationRoutingDecision(deferToQueue: false);
         }
 
         try {
@@ -71,7 +71,7 @@ readonly class ProcessRegistrationSyncModeResolver
         }
 
         if ($maxPagesAmongNewInstances > $inlineMaxPages) {
-            return new ProcessRegistrationRoutingDecision(deferToQueue: true, prefetchedApiProcesses: null);
+            return new ProcessRegistrationRoutingDecision(deferToQueue: true);
         }
 
         return new ProcessRegistrationRoutingDecision(deferToQueue: false, prefetchedApiProcesses: $processesData);

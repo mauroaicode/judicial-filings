@@ -16,15 +16,21 @@ trait MapsJudicialActuacionTrait
      */
     protected function mapApiActuacionToAttributes(array $apiActuacion): array
     {
+        $registrationDate = $this->parseActuacionDate($apiActuacion['fechaRegistro'] ?? null)
+            ?? now()->format('Y-m-d');
+
+        $actionDate = $this->parseActuacionDate($apiActuacion['fechaActuacion'] ?? null)
+            ?? $registrationDate;
+
         return [
             'action_registration_id' => (int) ($apiActuacion['idRegActuacion'] ?? 0),
             'cons_action' => (int) ($apiActuacion['consActuacion'] ?? 0),
-            'action_date' => $this->parseActuacionDate($apiActuacion['fechaActuacion'] ?? null),
+            'action_date' => $actionDate,
             'action' => (string) ($apiActuacion['actuacion'] ?? ''),
             'annotation' => isset($apiActuacion['anotacion']) ? (string) $apiActuacion['anotacion'] : null,
             'start_date' => $this->parseActuacionDate($apiActuacion['fechaInicial'] ?? null),
             'end_date' => $this->parseActuacionDate($apiActuacion['fechaFinal'] ?? null),
-            'registration_date' => $this->parseActuacionDate($apiActuacion['fechaRegistro'] ?? null) ?? now()->format('Y-m-d'),
+            'registration_date' => $registrationDate,
         ];
     }
 

@@ -16,7 +16,7 @@ use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
 use Src\Application\AppUser\Process\Services\DispatchProcessRegistrationService;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
-use Src\Application\AppUser\Process\Services\ProcessRegistrationSyncModeResolver;
+use Src\Application\AppUser\Process\Services\ProcessRegistrationSyncModeResolverService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\AppUser\Process\Services\ToggleProcessStatusService;
 use Src\Application\Shared\Data\ProcessFilterData;
@@ -32,7 +32,7 @@ readonly class ProcessController
         private ProcessDetailService $processDetailService,
         private ToggleProcessStatusService $toggleProcessStatusService,
         private DispatchProcessRegistrationService $dispatchProcessRegistrationService,
-        private ProcessRegistrationSyncModeResolver $processRegistrationSyncModeResolver,
+        private ProcessRegistrationSyncModeResolverService $processRegistrationSyncModeResolverService,
         private RegisterProcessService $registerProcessService,
     ) {}
 
@@ -123,7 +123,7 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $routing = $this->processRegistrationSyncModeResolver->decide($data->process_number, $organization->id);
+        $routing = $this->processRegistrationSyncModeResolverService->handle($data->process_number, $organization->id);
 
         if ($routing->deferToQueue) {
             $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);

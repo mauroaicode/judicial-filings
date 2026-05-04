@@ -65,7 +65,6 @@ class ImportRadicadoJob implements ShouldQueue
                 $this->organizationId,
                 null,
                 $seed,
-                null,
             );
 
             $this->incrementBatchSuccess($result->registeredCount);
