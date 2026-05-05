@@ -136,4 +136,33 @@ class ProcessAction extends Model
             'alert_action_keyword_id'
         );
     }
+
+    protected static function booted(): void
+    {
+        static::creating(function (ProcessAction $model): void {
+            $attrs = $model->getAttributes();
+
+            $regRaw = $attrs['registration_date'] ?? null;
+            $actRaw = $attrs['action_date'] ?? null;
+
+            $regEmpty = $regRaw === null || $regRaw === '';
+            $actEmpty = $actRaw === null || $actRaw === '';
+
+            if ($actEmpty xor $regEmpty) {
+                if ($actEmpty) {
+                    $model->setAttribute('action_date', $regRaw);
+                } else {
+                    $model->setAttribute('registration_date', $actRaw);
+                }
+
+                return;
+            }
+
+            if ($actEmpty && $regEmpty) {
+                $today = now()->toDateString();
+                $model->setAttribute('action_date', $today);
+                $model->setAttribute('registration_date', $today);
+            }
+        });
+    }
 }

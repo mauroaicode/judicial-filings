@@ -58,8 +58,7 @@ class ImportRadicadoJob implements ShouldQueue
 
         try {
             $seed = $this->processNumber.':'.$this->attempts();
-            // requested_by es el User administrativo (panel), no app_users.id — no pasarlo como appUserId
-            // (evita FK en ai_chats). Los chats se pueden crear después desde la app de abogados.
+
             $result = $registerProcessService->handle(
                 $this->processNumber,
                 $this->organizationId,
