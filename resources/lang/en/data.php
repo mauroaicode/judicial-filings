@@ -73,4 +73,6 @@ return [
     'has_errors' => 'Has import errors',
     'started_at_from' => 'Started from',
     'started_at_to' => 'Started to',
+    'session_lock_enabled' => 'Session Lock Enabled',
+    'session_lock_timeout' => 'Session Lock Timeout',
 ];

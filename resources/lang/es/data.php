@@ -72,4 +72,6 @@ return [
     'has_errors' => 'Con errores de importación',
     'started_at_from' => 'Inicio desde',
     'started_at_to' => 'Inicio hasta',
+    'session_lock_enabled' => 'Bloqueo de sesión habilitado',
+    'session_lock_timeout' => 'Tiempo de bloqueo de sesión',
 ];
