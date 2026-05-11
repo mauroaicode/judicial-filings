@@ -7,6 +7,7 @@ namespace Src\Application\Admin\JudicialSync\Services;
 use Illuminate\Support\Facades\Artisan;
 use Src\Application\Admin\JudicialSync\Data\AdminJudicialSyncData;
 use Src\Application\Admin\JudicialSync\Resources\AdminJudicialSyncResource;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Symfony\Component\Console\Command\Command as ConsoleCommand;
 
@@ -51,7 +52,11 @@ readonly class AdminJudicialSyncService
     {
         $query = Process::query()
             ->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
-            ->where('organization_processes.is_active', true);
+            ->where('organization_processes.is_active', true)
+            ->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
+            ->where('process_data_sources.slug', ProcessDataSourceSlug::JudicialBranch->value)
+            ->whereNotNull('processes.process_id')
+            ->where('processes.is_manual_sync', false);
 
         if ($radicadoFilter !== null && $radicadoFilter !== '') {
             $query->where('processes.process_number', $radicadoFilter);

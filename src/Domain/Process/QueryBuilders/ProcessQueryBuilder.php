@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessStatus;
 use Src\Domain\Process\Models\Process;
 
@@ -70,6 +71,11 @@ class ProcessQueryBuilder extends Builder
     {
         $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
             ->where('organization_processes.is_active', true);
+
+        $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
+            ->where('process_data_sources.slug', ProcessDataSourceSlug::JudicialBranch->value)
+            ->whereNotNull('processes.process_id')
+            ->where('processes.is_manual_sync', false);
 
         if ($radicadoFilter !== null && $radicadoFilter !== '') {
             $this->where('processes.process_number', $radicadoFilter);
@@ -248,6 +254,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
         $this->applyStatusFilter($data->status, $data->status_on_process_table);
         $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
+        $this->applyPrivacyFilter($data->privacy);
         $this->applyRoleFilter($data->lawyer_role);
         $this->applySeverityColorFilter($data->severity_color);
 
@@ -450,6 +457,26 @@ class ProcessQueryBuilder extends Builder
         $hasMultiple = filter_var($hasMultipleInstances, FILTER_VALIDATE_BOOLEAN);
 
         $this->where('has_multiple_instances', $hasMultiple);
+    }
+
+    /**
+     * Restrict to private (`is_private` true) or non-private processes.
+     */
+    private function applyPrivacyFilter(?string $privacy): void
+    {
+        if ($privacy === null || $privacy === '') {
+            return;
+        }
+
+        if ($privacy === 'private') {
+            $this->where('is_private', true);
+
+            return;
+        }
+
+        if ($privacy === 'public') {
+            $this->where('is_private', false);
+        }
     }
 
     /**

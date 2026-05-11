@@ -50,7 +50,7 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $filters = ProcessFilterData::from($request->query());
+        $filters = ProcessFilterData::validateAndCreate($request->query());
         $perPage = (int) $request->query('per_page', 20);
         $page = (int) $request->query('page', 1);
 

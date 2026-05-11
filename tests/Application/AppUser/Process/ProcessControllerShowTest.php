@@ -34,6 +34,25 @@ it('requires authentication to view process detail', function (): void {
     $response->assertStatus(401);
 });
 
+it('returns process detail when judicial process_id is null (private import)', function (): void {
+    $process = Process::factory()->create([
+        'process_id' => null,
+        'is_private' => true,
+        'is_manual_sync' => true,
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}");
+
+    $response->assertStatus(200);
+    expect($response->json('process.process_id'))->toBeNull();
+});
+
 it('returns process detail with subjects', function (): void {
     $process = Process::factory()->create([
         'process_number' => '76001333301320170009301',

@@ -23,6 +23,7 @@ readonly class AdminDashboardStatsService
             totalProcesses: $processCounts['total'],
             activeProcesses: $processCounts['active'],
             orphanProcesses: $processCounts['orphans'],
+            privateProcesses: $processCounts['private_processes'],
             processesWithMultipleInstances: $processCounts['multiple_instances'],
             outdatedProcesses: $outdatedProcesses,
             criticalAlertProcesses: $criticalAlertProcesses,
@@ -33,7 +34,7 @@ readonly class AdminDashboardStatsService
     /**
      * Admin KPIs sobre radicado único (process_number); activo/huérfano solo tabla processes.status.
      *
-     * @return array{total: int, active: int, orphans: int, multiple_instances: int}
+     * @return array{total: int, active: int, orphans: int, private_processes: int, multiple_instances: int}
      */
     private function getProcessCounts(): array
     {
@@ -51,6 +52,11 @@ readonly class AdminDashboardStatsService
             ->distinct()
             ->count('process_number');
 
+        $privateProcesses = (int) Process::query()
+            ->where('is_private', true)
+            ->distinct()
+            ->count('process_number');
+
         $multipleInstances = (int) Process::query()
             ->whereHas('organizations')
             ->where('has_multiple_instances', true)
@@ -61,6 +67,7 @@ readonly class AdminDashboardStatsService
             'total' => $total,
             'active' => $active,
             'orphans' => $orphans,
+            'private_processes' => $privateProcesses,
             'multiple_instances' => $multipleInstances,
         ];
     }

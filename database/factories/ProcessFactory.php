@@ -1,10 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessDataSource;
 
 /**
  * @extends Factory<Process>
@@ -63,6 +67,8 @@ class ProcessFactory extends Factory
             'is_private' => $this->faker->boolean(20), // 20% probabilidad de ser privado
             'has_multiple_instances' => $this->faker->boolean(15), // 15% probabilidad de tener múltiples instancias
             'last_api_update' => $this->faker->optional(0.8)->dateTimeBetween('-1 month', 'now'),
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
         ];
     }
 

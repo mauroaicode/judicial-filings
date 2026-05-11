@@ -9,8 +9,10 @@ namespace Database\Seeders;
 // use Core\Shared\Infrastructure\Persistence\Eloquent\Models\ProcessSubject;
 use Illuminate\Database\Seeder;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
+use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessSubject;
 
 class MultipleInstanceProcessSeeder extends Seeder
@@ -39,6 +41,8 @@ class MultipleInstanceProcessSeeder extends Seeder
             'is_private' => false,
             'has_multiple_instances' => true,
             'last_api_update' => now(),
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
         ]);
 
         echo "Proceso principal creado: {$mainProcess->process_number}\n";
@@ -60,6 +64,8 @@ class MultipleInstanceProcessSeeder extends Seeder
             'is_private' => false,
             'has_multiple_instances' => true,
             'last_api_update' => now(),
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
         ]);
 
         echo "Segunda instancia creada: {$secondInstance->process_number}\n";

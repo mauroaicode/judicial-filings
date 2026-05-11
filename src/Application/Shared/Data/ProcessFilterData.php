@@ -45,5 +45,8 @@ class ProcessFilterData extends Data
         public ?string $lawyer_role = null,
         #[In(['red', 'yellow', 'green'])]
         public ?string $severity_color = null,
+        /** `private` | `public`; omit for no filter (admin and app-user lists). */
+        #[In(['private', 'public'])]
+        public ?string $privacy = null,
     ) {}
 }

@@ -14,8 +14,10 @@ use Src\Application\Shared\Traits\MapsJudicialActuacionTrait;
 use Src\Application\Shared\Traits\MapsJudicialSujetoTrait;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
+use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessSubject;
 
 class ProcessSyncService
@@ -31,6 +33,15 @@ class ProcessSyncService
     public function handle(Process $process, bool $notify = true): void
     {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+
+        $process->loadMissing('processDataSource');
+        if ($process->is_manual_sync || $process->process_id === null || $process->processDataSource?->slug !== ProcessDataSourceSlug::JudicialBranch->value) {
+            Log::channel($logChannel)->info('ProcessSyncService::handle skipped: not a judicial branch candidate', [
+                'process_uuid' => $process->id,
+            ]);
+
+            return;
+        }
 
         $apiProcessId = $process->process_id;
 
@@ -167,10 +178,13 @@ class ProcessSyncService
         // 1. Discovery: Search for new instances in the API (moved from Command)
         $this->discoverNewProcesses($processNumber);
 
-        // 2. Fetch processes to sync (all active instances)
+        // 2. Fetch processes to sync (all active instances from Rama only)
         $processes = Process::query()
             ->where('process_number', $processNumber)
+            ->where('is_manual_sync', false)
+            ->whereNotNull('process_id')
             ->whereHas('organizations', fn (Builder $q) => $q->where('organization_processes.is_active', true))
+            ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value))
             ->get();
 
         if ($processes->isEmpty()) {
@@ -313,6 +327,7 @@ class ProcessSyncService
                 'is_private' => (bool) ($apiProceso['esPrivado'] ?? false),
                 'has_multiple_instances' => false,
                 'last_api_update' => now(),
+                ...$this->judicialBranchProcessIdentifiers(),
             ]);
         }
 
@@ -335,7 +350,19 @@ class ProcessSyncService
             'is_private' => (bool) ($data['esPrivado'] ?? $apiProceso['esPrivado'] ?? false),
             'has_multiple_instances' => false,
             'last_api_update' => now(),
+            ...$this->judicialBranchProcessIdentifiers(),
         ]);
+    }
+
+    /**
+     * @return array{is_manual_sync: bool, process_data_source_id: string}
+     */
+    private function judicialBranchProcessIdentifiers(): array
+    {
+        return [
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
+        ];
     }
 
     private function parseDate(?string $date): ?string

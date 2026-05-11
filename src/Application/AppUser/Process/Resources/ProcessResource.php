@@ -11,7 +11,7 @@ class ProcessResource extends Resource
 {
     public function __construct(
         public string $id,
-        public int $process_id,
+        public ?int $process_id,
         public string $process_number,
         public string $court,
         public string $department,

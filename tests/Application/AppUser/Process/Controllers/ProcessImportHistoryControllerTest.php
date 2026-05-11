@@ -114,6 +114,7 @@ it('returns the expected resource structure', function (): void {
             '*' => [
                 'id',
                 'file_name',
+                'is_private_import',
                 'total_count',
                 'success_count',
                 'failed_count',
@@ -130,6 +131,7 @@ it('returns the expected resource structure', function (): void {
     $first = $response->json('data.0');
 
     expect($first['file_name'])->toBe('PRUEBA.xlsx')
+        ->and($first['is_private_import'])->toBeFalse()
         ->and($first['total_count'])->toBe(10)
         ->and($first['success_count'])->toBe(8)
         ->and($first['failed_count'])->toBe(2)

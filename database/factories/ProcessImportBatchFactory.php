@@ -29,6 +29,7 @@ class ProcessImportBatchFactory extends Factory
             'organization_id' => Organization::factory(),
             'requested_by' => null,
             'file_name' => $this->faker->word().'.xlsx',
+            'is_private_import' => false,
             'excel_total_count' => $this->faker->numberBetween(1, 50),
             'total_count' => $this->faker->numberBetween(1, 50),
             'enqueued_process_numbers' => [],

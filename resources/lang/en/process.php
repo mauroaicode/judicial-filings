@@ -90,4 +90,18 @@ return [
     'not_found_in_organization' => 'The specified process does not belong to this organization.',
     'initial_chat' => 'Initial Chat',
     'judicial_sync_command_failed' => 'Could not run judicial branch sync. Please try again or check the system logs.',
+
+    'private_process_import_success' => 'Private import completed.',
+    'private_process_import_invalid_data_source' => 'The requested data source is not valid for manual import.',
+    'private_process_import_history_row_reason' => 'Row :row: :detail',
+    'private_process_import_no_data_rows' => 'The file has no valid data rows after the headers.',
+    'private_process_import_missing_headers' => 'Could not recognise the expected column headers in the first row.',
+    'private_process_import_missing_columns' => 'Required columns missing: :columns',
+    'private_process_import_row_empty_despacho' => 'Row :row: court (despacho) is required.',
+    'private_process_import_row_empty_clase' => 'Row :row: process class is required.',
+    'private_process_import_row_empty_actuacion' => 'Row :row: proceeding (actuación) is required.',
+    'private_process_import_unknown_department' => 'Unknown department',
+    'private_process_import_process_type_default' => 'Private process',
+    'private_process_litigant_prefix_plaintiff' => 'Plaintiff: ',
+    'private_process_litigant_prefix_defendant' => 'Defendant: ',
 ];

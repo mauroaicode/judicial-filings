@@ -58,7 +58,7 @@ readonly class AdminProcessFinderService
 
         $processes = Process::query()
             ->whereIn('process_number', $processNumbers)
-            ->with(['subjects', 'organizations'])
+            ->with(['subjects', 'organizations', 'processDataSource'])
             ->orderedByLastActivityDate()
             ->get();
 

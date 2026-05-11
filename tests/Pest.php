@@ -17,7 +17,8 @@ use Src\Domain\User\Models\User;
 
 use function Pest\Laravel\actingAs;
 
-uses(Tests\TestCase::class)->in('Application', 'Domain', 'Architecture', 'Feature', 'Unit');
+uses(Tests\TestCase::class)->in('Application', 'Domain', 'Feature', 'Unit');
+uses(Tests\ArchitectureTestCase::class)->in('Architecture');
 
 /*
 |--------------------------------------------------------------------------

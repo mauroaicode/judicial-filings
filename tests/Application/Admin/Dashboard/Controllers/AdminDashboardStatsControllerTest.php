@@ -39,6 +39,7 @@ it('returns zero counts when there are no processes', function (): void {
     $response->assertJsonPath('total_processes', 0);
     $response->assertJsonPath('active_processes', 0);
     $response->assertJsonPath('orphan_processes', 0);
+    $response->assertJsonPath('private_processes', 0);
     $response->assertJsonPath('processes_with_multiple_instances', 0);
     $response->assertJsonPath('outdated_processes', 0);
     $response->assertJsonPath('critical_alert_processes', 0);
@@ -59,6 +60,19 @@ it('counts orphan_processes from processes.status ignoring organization pivot', 
     $response->assertJsonPath('total_processes', 1);
     $response->assertJsonPath('active_processes', 0);
     $response->assertJsonPath('orphan_processes', 1);
+});
+
+it('counts distinct private process_numbers where is_private is true', function (): void {
+    Process::factory()->create(['process_number' => '11001418901234567890123', 'is_private' => true]);
+    Process::factory()->create(['process_number' => '22001418901234567890123', 'is_private' => true]);
+    Process::factory()->create(['process_number' => '33001418901234567890123', 'is_private' => false]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/dashboard/stats');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('private_processes', 2);
+    $response->assertJsonPath('total_processes', 3);
 });
 
 it('counts active_processes using processes.status not pivot is_active', function (): void {
@@ -285,6 +299,7 @@ it('returns correct json structure', function (): void {
         'total_processes',
         'active_processes',
         'orphan_processes',
+        'private_processes',
         'processes_with_multiple_instances',
         'outdated_processes',
         'critical_alert_processes',

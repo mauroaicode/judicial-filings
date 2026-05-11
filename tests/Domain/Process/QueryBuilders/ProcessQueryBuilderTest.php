@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\DB;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 
@@ -11,8 +12,8 @@ it('filters processes by process number', function (): void {
     ]);
 
     $result = Process::query()
-        ->whereProcessNumber('76001333301320170009301')
-        ->first();
+        ->whereProcessNumber($process->process_number)
+        ->find($process->id);
 
     expect($result)->not->toBeNull();
     expect($result->id)->toBe($process->id);
@@ -49,10 +50,22 @@ it('filters processes by organization', function (): void {
 });
 
 it('orders processes by created_at', function (): void {
-    $process1 = Process::factory()->create(['created_at' => now()->subDay()]);
-    $process2 = Process::factory()->create(['created_at' => now()]);
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    $older = now()->subDays(7);
+    $newer = now();
+    DB::table('processes')->where('id', $process1->id)->update([
+        'created_at' => $older,
+        'updated_at' => $older,
+    ]);
+    DB::table('processes')->where('id', $process2->id)->update([
+        'created_at' => $newer,
+        'updated_at' => $newer,
+    ]);
 
     $results = Process::query()
+        ->whereIn('id', [$process1->id, $process2->id])
         ->orderedByCreatedAt()
         ->get();
 
@@ -61,10 +74,18 @@ it('orders processes by created_at', function (): void {
 });
 
 it('orders processes by process_date', function (): void {
-    $process1 = Process::factory()->create(['process_date' => now()->subDay()]);
-    $process2 = Process::factory()->create(['process_date' => now()]);
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    DB::table('processes')->where('id', $process1->id)->update([
+        'process_date' => now()->subDay()->toDateString(),
+    ]);
+    DB::table('processes')->where('id', $process2->id)->update([
+        'process_date' => now()->toDateString(),
+    ]);
 
     $results = Process::query()
+        ->whereIn('id', [$process1->id, $process2->id])
         ->orderedByProcessDate()
         ->get();
 

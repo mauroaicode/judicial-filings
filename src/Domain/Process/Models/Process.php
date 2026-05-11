@@ -7,6 +7,7 @@ namespace Src\Domain\Process\Models;
 use Database\Factories\ProcessFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany as EloquentBelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,7 +21,7 @@ use Src\Domain\Task\Models\Task;
 
 /**
  * @property-read string $id
- * @property-read int $process_id
+ * @property-read int|null $process_id
  * @property-read string $process_number
  * @property-read string $court
  * @property-read string|null $speaker
@@ -36,6 +37,9 @@ use Src\Domain\Task\Models\Task;
  * @property-read bool $is_private
  * @property-read bool $has_multiple_instances
  * @property-read Carbon|null $last_api_update
+ * @property-read bool $is_manual_sync
+ * @property-read string|null $process_data_source_id
+ * @property-read ProcessDataSource|null $processDataSource
  * @property-read string|null $status
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
@@ -89,6 +93,8 @@ class Process extends Model
         'is_private',
         'has_multiple_instances',
         'last_api_update',
+        'is_manual_sync',
+        'process_data_source_id',
         'status',
         'ai_summary',
     ];
@@ -107,6 +113,7 @@ class Process extends Model
             'is_private' => 'boolean',
             'has_multiple_instances' => 'boolean',
             'last_api_update' => 'datetime',
+            'is_manual_sync' => 'boolean',
             'ai_summary' => 'array',
         ];
     }
@@ -125,6 +132,14 @@ class Process extends Model
     public function newEloquentBuilder(mixed $query): ProcessQueryBuilder
     {
         return new ProcessQueryBuilder($query);
+    }
+
+    /**
+     * @return BelongsTo<ProcessDataSource, $this>
+     */
+    public function processDataSource(): BelongsTo
+    {
+        return $this->belongsTo(ProcessDataSource::class, 'process_data_source_id');
     }
 
     /**

@@ -111,6 +111,7 @@ it('returns expected resource structure including errors and organization', func
                 'organization_id',
                 'organization_name',
                 'file_name',
+                'is_private_import',
                 'total_count',
                 'success_count',
                 'failed_count',
@@ -130,6 +131,7 @@ it('returns expected resource structure including errors and organization', func
     expect($first['organization_id'])->toBe($this->organization->id)
         ->and($first['organization_name'])->toBe('Org Alpha')
         ->and($first['file_name'])->toBe('ADMIN.xlsx')
+        ->and($first['is_private_import'])->toBeFalse()
         ->and($first['errors'])->toBe($errors)
         ->and($first['status'])->toBe('completed')
         ->and($first['status_label'])->toBe(__('enums.process_import_batch_status.completed'));

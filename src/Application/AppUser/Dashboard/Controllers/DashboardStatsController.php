@@ -27,7 +27,7 @@ readonly class DashboardStatsController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $filters = ProcessFilterData::from($request->query());
+        $filters = ProcessFilterData::validateAndCreate($request->query());
 
         $stats = $this->dashboardStatsService->handle($organization->id, $filters);
 

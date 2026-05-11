@@ -16,8 +16,10 @@ use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Shared\Enums\SeverityColor;
 use Throwable;
 
@@ -229,6 +231,8 @@ readonly class RegisterProcessService
             'has_multiple_instances' => $hasMultipleInstances,
             'last_api_update' => now(),
             'status' => 'activo',
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
         ];
 
         return Process::query()->create($processData);

@@ -4,7 +4,9 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessDataSource;
 
 class ProcessSeeder extends Seeder
 {
@@ -32,6 +34,8 @@ class ProcessSeeder extends Seeder
             'filing_content' => 'ANEXA 3 COPIAS Y 1 CD',
             'is_private' => false,
             'last_api_update' => '2025-08-01T19:17:37.393',
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
         ]);
 
         $organizations = Organization::query()->take(3)->get();
@@ -80,6 +84,8 @@ class ProcessSeeder extends Seeder
             'is_private' => false,
             'has_multiple_instances' => false,
             'last_api_update' => '2026-02-03 16:17:01',
+            'is_manual_sync' => false,
+            'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
         ]);
 
         $processJuanPerez->organizations()->attach($organizationJuanPerez->id, [

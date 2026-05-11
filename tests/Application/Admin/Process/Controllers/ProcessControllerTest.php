@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessSubject;
 use Src\Domain\Role\Models\Role;
 use Src\Domain\User\Enums\UserStatus;
@@ -98,6 +100,27 @@ it('shows organization name in response', function (): void {
     $response->assertStatus(200);
     expect($response->json('data.0.organization'))->toBe('Test Organization');
     expect($response->json('data.0.organizations_count'))->toBe(1);
+});
+
+it('includes manual sync flag and data source in admin list response', function (): void {
+    $organization = Organization::factory()->create(['name' => 'Test Organization']);
+    $process = Process::factory()->create([
+        'is_manual_sync' => true,
+        'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::Samai),
+    ]);
+
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes');
+
+    $response->assertStatus(200);
+    expect($response->json('data.0.is_manual_sync'))->toBeTrue()
+        ->and($response->json('data.0.data_source_slug'))->toBe('samai')
+        ->and($response->json('data.0.data_source_name'))->toBe('Consejo de Estado (SAMAI)');
 });
 
 it('shows organization count when process has multiple organizations', function (): void {
@@ -340,6 +363,9 @@ it('returns correct resource structure', function (): void {
                 'last_activity_date',
                 'is_private',
                 'has_multiple_instances',
+                'is_manual_sync',
+                'data_source_slug',
+                'data_source_name',
                 'status_label',
                 'created_at',
                 'term_start_date',
@@ -523,6 +549,52 @@ it('filters processes by organization name with exact match', function (): void 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
     expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by privacy query param private or public', function (): void {
+    $organization = Organization::factory()->create();
+    $private = Process::factory()->create([
+        'process_number' => '11001418901234567890123',
+        'is_private' => true,
+    ]);
+    $public = Process::factory()->create([
+        'process_number' => '22001418901234567890123',
+        'is_private' => false,
+    ]);
+
+    foreach ([$private, $public] as $process) {
+        $process->organizations()->attach($organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+        ]);
+    }
+
+    $onlyPrivate = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?privacy=private');
+    $onlyPrivate->assertStatus(200);
+    expect($onlyPrivate->json('total'))->toBe(1);
+    expect($onlyPrivate->json('data'))->toHaveCount(1);
+    expect($onlyPrivate->json('data.0.is_private'))->toBeTrue();
+
+    $onlyPublic = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?privacy=public');
+    $onlyPublic->assertStatus(200);
+    expect($onlyPublic->json('total'))->toBe(1);
+    expect($onlyPublic->json('data'))->toHaveCount(1);
+    expect($onlyPublic->json('data.0.is_private'))->toBeFalse();
+
+    $all = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes');
+    $all->assertStatus(200);
+    expect($all->json('total'))->toBe(2);
+});
+
+it('rejects invalid privacy query value', function (): void {
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?privacy=all');
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['privacy']);
 });
 
 it('uses earliest organization registration date for created_at', function (): void {

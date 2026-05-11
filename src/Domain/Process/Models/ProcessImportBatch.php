@@ -20,6 +20,7 @@ use Src\Domain\User\Models\User;
  * @property-read string $organization_id
  * @property-read string|null $requested_by
  * @property-read string $file_name
+ * @property-read bool $is_private_import True for synchronous private Excel import (outside judicial queue jobs)
  * @property-read int $excel_total_count Total valid radicados in the uploaded Excel file
  * @property-read int $total_count Radicados actually enqueued (after filtering already-registered for this org)
  * @property-read array<int, string>|null $enqueued_process_numbers
@@ -57,6 +58,7 @@ class ProcessImportBatch extends Model
         'organization_id',
         'requested_by',
         'file_name',
+        'is_private_import',
         'excel_total_count',
         'total_count',
         'enqueued_process_numbers',
@@ -79,6 +81,7 @@ class ProcessImportBatch extends Model
         'success_count' => 'integer',
         'failed_count' => 'integer',
         'multiple_instances_count' => 'integer',
+        'is_private_import' => 'boolean',
     ];
 
     /**

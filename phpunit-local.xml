@@ -23,10 +23,12 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_USERNAME" value="root"/>
-        <env name="DB_HOST" value="mysql"/>
-        <env name="DB_DATABASE" value="testing"/>
-        <env name="DB_PORT" value="3306"/>
+        <!--
+            MySQL: usar la misma base migrada que en .env (p. ej. judicial_filings con Herd).
+            No fijar DB_DATABASE=testing aquí sin haber migrado esa base: DatabaseTransactions
+            no crea tablas; el beforeEach que hace delete/update falla si no existen.
+            Sail en contenedor: DB_HOST=mysql DB_DATABASE=… vendor/bin/pest -c phpunit-local.xml
+        -->
         <env name="MAIL_MAILER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

@@ -21,7 +21,7 @@ readonly class ProcessController
      */
     public function index(Request $request): LengthAwarePaginator
     {
-        $filters = ProcessFilterData::from(array_merge($request->query(), [
+        $filters = ProcessFilterData::validateAndCreate(array_merge($request->query(), [
             'status_on_process_table' => true,
         ]));
         $perPage = (int) $request->query('per_page', 20);

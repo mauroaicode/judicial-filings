@@ -93,4 +93,18 @@ return [
     'invalid_none_combination' => 'No es posible filtrar por "Sin Rol" y "Sin Semáforo" al mismo tiempo.',
     'initial_chat' => 'Chat Inicial',
     'judicial_sync_command_failed' => 'No se pudo ejecutar la sincronización con la Rama Judicial. Intente de nuevo o revise los registros del sistema.',
+
+    'private_process_import_success' => 'Importación privada completada.',
+    'private_process_import_invalid_data_source' => 'La fuente de datos indicada no es válida para importación manual.',
+    'private_process_import_history_row_reason' => 'Fila :row: :detail',
+    'private_process_import_no_data_rows' => 'El archivo no contiene filas de datos válidas después de las cabeceras.',
+    'private_process_import_missing_headers' => 'No se reconocieron las cabeceras de columnas esperadas en la primera fila.',
+    'private_process_import_missing_columns' => 'Faltan columnas obligatorias: :columns',
+    'private_process_import_row_empty_despacho' => 'Fila :row: despacho obligatorio.',
+    'private_process_import_row_empty_clase' => 'Fila :row: clase de proceso obligatoria.',
+    'private_process_import_row_empty_actuacion' => 'Fila :row: actuación obligatoria.',
+    'private_process_import_unknown_department' => 'Sin departamento',
+    'private_process_import_process_type_default' => 'Proceso privado',
+    'private_process_litigant_prefix_plaintiff' => 'Demandante: ',
+    'private_process_litigant_prefix_defendant' => 'Demandado: ',
 ];
