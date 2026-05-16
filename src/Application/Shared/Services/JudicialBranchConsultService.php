@@ -88,8 +88,6 @@ class JudicialBranchConsultService
             $currentPage = 1;
             $totalPages = 1;
 
-            $client = $this->buildHttpClient();
-
             do {
                 // Apply jitter before each page request (including the first one to avoid rapid fire)
                 // Usamos delay normal para la p1, y rápido para las siguientes (clic de paginación)
@@ -189,8 +187,6 @@ class JudicialBranchConsultService
             $currentPage = 1;
             $totalPages = 1;
 
-            $client = $this->buildHttpClient();
-
             do {
                 $this->applyJitter($currentPage > 1);
 
@@ -282,8 +278,6 @@ class JudicialBranchConsultService
             $allSubjects = [];
             $currentPage = 1;
             $totalPages = 1;
-
-            $client = $this->buildHttpClient();
 
             do {
                 $this->applyJitter($currentPage > 1);

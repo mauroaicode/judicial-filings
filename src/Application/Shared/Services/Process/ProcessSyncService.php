@@ -202,8 +202,26 @@ class ProcessSyncService
 
         $this->judicialService->withSeed($processNumber);
 
+        $thresholdDays = (int) config('judicial-sync.inactive_skip_threshold_days', 2);
+
         foreach ($processes as $process) {
             $apiProcessId = (int) $process->process_id;
+
+            // Optimización: si el proceso lleva más de N días sin actividad registrada,
+            // se omite fetchActionByProcess para ahorrar una petición al proxy.
+            // Los procesos activos en las últimas 48h siempre se consultan, garantizando
+            // que el cron de las 3:30pm capture actuaciones ocurridas tras el cron de las 9am.
+            if ($thresholdDays > 0 && $process->last_activity_date !== null
+                && $process->last_activity_date->lt(now()->subDays($thresholdDays)->startOfDay())) {
+                Log::channel($channel)->info('ProcessSyncService: skipping actuaciones fetch (inactive process)', [
+                    'process_number' => $processNumber,
+                    'process_id' => $process->id,
+                    'last_activity_date' => $process->last_activity_date->format('Y-m-d'),
+                    'threshold_days' => $thresholdDays,
+                ]);
+
+                continue;
+            }
 
             // Optimización: si ya tenemos actuaciones, solo consultamos la página 1 para detectar novedades.
             $onlyFirstPage = $process->actions()->exists();

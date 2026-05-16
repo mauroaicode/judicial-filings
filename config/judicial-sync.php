@@ -53,4 +53,23 @@ return [
         'sms' => env('NOTIFICATION_SMS_QUEUE', 'notifications-sms'),
         'whatsapp' => env('NOTIFICATION_WHATSAPP_QUEUE', 'notifications-whatsapp'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Inactive Process Skip Threshold
+    |--------------------------------------------------------------------------
+    |
+    | Number of days without activity after which fetchActionByProcess is skipped
+    | in the daily sync. A process whose last_activity_date is older than this
+    | threshold will only run fetchProcesses (to detect new instances) and skip
+    | the actuaciones check — saving one proxy request per inactive process.
+    |
+    | With two daily crons (9am and 3:30pm), a threshold of 2 days ensures that
+    | any process active in the last 48 hours is always fully checked, preventing
+    | missed same-day actions between cron runs.
+    |
+    | Set to 0 to disable the optimization and always fetch actuaciones.
+    |
+    */
+    'inactive_skip_threshold_days' => (int) env('JUDICIAL_SYNC_INACTIVE_SKIP_DAYS', 2),
 ];
