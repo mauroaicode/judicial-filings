@@ -13,6 +13,7 @@ use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\Process;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 readonly class AiChatStreamService
@@ -147,10 +148,11 @@ readonly class AiChatStreamService
     {
         /** @var Organization $organization */
         $organization = $chat->organization;
-        /** @var \Src\Domain\Process\Models\Process $process */
+        /** @var Process $process */
         $process = $chat->process;
 
-        $tenantId = StrParseHelper::buildAiTenantId((string) $organization->slug, (string) $organization->id);
+        //        $tenantId = StrParseHelper::buildAiTenantId((string) $organization->slug, (string) $organization->id);
+        $tenantId = 'abogados_9ab2a17f-7f13-431a-b57c-efb60d49fd5d';
         $url = config('ia-rag.base_url').'/query/stream?tenant_id='.$tenantId;
 
         $modeMapping = config('ai-chat.modes_mapping', []);
