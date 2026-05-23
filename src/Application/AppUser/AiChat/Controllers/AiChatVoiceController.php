@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\AiChat\Controllers;
 
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Src\Application\AppUser\AiChat\Data\SendVoiceMessageData;
-use Src\Application\AppUser\AiChat\Resources\AiChatVoiceResource;
 use Src\Application\AppUser\AiChat\Services\AiChatVoiceService;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 readonly class AiChatVoiceController
 {
@@ -20,7 +18,7 @@ readonly class AiChatVoiceController
         private AiChatVoiceService $voiceService
     ) {}
 
-    public function __invoke(string $chatId, SendVoiceMessageData $data, Request $request): JsonResponse
+    public function __invoke(string $chatId, SendVoiceMessageData $data, Request $request): StreamedResponse
     {
         /** @var AppUser $appUser */
         $appUser = $request->user();
@@ -43,16 +41,7 @@ readonly class AiChatVoiceController
             ->wherePublicOrTransitive((string) $appUser->id)
             ->firstOrFail();
 
-        try {
-            $result = $this->voiceService->handle($chat, $data);
-        } catch (\Throwable $e) {
-            Log::error('AI voice chat error: '.$e->getMessage());
-
-            return response()->json([
-                'message' => 'Error de conexión con el motor de IA',
-            ], 502);
-        }
-
-        return response()->json(AiChatVoiceResource::fromResult($result));
+        /** @var AiChat $chat */
+        return $this->voiceService->handle($chat, $data);
     }
 }

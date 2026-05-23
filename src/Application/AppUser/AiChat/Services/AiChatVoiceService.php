@@ -4,70 +4,96 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\AiChat\Services;
 
-use Exception;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
+use Illuminate\Support\Facades\Log;
 use Src\Application\AppUser\AiChat\Data\SendVoiceMessageData;
 use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
+use Src\Domain\Process\Models\Process;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 readonly class AiChatVoiceService
 {
-    /**
-     * @return array{answer: string, user_message_id: string, assistant_message_id: string}
-     *
-     * @throws ConnectionException
-     * @throws Exception
-     */
-    public function handle(AiChat $chat, SendVoiceMessageData $data): array
+    public function handle(AiChat $chat, SendVoiceMessageData $data): StreamedResponse
     {
         $history = $this->getChatHistory($chat);
 
-        $userMessage = $this->saveUserMessage($chat, $data);
+        $this->saveUserMessage($chat, $data);
 
         $ragOptions = $this->prepareRagRequestData($chat);
 
-        $body = [
-            'query' => $data->content,
-            'mode' => $ragOptions['mode'],
-            'response_type' => config('ai-chat.voice_response_type', 'paragraph'),
-            'user_prompt' => $ragOptions['user_prompt'],
-        ];
+        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions): void {
+            try {
+                $client = new Client;
 
-        if ($history !== []) {
-            $body['conversation_history'] = $history;
-        }
+                $body = [
+                    'query' => $data->content,
+                    'mode' => $ragOptions['mode'],
+                    'source' => $ragOptions['source'],
+                    'response_type' => config('ai-chat.voice_response_type', 'paragraph'),
+                ];
 
-        $timeout = (int) config('ia-rag.timeout');
+                if ($ragOptions['user_prompt'] !== '') {
+                    $body['user_prompt'] = $ragOptions['user_prompt'];
+                }
 
-        $response = Http::timeout($timeout)
-            ->post($ragOptions['url'], $body);
+                if ($history !== []) {
+                    $body['conversation_history'] = $history;
+                }
 
-        if (! $response->successful()) {
-            throw new Exception('RAG API query failed: '.$response->body());
-        }
+                Log::info('AI voice → rag-api stream request', [
+                    'ai_chat_id' => $chat->id,
+                    'url' => $ragOptions['url'],
+                    'body' => $body,
+                    'history_count' => count($history),
+                ]);
 
-        $answer = (string) ($response->json('answer') ?? '');
+                $response = $client->post($ragOptions['url'], [
+                    'json' => $body,
+                    'stream' => true,
+                    'headers' => ['Accept' => 'text/event-stream'],
+                ]);
 
-        if ($answer === '') {
-            throw new Exception('RAG API returned an empty answer.');
-        }
+                $stream = $response->getBody();
+                $fullResponseContent = '';
 
-        $assistantMessage = $this->saveAssistantMessage($chat, $answer);
+                while (! $stream->eof()) {
+                    $chunk = $stream->read(1024);
+                    echo $chunk;
 
-        return [
-            'answer' => $answer,
-            'user_message_id' => (string) $userMessage->id,
-            'assistant_message_id' => (string) $assistantMessage->id,
-        ];
+                    $fullResponseContent .= $this->extractContentFromChunk($chunk);
+
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
+
+                    flush();
+                }
+
+                if ($fullResponseContent !== '' && $fullResponseContent !== '0') {
+                    $this->saveAssistantMessage($chat, $fullResponseContent);
+                }
+
+            } catch (ClientException $e) {
+                $responseBody = $e->getResponse()->getBody()->getContents();
+                Log::error('AI voice RAG API validation error (422): '.$responseBody);
+                echo 'data: '.json_encode(['error' => 'Error de validación en el motor de IA: '.$responseBody])."\n\n";
+            } catch (\Throwable $e) {
+                Log::error('AI voice RAG API error: '.$e->getMessage());
+                echo 'data: '.json_encode(['error' => 'Error de conexión con el motor de IA'])."\n\n";
+            }
+        }, 200, [
+            'Cache-Control' => 'no-cache',
+            'Content-Type' => 'text/event-stream',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
-    private function saveUserMessage(AiChat $chat, SendVoiceMessageData $data): AiChatMessage
+    private function saveUserMessage(AiChat $chat, SendVoiceMessageData $data): void
     {
-        /** @var AiChatMessage $message */
-        $message = AiChatMessage::query()->create([
+        AiChatMessage::query()->create([
             'ai_chat_id' => $chat->id,
             'role' => 'user',
             'search_mode' => null,
@@ -77,21 +103,16 @@ readonly class AiChatVoiceService
         if ($chat->messages()->where('role', 'user')->count() === 1) {
             dispatch(new UpdateAiChatTitleJob($chat, $data->content));
         }
-
-        return $message;
     }
 
-    private function saveAssistantMessage(AiChat $chat, string $content): AiChatMessage
+    private function saveAssistantMessage(AiChat $chat, string $content): void
     {
-        /** @var AiChatMessage $message */
-        $message = AiChatMessage::query()->create([
+        AiChatMessage::query()->create([
             'ai_chat_id' => $chat->id,
             'role' => 'assistant',
             'search_mode' => null,
             'content' => $content,
         ]);
-
-        return $message;
     }
 
     /**
@@ -99,7 +120,7 @@ readonly class AiChatVoiceService
      */
     private function getChatHistory(AiChat $chat): array
     {
-        /** @var Collection<int, AiChatMessage> $messages */
+        /** @var \Illuminate\Database\Eloquent\Collection<int, AiChatMessage> $messages */
         $messages = $chat->messages()->latest()
             ->limit(10)
             ->get();
@@ -113,45 +134,48 @@ readonly class AiChatVoiceService
             ->all();
     }
 
+    private function extractContentFromChunk(string $chunk): string
+    {
+        $content = '';
+        $lines = explode("\n", $chunk);
+        foreach ($lines as $line) {
+            if (str_starts_with($line, 'data: ')) {
+                $jsonData = json_decode(substr($line, 6), true);
+                if (isset($jsonData['chunk'])) {
+                    $content .= $jsonData['chunk'];
+                }
+            }
+        }
+
+        return $content;
+    }
+
     /**
-     * @return array{url: string, mode: string, user_prompt: string}
+     * @return array{url: string, mode: string, source: string, user_prompt: string}
      */
     private function prepareRagRequestData(AiChat $chat): array
     {
-        /** @var \Src\Domain\Process\Models\Process $process */
+        /** @var Process $process */
         $process = $chat->process;
 
         $tenantId = 'abogados_9ab2a17f-7f13-431a-b57c-efb60d49fd5d';
-        $url = config('ia-rag.base_url').'/query?tenant_id='.$tenantId;
+        $url = config('ia-rag.base_url').'/query/stream?tenant_id='.$tenantId;
 
-        $mode = 'naive';
+        $userPrompt = '';
 
-        $userPrompt = $this->buildVoiceUserPrompt($process->process_number);
+        if (config('ai-chat.voice_send_user_prompt', true)) {
+            $userPrompt = str_replace(
+                '{process_number}',
+                $process->process_number,
+                config('ai-chat.voice_prompt_template', '')
+            );
+        }
 
         return [
             'url' => $url,
-            'mode' => $mode,
+            'mode' => (string) config('ai-chat.voice_mode', 'auto'),
+            'source' => (string) config('ai-chat.voice_source', 'voice'),
             'user_prompt' => $userPrompt,
         ];
-    }
-
-    private function buildVoiceUserPrompt(string $processNumber): string
-    {
-        $base = str_replace(
-            '{process_number}',
-            $processNumber,
-            config('ai-chat.voice_prompt_template', '')
-        );
-
-        $tags = (string) config('ai-chat.voice_tts_tags_instructions', '');
-        $prompt = trim($tags === '' ? $base : $base.' '.$tags);
-
-        $maxLength = (int) config('ai-chat.voice_user_prompt_max_length', 1000);
-
-        if (strlen($prompt) > $maxLength) {
-            $prompt = substr($prompt, 0, $maxLength);
-        }
-
-        return $prompt;
     }
 }
