@@ -130,3 +130,70 @@ it('can filter notification digests by action date', function () {
     $response->assertOk()
         ->assertJsonCount(1, 'data');
 });
+
+it('does not collapse multiple actions of same process in digest details', function (): void {
+    $process = Process::factory()->create();
+    $process->organizations()->attach($this->organization->id, ['interest_date' => now()]);
+
+    // Two different actions but with identical visible fields (same text/date/annotation)
+    $actionA = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => '2026-05-14',
+        'action' => 'Auto Decide',
+        'annotation' => '---',
+        'registration_date' => '2026-05-14',
+    ]);
+
+    $actionB = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => '2026-05-14',
+        'action' => 'Auto Decide',
+        'annotation' => '---',
+        'registration_date' => '2026-05-14',
+    ]);
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => [
+            ['process_number' => $process->process_number, 'action_text' => 'Auto Decide', 'action_date' => '14/05/2026', 'annotation' => '---', 'registration_date' => '14/05/2026'],
+            ['process_number' => $process->process_number, 'action_text' => 'Auto Decide', 'action_date' => '14/05/2026', 'annotation' => '---', 'registration_date' => '14/05/2026'],
+        ],
+    ]);
+
+    // Link both actions to the digest via notifications so resource injects process_action_id
+    DB::table('organization_notifications')->insert([
+        [
+            'id' => fake()->uuid(),
+            'organization_id' => $this->organization->id,
+            'notification_digest_id' => $digest->id,
+            'notifiable_id' => $actionA->id,
+            'notifiable_type' => ProcessAction::class,
+            'notification_type' => 'judicial_action_detected',
+            'is_viewed' => false,
+            'is_notified' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'id' => fake()->uuid(),
+            'organization_id' => $this->organization->id,
+            'notification_digest_id' => $digest->id,
+            'notifiable_id' => $actionB->id,
+            'notifiable_type' => ProcessAction::class,
+            'notification_type' => 'judicial_action_detected',
+            'is_viewed' => false,
+            'is_notified' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    $response = getJson('/api/app-user/notification-digests/'.$digest->id);
+
+    $response->assertOk();
+
+    // Endpoint returns a paginator whose first item wraps the digest data
+    $items = $response->json('data.0.data');
+    expect($items)->toBeArray();
+    expect(count($items))->toBe(2);
+});

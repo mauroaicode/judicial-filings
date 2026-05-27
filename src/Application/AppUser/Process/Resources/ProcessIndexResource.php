@@ -43,6 +43,7 @@ class ProcessIndexResource extends Resource
         $createdAt = $process->created_at;
         $alertLevel = null;
         $lawyerRoleLabel = null;
+        $lawyerRole = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
@@ -59,7 +60,24 @@ class ProcessIndexResource extends Resource
                     $role = \Src\Domain\Process\Enums\ProcessLawyerRole::tryFrom($role);
                 }
 
+                $lawyerRole = $role;
                 $lawyerRoleLabel = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
+            }
+        }
+
+        // If the process has recent activity and no inactivity alert was set yet,
+        // show it as green ("moving") instead of leaving it null (frontend shows "En espera").
+        // This applies ONLY for plaintiff role to avoid confusing semantics for defendants.
+        if (
+            $alertLevel === null &&
+            $process->last_activity_date &&
+            $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole &&
+            $lawyerRole === \Src\Domain\Process\Enums\ProcessLawyerRole::PLAINTIFF
+        ) {
+            $movingDays = (int) config('semaphores.moving_days_green', 30);
+            $daysSinceLast = today()->diffInDays($process->last_activity_date->startOfDay());
+            if ($daysSinceLast <= $movingDays) {
+                $alertLevel = \Src\Domain\Shared\Enums\SeverityColor::GREEN->value;
             }
         }
 

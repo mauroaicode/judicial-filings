@@ -69,6 +69,50 @@ it('returns processes for user organization', function (): void {
     expect($response->json('total'))->toBe(3);
 });
 
+it('returns green alert_level when process has activity within 30 days', function (): void {
+    $this->freezeTime();
+
+    $process = Process::factory()->create([
+        'last_activity_date' => now()->subDays(5),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        // inactivity_alert_level intentionally null
+        'lawyer_role' => 'plaintiff',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.alert_level'))->toBe('green');
+});
+
+it('does not force green alert_level for defendant within 30 days', function (): void {
+    $this->freezeTime();
+
+    $process = Process::factory()->create([
+        'last_activity_date' => now()->subDays(5),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'defendant',
+        // inactivity_alert_level intentionally null
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.alert_level'))->toBeNull();
+});
+
 it('does not return processes from other organizations', function (): void {
     $otherOrganization = Organization::factory()->create();
 
