@@ -12,7 +12,6 @@ use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
-use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -146,8 +145,6 @@ readonly class AiChatStreamService
      */
     private function prepareRagRequestData(AiChat $chat, SendMessageData $data): array
     {
-        /** @var Organization $organization */
-        $organization = $chat->organization;
         /** @var Process $process */
         $process = $chat->process;
 

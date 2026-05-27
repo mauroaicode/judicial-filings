@@ -91,13 +91,15 @@ class GetNotificationDigestDetailsService
         }
 
         return $data->groupBy(function (array $item): string {
-            $id = $item['process_action_id'] ?? '';
+            $id = (string) ($item['process_action_id'] ?? '');
             $radicado = $item['process_number'] ?? '';
             $text = $item['action_text'] ?? '';
             $date = $item['action_date'] ?? '';
             $annotation = $item['annotation'] ?? '';
 
-            return md5($radicado.$text.$date.$annotation);
+            // Preferimos un ID estable de la actuación si existe.
+            // El hash es solo fallback para datos legacy/residuales sin ID.
+            return $id !== '' ? $id : md5($radicado.$text.$date.$annotation);
         })
             ->map(function (Collection $group) {
                 if ($group->count() === 1) {
