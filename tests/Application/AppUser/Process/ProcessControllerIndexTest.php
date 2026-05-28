@@ -425,6 +425,44 @@ it('filters processes by has_multiple_instances', function (): void {
     expect($response->json('data.0.has_multiple_instances'))->toBeTrue();
 });
 
+it('filters processes by severity_color none excluding recent-moving plaintiffs', function (): void {
+    $this->freezeTime();
+
+    $recentPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
+    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
+    $recentDefendant = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
+
+    $recentPlaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+    $oldPlaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+    $recentDefendant->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'defendant',
+        'inactivity_alert_level' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?severity_color=none');
+
+    $response->assertStatus(200);
+    // Should include old plaintiff + recent defendant, but exclude recent plaintiff (would show green).
+    expect($response->json('data'))->toHaveCount(2);
+    $numbers = collect($response->json('data'))->pluck('process_number')->all();
+    expect($numbers)->toContain($oldPlaintiff->process_number);
+    expect($numbers)->toContain($recentDefendant->process_number);
+    expect($numbers)->not->toContain($recentPlaintiff->process_number);
+});
+
 it('filters processes by created_at date', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();

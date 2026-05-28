@@ -41,9 +41,9 @@ class ProcessFilterData extends Data
         /** Admin uses judicial `processes.status`; AppUser keeps pivot subscription. */
         public bool $status_on_process_table = false,
         public mixed $has_multiple_instances = null,
-        #[In(['plaintiff', 'defendant'])]
+        #[In(['plaintiff', 'defendant', 'none'])]
         public ?string $lawyer_role = null,
-        #[In(['red', 'yellow', 'green'])]
+        #[In(['red', 'yellow', 'green', 'none'])]
         public ?string $severity_color = null,
         /** `private` | `public`; omit for no filter (admin and app-user lists). */
         #[In(['private', 'public'])]

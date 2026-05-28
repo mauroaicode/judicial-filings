@@ -246,6 +246,47 @@ it('converts subject names to title case', function (): void {
     expect($response->json('subjects.0.name_or_business_name'))->toBe('Juan Carlos Perez Garcia');
 });
 
+it('returns green alert_level for plaintiff with recent activity on detail', function (): void {
+    $this->freezeTime();
+
+    $process = Process::factory()->create([
+        'last_activity_date' => now()->subDays(5),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}");
+
+    $response->assertStatus(200);
+    expect($response->json('process.alert_level'))->toBe('green');
+    expect($response->json('process.lawyer_role'))->toBe('Demandante');
+});
+
+it('returns stored inactivity alert_level on detail when set', function (): void {
+    $process = Process::factory()->create([
+        'last_activity_date' => now()->subDays(5),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => 'yellow',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}");
+
+    $response->assertStatus(200);
+    expect($response->json('process.alert_level'))->toBe('yellow');
+});
+
 it('returns correct status label for active process', function (): void {
     $process = Process::factory()->create();
 

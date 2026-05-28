@@ -57,9 +57,33 @@ readonly class ProcessFinderService
 
                 if ($filters->severity_color) {
                     if ($filters->severity_color === 'none') {
+                        $movingDays = (int) config('semaphores.moving_days_green', 30);
+                        $cutoff = now()->subDays($movingDays)->startOfDay()->toDateString();
+
                         $query->where(function (Builder $q): void {
                             $q->whereNull('organization_processes.inactivity_alert_level')
-                                ->orWhereHas('process', fn (Builder $p) => $p->whereNull('last_activity_date'));
+                                ->orWhereExists(function (Builder $sub): void {
+                                    $sub->selectRaw('1')
+                                        ->from('processes')
+                                        ->whereColumn('processes.id', 'organization_processes.process_id')
+                                        ->whereNull('processes.last_activity_date');
+                                });
+                        });
+
+                        // Align "none" filter with the final API alert_level:
+                        // For plaintiff role, recent activity (<= movingDays) becomes green, so it should NOT match "none".
+                        $query->where(function (Builder $q) use ($cutoff): void {
+                            $q->whereNull('organization_processes.lawyer_role')
+                                ->orWhere('organization_processes.lawyer_role', '!=', 'plaintiff')
+                                ->orWhereExists(function (Builder $sub) use ($cutoff): void {
+                                    $sub->selectRaw('1')
+                                        ->from('processes')
+                                        ->whereColumn('processes.id', 'organization_processes.process_id')
+                                        ->where(function (Builder $p) use ($cutoff): void {
+                                            $p->whereNull('processes.last_activity_date')
+                                                ->orWhere('processes.last_activity_date', '<=', $cutoff);
+                                        });
+                                });
                         });
                     } else {
                         $query->where('organization_processes.inactivity_alert_level', $filters->severity_color);
@@ -115,9 +139,31 @@ readonly class ProcessFinderService
 
                 if ($filters->severity_color) {
                     if ($filters->severity_color === 'none') {
+                        $movingDays = (int) config('semaphores.moving_days_green', 30);
+                        $cutoff = now()->subDays($movingDays)->startOfDay()->toDateString();
+
                         $query->where(function (Builder $q): void {
                             $q->whereNull('organization_processes.inactivity_alert_level')
-                                ->orWhereHas('process', fn (Builder $p) => $p->whereNull('last_activity_date'));
+                                ->orWhereExists(function (Builder $sub): void {
+                                    $sub->selectRaw('1')
+                                        ->from('processes')
+                                        ->whereColumn('processes.id', 'organization_processes.process_id')
+                                        ->whereNull('processes.last_activity_date');
+                                });
+                        });
+
+                        $query->where(function (Builder $q) use ($cutoff): void {
+                            $q->whereNull('organization_processes.lawyer_role')
+                                ->orWhere('organization_processes.lawyer_role', '!=', 'plaintiff')
+                                ->orWhereExists(function (Builder $sub) use ($cutoff): void {
+                                    $sub->selectRaw('1')
+                                        ->from('processes')
+                                        ->whereColumn('processes.id', 'organization_processes.process_id')
+                                        ->where(function (Builder $p) use ($cutoff): void {
+                                            $p->whereNull('processes.last_activity_date')
+                                                ->orWhere('processes.last_activity_date', '<=', $cutoff);
+                                        });
+                                });
                         });
                     } else {
                         $query->where('organization_processes.inactivity_alert_level', $filters->severity_color);

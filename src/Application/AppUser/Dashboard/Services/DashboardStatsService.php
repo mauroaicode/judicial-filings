@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Dashboard\Services;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Dashboard\Resources\DashboardStatsResource;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
 readonly class DashboardStatsService
@@ -45,11 +47,11 @@ readonly class DashboardStatsService
             $nonPivotFilters->status = null;
 
             return Process::query()
-                ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organizationId, $currentFilters): void {
+                ->whereHas('organizations', function (Builder $query) use ($organizationId, $currentFilters): void {
                     $query->where('organizations.id', $organizationId);
 
                     if ($currentFilters->status) {
-                        $isActive = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::tryFrom($currentFilters->status) === \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE;
+                        $isActive = OrganizationProcessStatus::tryFrom($currentFilters->status) === OrganizationProcessStatus::ACTIVE;
                         $query->where('organization_processes.is_active', $isActive);
                     }
 
@@ -63,9 +65,33 @@ readonly class DashboardStatsService
 
                     if ($currentFilters->severity_color) {
                         if ($currentFilters->severity_color === 'none') {
-                            $query->where(function (\Illuminate\Contracts\Database\Query\Builder $q): void {
+                            $movingDays = (int) config('semaphores.moving_days_green', 30);
+                            $cutoff = now()->subDays($movingDays)->startOfDay()->toDateString();
+
+                            $query->where(function (Builder $q): void {
                                 $q->whereNull('organization_processes.inactivity_alert_level')
-                                    ->orWhereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $p) => $p->whereNull('last_activity_date'));
+                                    ->orWhereExists(function (Builder $sub): void {
+                                        $sub->selectRaw('1')
+                                            ->from('processes')
+                                            ->whereColumn('processes.id', 'organization_processes.process_id')
+                                            ->whereNull('processes.last_activity_date');
+                                    });
+                            });
+
+                            // Same semantics as the listing endpoint: exclude plaintiff processes
+                            // that would be shown as green due to recent activity (<= movingDays).
+                            $query->where(function (Builder $q) use ($cutoff): void {
+                                $q->whereNull('organization_processes.lawyer_role')
+                                    ->orWhere('organization_processes.lawyer_role', '!=', 'plaintiff')
+                                    ->orWhereExists(function (Builder $sub) use ($cutoff): void {
+                                        $sub->selectRaw('1')
+                                            ->from('processes')
+                                            ->whereColumn('processes.id', 'organization_processes.process_id')
+                                            ->where(function (Builder $p) use ($cutoff): void {
+                                                $p->whereNull('processes.last_activity_date')
+                                                    ->orWhere('processes.last_activity_date', '<=', $cutoff);
+                                            });
+                                    });
                             });
                         } else {
                             $query->where('organization_processes.inactivity_alert_level', $currentFilters->severity_color);
@@ -79,7 +105,7 @@ readonly class DashboardStatsService
         $total = (int) $totalQuery->distinct()->count('process_number');
 
         $activeFilters = clone $filters;
-        $activeFilters->status = \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value;
+        $activeFilters->status = OrganizationProcessStatus::ACTIVE->value;
 
         $active = (int) $baseQueryBuilder($activeFilters)->distinct()->count('process_number');
 

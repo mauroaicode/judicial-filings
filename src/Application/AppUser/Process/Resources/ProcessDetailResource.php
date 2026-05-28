@@ -6,6 +6,7 @@ namespace Src\Application\AppUser\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -45,6 +46,7 @@ class ProcessDetailResource extends Resource
         $createdAt = $process->created_at;
         $alertLevel = null;
         $lawyerRoleLabel = null;
+        $lawyerRole = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
@@ -61,9 +63,16 @@ class ProcessDetailResource extends Resource
                     $role = \Src\Domain\Process\Enums\ProcessLawyerRole::tryFrom($role);
                 }
 
+                $lawyerRole = $role;
                 $lawyerRoleLabel = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
             }
         }
+
+        $alertLevel = ProcessAlertLevelHelper::resolve(
+            $alertLevel,
+            $process->last_activity_date,
+            $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $lawyerRole : null,
+        );
 
         $status = OrganizationProcessStatus::fromBoolean($isActive);
 
