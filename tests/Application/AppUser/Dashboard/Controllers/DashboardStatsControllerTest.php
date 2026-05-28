@@ -109,6 +109,50 @@ it('returns correct notification counts by type', function (): void {
     $response->assertJsonPath('notifications.by_type.actuacion_alerta', 1);
 });
 
+it('accepts lawyer_role none filter', function (): void {
+    $withRole = Process::factory()->create();
+    $withoutRole = Process::factory()->create();
+
+    $withRole->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+    ]);
+    $withoutRole->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?lawyer_role=none');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+});
+
+it('accepts severity_color none filter', function (): void {
+    $waiting = Process::factory()->create(['last_activity_date' => null]);
+    $withColor = Process::factory()->create(['last_activity_date' => now()]);
+
+    $waiting->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'inactivity_alert_level' => null,
+    ]);
+    $withColor->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'inactivity_alert_level' => 'red',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?severity_color=none');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+});
+
 it('excludes viewed notifications from counts', function (): void {
     $process = Process::factory()->create();
     $process->organizations()->attach($this->organization->id, [

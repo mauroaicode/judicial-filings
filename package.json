@@ -15,5 +15,6 @@
         "pusher-js": "^8.4.0",
         "tailwindcss": "^3.4.13",
         "vite": "^6.0.11"
-    }
+    },
+    "packageManager": "pnpm@10.22.0+sha1.3e9e4d522d30f3cf4cabb7506f5d15b89feffd04"
 }

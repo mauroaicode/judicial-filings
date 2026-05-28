@@ -6,6 +6,7 @@ namespace Src\Application\AppUser\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -65,21 +66,11 @@ class ProcessIndexResource extends Resource
             }
         }
 
-        // If the process has recent activity and no inactivity alert was set yet,
-        // show it as green ("moving") instead of leaving it null (frontend shows "En espera").
-        // This applies ONLY for plaintiff role to avoid confusing semantics for defendants.
-        if (
-            $alertLevel === null &&
-            $process->last_activity_date &&
-            $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole &&
-            $lawyerRole === \Src\Domain\Process\Enums\ProcessLawyerRole::PLAINTIFF
-        ) {
-            $movingDays = (int) config('semaphores.moving_days_green', 30);
-            $daysSinceLast = today()->diffInDays($process->last_activity_date->startOfDay());
-            if ($daysSinceLast <= $movingDays) {
-                $alertLevel = \Src\Domain\Shared\Enums\SeverityColor::GREEN->value;
-            }
-        }
+        $alertLevel = ProcessAlertLevelHelper::resolve(
+            $alertLevel,
+            $process->last_activity_date,
+            $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $lawyerRole : null,
+        );
 
         $status = OrganizationProcessStatus::fromBoolean($isActive);
 
