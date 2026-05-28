@@ -425,6 +425,34 @@ it('filters processes by has_multiple_instances', function (): void {
     expect($response->json('data.0.has_multiple_instances'))->toBeTrue();
 });
 
+it('filters processes by severity_color green including simulated moving plaintiffs', function (): void {
+    $this->freezeTime();
+
+    $movingPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
+    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
+
+    $movingPlaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+    $oldPlaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?severity_color=green');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.process_number'))->toBe($movingPlaintiff->process_number);
+    expect($response->json('data.0.alert_level'))->toBe('green');
+});
+
 it('filters processes by severity_color none excluding recent-moving plaintiffs', function (): void {
     $this->freezeTime();
 

@@ -131,6 +131,32 @@ it('accepts lawyer_role none filter', function (): void {
     $response->assertJsonPath('total_processes', 1);
 });
 
+it('counts simulated green for plaintiff with recent activity when filtering severity_color green', function (): void {
+    $this->freezeTime();
+
+    $movingPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
+    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
+
+    $movingPlaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+    $oldPlaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?severity_color=green');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+});
+
 it('accepts severity_color none filter', function (): void {
     $waiting = Process::factory()->create(['last_activity_date' => null]);
     $withColor = Process::factory()->create(['last_activity_date' => now()]);

@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Dashboard\Resources\DashboardStatsResource;
 use Src\Application\Shared\Data\ProcessFilterData;
+use Src\Application\Shared\Helpers\ProcessSeverityColorFilter;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -64,38 +65,7 @@ readonly class DashboardStatsService
                     }
 
                     if ($currentFilters->severity_color) {
-                        if ($currentFilters->severity_color === 'none') {
-                            $movingDays = (int) config('semaphores.moving_days_green', 30);
-                            $cutoff = now()->subDays($movingDays)->startOfDay()->toDateString();
-
-                            $query->where(function (Builder $q): void {
-                                $q->whereNull('organization_processes.inactivity_alert_level')
-                                    ->orWhereExists(function (Builder $sub): void {
-                                        $sub->selectRaw('1')
-                                            ->from('processes')
-                                            ->whereColumn('processes.id', 'organization_processes.process_id')
-                                            ->whereNull('processes.last_activity_date');
-                                    });
-                            });
-
-                            // Same semantics as the listing endpoint: exclude plaintiff processes
-                            // that would be shown as green due to recent activity (<= movingDays).
-                            $query->where(function (Builder $q) use ($cutoff): void {
-                                $q->whereNull('organization_processes.lawyer_role')
-                                    ->orWhere('organization_processes.lawyer_role', '!=', 'plaintiff')
-                                    ->orWhereExists(function (Builder $sub) use ($cutoff): void {
-                                        $sub->selectRaw('1')
-                                            ->from('processes')
-                                            ->whereColumn('processes.id', 'organization_processes.process_id')
-                                            ->where(function (Builder $p) use ($cutoff): void {
-                                                $p->whereNull('processes.last_activity_date')
-                                                    ->orWhere('processes.last_activity_date', '<=', $cutoff);
-                                            });
-                                    });
-                            });
-                        } else {
-                            $query->where('organization_processes.inactivity_alert_level', $currentFilters->severity_color);
-                        }
+                        ProcessSeverityColorFilter::apply($query, $currentFilters->severity_color);
                     }
                 })
                 ->filters($nonPivotFilters);
