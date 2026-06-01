@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Process\Services;
+namespace Src\Application\Shared\Process\Services;
 
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;

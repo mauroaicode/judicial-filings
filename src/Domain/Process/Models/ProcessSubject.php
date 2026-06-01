@@ -15,7 +15,7 @@ use Src\Domain\Shared\Traits\Uuid;
 
 /**
  * @property-read string $id
- * @property-read int $subject_registration_id
+ * @property-read int|null $subject_registration_id
  * @property-read string $subject_type
  * @property-read bool $is_cited
  * @property-read string|null $identification
@@ -84,6 +84,14 @@ class ProcessSubject extends Model
     public function newEloquentBuilder(mixed $query): ProcessSubjectQueryBuilder
     {
         return new ProcessSubjectQueryBuilder($query);
+    }
+
+    /**
+     * Manual subjects have no judicial branch registration id.
+     */
+    public function isManual(): bool
+    {
+        return $this->subject_registration_id === null;
     }
 
     /**

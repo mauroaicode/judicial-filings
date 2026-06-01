@@ -6,9 +6,9 @@ namespace Src\Application\AppUser\Process\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Src\Application\AppUser\Process\Data\BulkUpdateProcessConfigData;
-use Src\Application\AppUser\Process\Data\UpdateProcessConfigData;
 use Src\Application\AppUser\Process\Services\BulkUpdateProcessConfigService;
-use Src\Application\AppUser\Process\Services\UpdateProcessConfigService;
+use Src\Application\Shared\Process\Data\UpdateProcessConfigData;
+use Src\Application\Shared\Process\Services\UpdateProcessConfigService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 

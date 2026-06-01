@@ -21,16 +21,11 @@ use Throwable;
 
 class PrivateProcessExcelImportService
 {
-    private int $subjectRegistrationSeed;
-
     private int $actionRegistrationSeed;
 
     public function __construct(
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
     ) {
-        $minSubject = ProcessSubject::query()->where('subject_registration_id', '<', 0)->min('subject_registration_id');
-        $this->subjectRegistrationSeed = $minSubject === null ? -1 : (int) $minSubject - 1;
-
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
         $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
     }
@@ -369,14 +364,6 @@ class PrivateProcessExcelImportService
         return $id;
     }
 
-    private function takeNextNegativeSubjectRegistrationId(): int
-    {
-        $id = $this->subjectRegistrationSeed;
-        $this->subjectRegistrationSeed--;
-
-        return $id;
-    }
-
     /**
      * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
      * @return array<string, list<PrivateProcessExcelImportedRowDTO>>
@@ -484,7 +471,7 @@ class PrivateProcessExcelImportService
         }
 
         $subject = ProcessSubject::query()->create([
-            'subject_registration_id' => $this->takeNextNegativeSubjectRegistrationId(),
+            'subject_registration_id' => null,
             'subject_type' => $type,
             'is_cited' => false,
             'identification' => null,
