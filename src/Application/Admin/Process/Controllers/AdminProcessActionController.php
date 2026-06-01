@@ -2,45 +2,37 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Process\Controllers;
+namespace Src\Application\Admin\Process\Controllers;
 
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
 use Src\Application\Shared\Process\Services\ProcessActionFinderService;
-use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Services\GroupProcessActionsService;
 
-readonly class ProcessActionController
+readonly class AdminProcessActionController
 {
     public function __construct(
         private ProcessActionFinderService $processActionFinderService,
-        private ProcessDetailService $processDetailService,
         private GroupProcessActionsService $groupProcessActionsService
     ) {}
 
     /**
-     * Display a listing of process actions for the specified process.
+     * Display a listing of process actions for the specified process (admin view).
+     *
+     * Mirrors the app-user endpoint filters/pagination/shape.
      */
     public function index(Request $request, string $processId): LengthAwarePaginator
     {
-        /** @var AppUser $appUser */
-        $appUser = auth()->user();
-
-        $organization = $appUser->organizations()->first();
-
-        if (! $organization) {
-            abort(422, __('process.user_has_no_organization'));
-        }
-
-        $process = $this->processDetailService->handle($processId, $organization->id);
+        $process = Process::query()
+            ->where('id', $processId)
+            ->first();
 
         if (! $process instanceof Process) {
             abort(404, __('process.not_found'));
@@ -49,9 +41,16 @@ readonly class ProcessActionController
         $filters = ProcessActionFilterData::from($request->query());
         $perPage = (int) $request->query('per_page', 5);
 
+        /** @var LengthAwarePaginator $paginatedActions */
         $paginatedActions = $this->processActionFinderService->handle($processId, $filters, $perPage);
 
-        /** @var \Illuminate\Pagination\LengthAwarePaginator $paginatedActions */
+        // Avoid N+1: resource reads process.organizations for alert_level.
+        /** @var \Illuminate\Database\Eloquent\Collection<int, ProcessAction> $collection */
+        $collection = $paginatedActions->getCollection();
+        $collection->load('process.organizations');
+
+        $paginatedActions->setCollection($collection);
+
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 
         $transformedItems = $paginatedActions->getCollection()
@@ -71,16 +70,9 @@ readonly class ProcessActionController
      */
     public function alertKeywords(Request $request, string $processId): JsonResponse
     {
-        /** @var AppUser $appUser */
-        $appUser = auth()->user();
-
-        $organization = $appUser->organizations()->first();
-
-        if (! $organization) {
-            abort(422, __('process.user_has_no_organization'));
-        }
-
-        $process = $this->processDetailService->handle($processId, $organization->id);
+        $process = Process::query()
+            ->where('id', $processId)
+            ->first();
 
         if (! $process instanceof Process) {
             abort(404, __('process.not_found'));
@@ -100,16 +92,9 @@ readonly class ProcessActionController
      */
     public function alertKeywordStats(Request $request, string $processId): JsonResponse
     {
-        /** @var AppUser $appUser */
-        $appUser = auth()->user();
-
-        $organization = $appUser->organizations()->first();
-
-        if (! $organization) {
-            abort(422, __('process.user_has_no_organization'));
-        }
-
-        $process = $this->processDetailService->handle($processId, $organization->id);
+        $process = Process::query()
+            ->where('id', $processId)
+            ->first();
 
         if (! $process instanceof Process) {
             abort(404, __('process.not_found'));

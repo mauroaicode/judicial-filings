@@ -86,6 +86,10 @@ return [
     'consolidated_notifications_header_plural' => 'OUR PERSONALIZED JUDICIAL NOTIFICATION SYSTEM INFORMS YOU THAT ON :date THE FOLLOWING PROCESSES HAD MOVEMENT!',
 
     'config_updated_successfully' => 'Process configuration updated successfully.',
+    'subjects_synced_successfully' => 'Process subjects saved successfully.',
+    'subject_not_linked_to_process' => 'The process subject is not linked to this process.',
+    'subject_deleted_successfully' => 'Process subject deleted successfully.',
+    'subject_cannot_delete_judicial' => 'A subject from the judicial branch cannot be deleted.',
     'relationship_not_found' => 'The association between the process and your organization was not found.',
     'not_found_in_organization' => 'The specified process does not belong to this organization.',
     'initial_chat' => 'Initial Chat',

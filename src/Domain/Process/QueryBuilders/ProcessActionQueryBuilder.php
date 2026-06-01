@@ -6,7 +6,7 @@ namespace Src\Domain\Process\QueryBuilders;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
-use Src\Application\AppUser\Process\Data\ProcessActionFilterData;
+use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Domain\Process\Models\ProcessAction;
 
 /**

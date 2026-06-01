@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Process\Services;
+namespace Src\Application\Shared\Process\Services;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;

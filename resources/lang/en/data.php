@@ -77,4 +77,7 @@ return [
     'started_at_to' => 'Started to',
     'session_lock_enabled' => 'Session Lock Enabled',
     'session_lock_timeout' => 'Session Lock Timeout',
+    'subject_type' => 'Subject Type',
+    'name_or_business_name' => 'Name / Business Name',
+    'subjects' => 'Process Subjects',
 ];

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Process\Resources;
+namespace Src\Application\Admin\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Process\Models\ProcessSubject;
 
-class ProcessSubjectResource extends Resource
+class AdminProcessSubjectResource extends Resource
 {
     public function __construct(
         public string $id,
@@ -17,6 +17,7 @@ class ProcessSubjectResource extends Resource
         public bool $is_cited,
         public ?string $identification,
         public string $name_or_business_name,
+        public bool $is_manual,
     ) {}
 
     public static function fromModel(ProcessSubject $subject): self
@@ -28,6 +29,7 @@ class ProcessSubjectResource extends Resource
             is_cited: $subject->is_cited,
             identification: $subject->identification,
             name_or_business_name: StrParseHelper::toTitleCase($subject->name_or_business_name) ?? '',
+            is_manual: $subject->isManual(),
         );
     }
 }

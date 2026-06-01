@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Process\Resources;
+namespace Src\Application\Shared\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
