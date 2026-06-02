@@ -7,6 +7,7 @@ namespace Src\Application\Admin\Process\Resources;
 use Illuminate\Support\Carbon;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Process\Models\Process;
 
@@ -37,20 +38,24 @@ class AdminProcessIndexResource extends Resource
         public ?int $organizations_count = null,
         public ?int $plaintiffs_count = null,
         public ?int $defendants_count = null,
+        public ?int $others_count = null,
+        public ?int $subjects_count = null,
         /** @var list<string> Full list of organization names for tooltip */
         public array $organizations = [],
         /** @var list<string> Full list of plaintiff names for tooltip */
         public array $plaintiffs = [],
         /** @var list<string> Full list of defendant names for tooltip */
         public array $defendants = [],
+        public ?string $other_subject = null,
+        /** @var list<string> Full list of other subject names for tooltip */
+        public array $others = [],
     ) {}
 
     public static function fromModel(Process $process, int $index = 0): self
     {
         [$createdAt, $statusLabel] = self::getEarliestRegistrationDateAndJudicialStatusLabel($process);
         [$organization, $organizationsCount, $organizationsList] = self::getOrganizationInfo($process);
-        [$plaintiff, $plaintiffsCount, $plaintiffsList] = self::getPlaintiffInfo($process);
-        [$defendant, $defendantsCount, $defendantsList] = self::getDefendantInfo($process);
+        $subjectSummary = self::getSubjectSummary($process);
 
         return new self(
             index: $index,
@@ -71,15 +76,19 @@ class AdminProcessIndexResource extends Resource
             created_at: DateFormatHelper::formatDate($createdAt),
             term_start_date: '-',
             term_end_date: '-',
-            plaintiff: $plaintiff,
-            defendant: $defendant,
+            plaintiff: $subjectSummary['plaintiff'],
+            defendant: $subjectSummary['defendant'],
             organization: $organization,
             organizations_count: $organizationsCount,
-            plaintiffs_count: $plaintiffsCount,
-            defendants_count: $defendantsCount,
+            plaintiffs_count: $subjectSummary['plaintiffs_count'],
+            defendants_count: $subjectSummary['defendants_count'],
+            others_count: $subjectSummary['others_count'],
+            subjects_count: $subjectSummary['subjects_count'],
             organizations: $organizationsList,
-            plaintiffs: $plaintiffsList,
-            defendants: $defendantsList,
+            plaintiffs: $subjectSummary['plaintiffs'],
+            defendants: $subjectSummary['defendants'],
+            other_subject: $subjectSummary['other_subject'],
+            others: $subjectSummary['others'],
         );
     }
 
@@ -156,60 +165,25 @@ class AdminProcessIndexResource extends Resource
     }
 
     /**
-     * Get plaintiff information (summary, count and full list for tooltip).
-     *
-     * @return array{0: string|null, 1: int, 2: list<string>}
+     * @return array{
+     *     plaintiffs_count: int,
+     *     defendants_count: int,
+     *     others_count: int,
+     *     subjects_count: int,
+     *     plaintiff: string|null,
+     *     defendant: string|null,
+     *     other_subject: string|null,
+     *     plaintiffs: list<string>,
+     *     defendants: list<string>,
+     *     others: list<string>,
+     * }
      */
-    private static function getPlaintiffInfo(Process $process): array
+    private static function getSubjectSummary(Process $process): array
     {
         if (! $process->relationLoaded('subjects')) {
-            return [null, 0, []];
+            return ProcessSubjectSummaryHelper::summarize(collect());
         }
 
-        $plaintiffs = $process->subjects->where('subject_type', 'Demandante');
-        $plaintiffsCount = $plaintiffs->count();
-
-        if ($plaintiffs->isEmpty()) {
-            return [null, 0, []];
-        }
-
-        $names = $plaintiffs->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
-        $firstPlaintiffName = $names[0] ?? '';
-        $plaintiff = self::formatSubjectName($firstPlaintiffName, $plaintiffsCount);
-
-        return [$plaintiff, $plaintiffsCount, $names];
-    }
-
-    /**
-     * Get defendant information (summary, count and full list for tooltip).
-     *
-     * @return array{0: string|null, 1: int, 2: list<string>}
-     */
-    private static function getDefendantInfo(Process $process): array
-    {
-        if (! $process->relationLoaded('subjects')) {
-            return [null, 0, []];
-        }
-
-        $defendants = $process->subjects->where('subject_type', 'Demandado');
-        $defendantsCount = $defendants->count();
-
-        if ($defendants->isEmpty()) {
-            return [null, 0, []];
-        }
-
-        $names = $defendants->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->values()->all();
-        $firstDefendantName = $names[0] ?? '';
-        $defendant = self::formatSubjectName($firstDefendantName, $defendantsCount);
-
-        return [$defendant, $defendantsCount, $names];
-    }
-
-    /**
-     * Format subject name with count indicator if there is multiple.
-     */
-    private static function formatSubjectName(string $name, int $count): string
-    {
-        return $count > 1 ? $name.' (+'.($count - 1).')' : $name;
+        return ProcessSubjectSummaryHelper::summarize($process->subjects);
     }
 }

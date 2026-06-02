@@ -17,6 +17,7 @@ use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\ProcessRegistrationSyncModeResolverService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Data\ProcessFilterData;
+use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Data\ToggleProcessStatusData;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
 use Src\Application\Shared\Process\Services\ToggleProcessStatusService;
@@ -104,6 +105,7 @@ readonly class ProcessController
         return response()->json([
             'process' => ProcessDetailResource::fromModel($process, $organization->id)->toArray(),
             'subjects' => $subjects->values()->all(),
+            'subjects_summary' => ProcessSubjectSummaryHelper::summarize($process->subjects),
         ]);
     }
 

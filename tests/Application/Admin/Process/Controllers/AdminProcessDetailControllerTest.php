@@ -76,6 +76,18 @@ it('returns admin process detail with subjects and interested organizations', fu
             'lawyer_role',
         ],
         'subjects',
+        'subjects_summary' => [
+            'plaintiffs_count',
+            'defendants_count',
+            'others_count',
+            'subjects_count',
+            'plaintiff',
+            'defendant',
+            'other_subject',
+            'plaintiffs',
+            'defendants',
+            'others',
+        ],
         'organizations' => [
             'count',
             'items' => [
@@ -100,6 +112,8 @@ it('returns admin process detail with subjects and interested organizations', fu
     expect($response->json('process.alert_level'))->toBe('yellow');
     expect($response->json('process.lawyer_role'))->toBe('Demandado');
     expect($response->json('subjects'))->toHaveCount(2);
+    expect($response->json('subjects_summary.plaintiffs_count'))->toBe(1);
+    expect($response->json('subjects_summary.defendants_count'))->toBe(1);
 
     expect($response->json('organizations.count'))->toBe(2);
 

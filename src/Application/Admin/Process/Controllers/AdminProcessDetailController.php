@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Src\Application\Admin\Process\Resources\AdminProcessOrganizationResource;
 use Src\Application\Admin\Process\Resources\AdminProcessSubjectResource;
 use Src\Application\Admin\Process\Services\AdminProcessDetailService;
+use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
@@ -96,6 +97,7 @@ readonly class AdminProcessDetailController
         return response()->json([
             'process' => $processPayload,
             'subjects' => $subjects->values()->all(),
+            'subjects_summary' => ProcessSubjectSummaryHelper::summarize($process->subjects),
             'organizations' => [
                 'count' => $organizationItems->count(),
                 'items' => $organizationItems->all(),
