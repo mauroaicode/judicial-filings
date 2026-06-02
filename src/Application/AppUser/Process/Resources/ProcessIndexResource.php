@@ -7,6 +7,7 @@ namespace Src\Application\AppUser\Process\Resources;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -34,6 +35,13 @@ class ProcessIndexResource extends Resource
         public array $plaintiffs,
         /** @var list<string> Full list of defendant names for tooltip */
         public array $defendants,
+        public ?int $plaintiffs_count = null,
+        public ?int $defendants_count = null,
+        public ?int $others_count = null,
+        public ?int $subjects_count = null,
+        public ?string $other_subject = null,
+        /** @var list<string> Full list of other subject names for tooltip */
+        public array $others = [],
         public ?string $alert_level = null,
         public ?string $lawyer_role = null,
     ) {}
@@ -74,28 +82,9 @@ class ProcessIndexResource extends Resource
 
         $status = OrganizationProcessStatus::fromBoolean($isActive);
 
-        $plaintiff = null;
-        $defendant = null;
-        $plaintiffsList = [];
-        $defendantsList = [];
-
-        if ($process->relationLoaded('subjects')) {
-            $subjects = $process->subjects;
-
-            $plaintiffsCollection = $subjects->where('subject_type', 'Demandante');
-            if ($plaintiffsCollection->isNotEmpty()) {
-                $plaintiffsList = $plaintiffsCollection->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->sort()->values()->all();
-                $firstPlaintiffName = $plaintiffsList[0] ?? '';
-                $plaintiff = $plaintiffsCollection->count() > 1 ? $firstPlaintiffName.' (+'.($plaintiffsCollection->count() - 1).')' : $firstPlaintiffName;
-            }
-
-            $defendantsCollection = $subjects->where('subject_type', 'Demandado');
-            if ($defendantsCollection->isNotEmpty()) {
-                $defendantsList = $defendantsCollection->map(fn ($s): string => StrParseHelper::toTitleCase($s->name_or_business_name) ?? '')->sort()->values()->all();
-                $firstDefendantName = $defendantsList[0] ?? '';
-                $defendant = $defendantsCollection->count() > 1 ? $firstDefendantName.' (+'.($defendantsCollection->count() - 1).')' : $firstDefendantName;
-            }
-        }
+        $subjectSummary = $process->relationLoaded('subjects')
+            ? ProcessSubjectSummaryHelper::summarize($process->subjects)
+            : ProcessSubjectSummaryHelper::summarize(collect());
 
         return new self(
             index: $index,
@@ -112,10 +101,16 @@ class ProcessIndexResource extends Resource
             created_at: DateFormatHelper::formatDate($createdAt),
             term_start_date: '-',
             term_end_date: '-',
-            plaintiff: $plaintiff,
-            defendant: $defendant,
-            plaintiffs: $plaintiffsList,
-            defendants: $defendantsList,
+            plaintiff: $subjectSummary['plaintiff'],
+            defendant: $subjectSummary['defendant'],
+            plaintiffs: $subjectSummary['plaintiffs'],
+            defendants: $subjectSummary['defendants'],
+            plaintiffs_count: $subjectSummary['plaintiffs_count'],
+            defendants_count: $subjectSummary['defendants_count'],
+            others_count: $subjectSummary['others_count'],
+            subjects_count: $subjectSummary['subjects_count'],
+            other_subject: $subjectSummary['other_subject'],
+            others: $subjectSummary['others'],
             alert_level: $alertLevel,
             lawyer_role: $lawyerRoleLabel,
         );
