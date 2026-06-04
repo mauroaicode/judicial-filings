@@ -2,7 +2,12 @@
 
 namespace App\Providers;
 
+use App\Support\InternalToolAuth;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Opcodes\LogViewer\Facades\LogViewer;
+use Opcodes\LogViewer\LogFile;
 use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
 use Src\Application\Shared\Services\Alert\OllamaAnnotationAlertDetectionProvider;
 use Src\Application\Shared\Services\Alert\OpenAIAnnotationAlertDetectionProvider;
@@ -29,6 +34,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        LogViewer::auth(fn (Request $request): bool => InternalToolAuth::authorize($request));
+
+        Gate::define('viewLogViewer', fn ($user = null) => InternalToolAuth::authorize(request()));
+
+        Gate::define('downloadLogFile', fn ($user = null, ?LogFile $file = null) => ! app()->environment('production')
+            || InternalToolAuth::authorize(request()));
+
+        Gate::define('deleteLogFile', fn () => app()->environment('local'));
     }
 }
