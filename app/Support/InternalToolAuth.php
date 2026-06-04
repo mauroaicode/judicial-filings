@@ -29,7 +29,9 @@ final class InternalToolAuth
         }
 
         $secret = (string) config('horizon.secret', '');
-        if ($secret !== '' && hash_equals($secret, (string) $request->query('token', ''))) {
+        $token = self::resolveToken($request);
+
+        if ($secret !== '' && $token !== '' && hash_equals($secret, $token)) {
             self::grantSession($request);
 
             return true;
@@ -38,13 +40,41 @@ final class InternalToolAuth
         return false;
     }
 
+    private static function resolveToken(Request $request): string
+    {
+        $query = (string) $request->query('token', '');
+        if ($query !== '') {
+            return $query;
+        }
+
+        $header = (string) $request->header('X-Dashboard-Token', '');
+        if ($header !== '') {
+            return $header;
+        }
+
+        $auth = (string) $request->header('Authorization', '');
+        if (str_starts_with($auth, 'Bearer ')) {
+            return substr($auth, 7);
+        }
+
+        return '';
+    }
+
     private static function grantSession(Request $request): void
     {
+        if (! $request->hasSession()) {
+            return;
+        }
+
         $request->session()->put(self::SESSION_KEY, self::sessionFingerprint());
     }
 
     private static function hasValidSession(Request $request): bool
     {
+        if (! $request->hasSession()) {
+            return false;
+        }
+
         return $request->session()->get(self::SESSION_KEY) === self::sessionFingerprint();
     }
 

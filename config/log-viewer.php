@@ -1,5 +1,8 @@
 <?php
 
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Session\Middleware\StartSession;
 use Opcodes\LogViewer\Enums\SortingMethod;
 use Opcodes\LogViewer\Enums\SortingOrder;
 use Opcodes\LogViewer\Enums\Theme;
@@ -117,11 +120,20 @@ return [
     */
 
     'api_middleware' => [
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
         EnsureFrontendRequestsAreStateful::class,
         AuthorizeLogViewer::class,
     ],
 
-    'api_stateful_domains' => env('LOG_VIEWER_API_STATEFUL_DOMAINS') ? explode(',', env('LOG_VIEWER_API_STATEFUL_DOMAINS')) : null,
+    'api_stateful_domains' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env(
+            'LOG_VIEWER_API_STATEFUL_DOMAINS',
+            parse_url((string) config('app.url'), PHP_URL_HOST) ?: ''
+        ))
+    ))),
 
     /*
     |--------------------------------------------------------------------------
@@ -134,7 +146,7 @@ return [
     */
 
     'hosts' => [
-        'default' => [
+        'local' => [
             'name' => ucfirst((string) env('APP_ENV', 'production')),
         ],
     ],
