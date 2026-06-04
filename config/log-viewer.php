@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\PersistInternalToolToken;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
@@ -107,6 +108,7 @@ return [
 
     'middleware' => [
         'web',
+        PersistInternalToolToken::class,
         AuthorizeLogViewer::class,
     ],
 

@@ -31,13 +31,25 @@ final class InternalToolAuth
         $secret = (string) config('horizon.secret', '');
         $token = self::resolveToken($request);
 
-        if ($secret !== '' && $token !== '' && hash_equals($secret, $token)) {
-            self::grantSession($request);
+        if ($secret !== '' && $token !== '' && self::tokenIsValid($token)) {
+            self::establishSession($request);
 
             return true;
         }
 
         return false;
+    }
+
+    public static function tokenIsValid(string $token): bool
+    {
+        $secret = (string) config('horizon.secret', '');
+
+        return $secret !== '' && $token !== '' && hash_equals($secret, $token);
+    }
+
+    public static function establishSession(Request $request): void
+    {
+        self::grantSession($request);
     }
 
     private static function resolveToken(Request $request): string
