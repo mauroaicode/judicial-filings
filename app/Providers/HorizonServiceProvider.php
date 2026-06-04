@@ -9,6 +9,8 @@ use Laravel\Horizon\HorizonApplicationServiceProvider;
 
 class HorizonServiceProvider extends HorizonApplicationServiceProvider
 {
+    private const SESSION_KEY = 'horizon_authenticated';
+
     /**
      * Bootstrap any application services.
      */
@@ -16,7 +18,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     {
         parent::boot();
 
-        // API-only app: no web session on /horizon. Use token or allowed email (if logged in).
+        // API-only app: first visit with ?token=, then session cookie for SPA navigation/API.
         Horizon::auth(function (Request $request): bool {
             if (app()->environment('local')) {
                 return true;
@@ -27,8 +29,14 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
                 return true;
             }
 
+            if (self::hasValidSession($request)) {
+                return true;
+            }
+
             $secret = (string) config('horizon.secret', '');
             if ($secret !== '' && hash_equals($secret, (string) $request->query('token', ''))) {
+                self::grantSession($request);
+
                 return true;
             }
 
@@ -45,6 +53,23 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
             'trim',
             explode(',', (string) config('horizon.allowed_emails', ''))
         )));
+    }
+
+    private static function grantSession(Request $request): void
+    {
+        $request->session()->put(self::SESSION_KEY, self::sessionFingerprint());
+    }
+
+    private static function hasValidSession(Request $request): bool
+    {
+        return $request->session()->get(self::SESSION_KEY) === self::sessionFingerprint();
+    }
+
+    private static function sessionFingerprint(): string
+    {
+        $secret = (string) config('horizon.secret', '');
+
+        return hash('sha256', $secret.'|horizon-access');
     }
 
     /**
