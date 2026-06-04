@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\ForwardRequestToHostOnlyWhenRemote;
 use App\Support\InternalToolAuth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Opcodes\LogViewer\Facades\LogViewer;
+use Opcodes\LogViewer\Http\Middleware\ForwardRequestToHostMiddleware;
 use Opcodes\LogViewer\LogFile;
 use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
 use Src\Application\Shared\Services\Alert\OllamaAnnotationAlertDetectionProvider;
@@ -19,6 +21,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(
+            ForwardRequestToHostMiddleware::class,
+            ForwardRequestToHostOnlyWhenRemote::class
+        );
+
         $this->app->bind(AnnotationAlertDetectionInterface::class, function (): AnnotationAlertDetectionInterface {
             $provider = config('alert-ai.provider', 'openai');
 

@@ -146,6 +146,8 @@ return [
     */
 
     'hosts' => [
+        // Identificador fijo "local" (no usar APP_ENV: ForwardRequestToHostMiddleware
+        // trataría production como URL remota y rompe la API).
         'local' => [
             'name' => ucfirst((string) env('APP_ENV', 'production')),
         ],
