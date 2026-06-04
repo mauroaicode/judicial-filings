@@ -12,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Random\RandomException;
+use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Exceptions\ApiProxyFailureException;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
@@ -58,6 +59,16 @@ class SyncProcessJob implements ShouldQueue
 
         try {
             $syncService->syncByProcessNumber($this->processNumber);
+
+        } catch (ApiEmptyProcessesException $e) {
+            // The Judicial Branch API confirmed (with HTTP 200 + empty array) that this
+            // radicado no longer exists. Retrying would waste proxy calls and timeout budget.
+            // We complete the job normally so Laravel does not schedule any more attempts.
+            Log::channel($channel)->warning('SyncProcessJob: radicado not found in Judicial API, completing without retry', [
+                'process_number' => $this->processNumber,
+                'attempt' => $this->attempts(),
+                'message' => $e->getMessage(),
+            ]);
 
         } catch (ApiForbiddenOrRateLimitException $e) {
             $delay = $this->resolveRateLimitDelay($e);
