@@ -134,58 +134,21 @@ return [
     */
 
     'hosts' => [
-        'local' => [
-            'name' => ucfirst(env('APP_ENV', 'local')),
+        'default' => [
+            'name' => ucfirst((string) env('APP_ENV', 'production')),
         ],
-
-        // 'staging' => [
-        //     'name' => 'Staging',
-        //     'host' => 'https://staging.example.com/log-viewer',
-        //     'auth' => [      // Example of HTTP Basic auth
-        //         'username' => 'username',
-        //         'password' => 'password',
-        //     ],
-        //     'verify_server_certificate' => true,
-        // ],
-        //
-        // 'production' => [
-        //     'name' => 'Production',
-        //     'host' => 'https://example.com/log-viewer',
-        //     'auth' => [      // Example of Bearer token auth
-        //         'token' => env('LOG_VIEWER_PRODUCTION_TOKEN'),
-        //     ],
-        //     'headers' => [
-        //         'X-Foo' => 'Bar',
-        //     ],
-        //     'verify_server_certificate' => true,
-        // ],
     ],
 
     /*
     |--------------------------------------------------------------------------
     | Include file patterns
     |--------------------------------------------------------------------------
+    | Solo logs de Laravel (storage/logs). Evita mezclar Nginx/Apache del servidor.
     |
     */
 
     'include_files' => [
-        '*.log',
-        '**/*.log',
-
-        // You can include paths to other log types as well, such as apache, nginx, and more.
-        // This key => value pair can be used to rename and group multiple paths into one folder in the UI.
-        '/var/log/httpd/*' => 'Apache',
-        '/var/log/nginx/*' => 'Nginx',
-
-        // MacOS Apple Silicon logs
-        '/opt/homebrew/var/log/nginx/*',
-        '/opt/homebrew/var/log/httpd/*',
-        '/opt/homebrew/var/log/php-fpm.log',
-        '/opt/homebrew/var/log/postgres*log',
-        '/opt/homebrew/var/log/redis*log',
-        '/opt/homebrew/var/log/supervisor*log',
-
-        // '/absolute/paths/supported',
+        storage_path('logs') => 'NotiJudicial',
     ],
 
     /*
@@ -197,7 +160,10 @@ return [
     */
 
     'exclude_files' => [
-        // 'my_secret.log'
+        '/var/log/nginx/*',
+        '/var/log/httpd/*',
+        '/var/log/apache2/*',
+        '/opt/homebrew/var/log/*',
     ],
 
     /*
@@ -335,5 +301,5 @@ return [
     |
     */
 
-    'root_folder_prefix' => 'root',
+    'root_folder_prefix' => 'logs',
 ];
