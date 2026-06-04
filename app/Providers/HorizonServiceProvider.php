@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Horizon\Horizon;
 use Laravel\Horizon\HorizonApplicationServiceProvider;
@@ -15,34 +16,42 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     {
         parent::boot();
 
-        // Horizon::routeMailNotificationsTo('admin@notijudicial.com');
-    }
-
-    /**
-     * Register the Horizon gate.
-     *
-     * Allows access only to emails listed in HORIZON_ALLOWED_EMAILS (.env),
-     * which is a comma-separated list: "admin@example.com,dev@example.com"
-     *
-     * In local environments, Horizon is always accessible.
-     */
-    protected function gate(): void
-    {
-        Gate::define('viewHorizon', function ($user = null) {
+        // API-only app: no web session on /horizon. Use token or allowed email (if logged in).
+        Horizon::auth(function (Request $request): bool {
             if (app()->environment('local')) {
                 return true;
             }
 
-            if ($user === null) {
-                return false;
+            $user = $request->user();
+            if ($user !== null && in_array($user->email, self::allowedEmails(), true)) {
+                return true;
             }
 
-            $allowed = array_filter(array_map(
-                'trim',
-                explode(',', (string) config('horizon.allowed_emails', ''))
-            ));
+            $secret = (string) config('horizon.secret', '');
+            if ($secret !== '' && hash_equals($secret, (string) $request->query('token', ''))) {
+                return true;
+            }
 
-            return in_array($user->email, $allowed, true);
+            return false;
         });
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function allowedEmails(): array
+    {
+        return array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) config('horizon.allowed_emails', ''))
+        )));
+    }
+
+    /**
+     * Required by HorizonApplicationServiceProvider (used if Horizon::auth is not set).
+     */
+    protected function gate(): void
+    {
+        Gate::define('viewHorizon', fn ($user = null) => false);
     }
 }
