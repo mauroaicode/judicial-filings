@@ -148,7 +148,8 @@ return [
     */
 
     'include_files' => [
-        storage_path('logs') => 'NotiJudicial',
+        // Debe incluir comodín (*.log); una carpeta sola no devuelve archivos.
+        rtrim((string) env('LOG_VIEWER_LOGS_PATH', storage_path('logs')), '/').'/*.log' => 'NotiJudicial',
     ],
 
     /*
