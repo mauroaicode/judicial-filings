@@ -7,10 +7,15 @@ return [
     'name' => env('HORIZON_NAME', 'NotiJudicial'),
 
     /*
-    | Comma-separated list of emails allowed to view the Horizon dashboard
-    | in production. Example: "you@domain.com,colleague@domain.com"
+    | Comma-separated emails allowed when a user is logged in via web session.
     */
     'allowed_emails' => env('HORIZON_ALLOWED_EMAILS', ''),
+
+    /*
+    | Secret token for /horizon?token=... (required in production for API-only apps).
+    | Generate with: php artisan tinker --execute="echo bin2hex(random_bytes(32));"
+    */
+    'secret' => env('HORIZON_SECRET', ''),
 
     'domain' => env('HORIZON_DOMAIN'),
 
