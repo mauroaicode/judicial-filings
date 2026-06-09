@@ -27,13 +27,33 @@ class NotificationDigestService
 
     public function sendDigest(Organization $organization): void
     {
+        $morphClass = (new ProcessAction)->getMorphClass();
+
+        // Determine the last action_date that was successfully emailed to this org.
+        // Any pending notification whose action_date is strictly before this cutoff is
+        // considered historical noise (e.g. from duplicate-instance bulk-fetches) and
+        // must not be included in the outgoing digest.
+        $lastNotifiedActionDate = \Illuminate\Support\Facades\DB::table('organization_notifications')
+            ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
+            ->where('organization_notifications.organization_id', $organization->id)
+            ->where('organization_notifications.notifiable_type', $morphClass)
+            ->where('organization_notifications.is_email_notified', true)
+            ->max('process_actions.action_date');
+
         // 1. Get all pending email notifications for this organization
-        $notifications = $organization->notifications()
+        $query = $organization->notifications()
             ->where('is_email_notified', false)
-            ->where('notifiable_type', (new ProcessAction)->getMorphClass())
+            ->where('notifiable_type', $morphClass)
             ->orderedByNotifiableRegistrationDateDesc()
-            ->with(['notifiable.process'])
-            ->get();
+            ->with(['notifiable.process']);
+
+        // If we have a prior successful notification, restrict to actuaciones that are
+        // strictly more recent — prevents flooding clients with historical backlog.
+        if ($lastNotifiedActionDate !== null) {
+            $query->whereHas('notifiable', fn ($q) => $q->whereDate('action_date', '>=', $lastNotifiedActionDate));
+        }
+
+        $notifications = $query->get();
 
         if ($notifications->isEmpty()) {
             return;
