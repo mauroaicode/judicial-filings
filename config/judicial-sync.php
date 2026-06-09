@@ -72,4 +72,27 @@ return [
     |
     */
     'inactive_skip_threshold_days' => (int) env('JUDICIAL_SYNC_INACTIVE_SKIP_DAYS', 2),
+
+    /*
+    |--------------------------------------------------------------------------
+    | New Instance Notification Window (days)
+    |--------------------------------------------------------------------------
+    |
+    | When a new process instance is discovered during the daily sync (i.e. it
+    | has no existing actuaciones yet), the system fetches its full historical
+    | record. To avoid flooding clients with old notifications, only actuaciones
+    | whose action_date falls within this many days in the past will trigger
+    | notifications.
+    |
+    | If sibling instances for the same radicado already have synced actuaciones,
+    | their max last_activity_date is used as the cutoff instead (whichever is
+    | more recent), since that represents the "known state" of the radicado.
+    |
+    | Historical actuaciones are still stored for full traceability and AI/LLM
+    | training; this setting only controls what gets notified.
+    |
+    | Set to 0 to use only the sibling-instance cutoff (no fixed-window fallback).
+    |
+    */
+    'new_instance_notify_days' => (int) env('JUDICIAL_SYNC_NEW_INSTANCE_NOTIFY_DAYS', 7),
 ];

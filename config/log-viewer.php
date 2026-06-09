@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\InjectInternalToolTokenFromSession;
 use App\Http\Middleware\PersistInternalToolToken;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -8,7 +9,6 @@ use Opcodes\LogViewer\Enums\SortingMethod;
 use Opcodes\LogViewer\Enums\SortingOrder;
 use Opcodes\LogViewer\Enums\Theme;
 use Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer;
-use Opcodes\LogViewer\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 return [
 
@@ -125,7 +125,7 @@ return [
         EncryptCookies::class,
         AddQueuedCookiesToResponse::class,
         StartSession::class,
-        EnsureFrontendRequestsAreStateful::class,
+        InjectInternalToolTokenFromSession::class,
         AuthorizeLogViewer::class,
     ],
 

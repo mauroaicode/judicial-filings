@@ -13,6 +13,8 @@ final class InternalToolAuth
 {
     private const SESSION_KEY = 'internal_tool_authenticated';
 
+    private const TOKEN_SESSION_KEY = 'internal_tool_token';
+
     public static function authorize(Request $request): bool
     {
         if (app()->environment('local')) {
@@ -32,7 +34,7 @@ final class InternalToolAuth
         $token = self::resolveToken($request);
 
         if ($secret !== '' && $token !== '' && self::tokenIsValid($token)) {
-            self::establishSession($request);
+            self::establishSession($request, $token);
 
             return true;
         }
@@ -47,9 +49,42 @@ final class InternalToolAuth
         return $secret !== '' && $token !== '' && hash_equals($secret, $token);
     }
 
-    public static function establishSession(Request $request): void
+    public static function establishSession(Request $request, ?string $token = null): void
     {
         self::grantSession($request);
+
+        if (! $request->hasSession()) {
+            return;
+        }
+
+        if ($token === null || $token === '') {
+            $token = self::resolveToken($request);
+        }
+
+        if ($token !== '' && self::tokenIsValid($token)) {
+            $request->session()->put(self::TOKEN_SESSION_KEY, encrypt($token));
+        }
+    }
+
+    public static function dashboardTokenForRequest(Request $request): ?string
+    {
+        if (! $request->hasSession()) {
+            return null;
+        }
+
+        try {
+            $encrypted = $request->session()->get(self::TOKEN_SESSION_KEY);
+
+            if (! is_string($encrypted) || $encrypted === '') {
+                return null;
+            }
+
+            $token = decrypt($encrypted);
+
+            return self::tokenIsValid($token) ? $token : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private static function resolveToken(Request $request): string
@@ -57,6 +92,11 @@ final class InternalToolAuth
         $query = (string) $request->query('token', '');
         if ($query !== '') {
             return $query;
+        }
+
+        $sessionToken = self::dashboardTokenForRequest($request);
+        if ($sessionToken !== null) {
+            return $sessionToken;
         }
 
         $header = (string) $request->header('X-Dashboard-Token', '');
