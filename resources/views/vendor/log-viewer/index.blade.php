@@ -38,16 +38,17 @@
     window.LogViewer = @json($logViewerScriptVariables);
 
     (function () {
-        var params = new URLSearchParams(window.location.search);
-        var token = params.get('token');
-        if (token) {
-            try { localStorage.setItem('internal_dashboard_token', token); } catch (e) {}
-        } else {
-            try { token = localStorage.getItem('internal_dashboard_token') || ''; } catch (e) {}
+        var token = @json(\App\Support\InternalToolAuth::dashboardTokenForRequest(request()));
+        if (!token) {
+            var params = new URLSearchParams(window.location.search);
+            token = params.get('token');
         }
         if (token) {
+            try { localStorage.setItem('internal_dashboard_token', token); } catch (e) {}
             window.LogViewer.headers = window.LogViewer.headers || {};
             window.LogViewer.headers['X-Dashboard-Token'] = token;
+        } else {
+            try { localStorage.removeItem('internal_dashboard_token'); } catch (e) {}
         }
     })();
 </script>

@@ -28,7 +28,7 @@ final class PersistInternalToolToken
             return $next($request);
         }
 
-        InternalToolAuth::establishSession($request);
+        InternalToolAuth::establishSession($request, $token);
 
         $query = $request->except('token');
 

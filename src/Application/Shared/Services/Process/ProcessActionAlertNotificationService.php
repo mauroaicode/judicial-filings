@@ -129,14 +129,49 @@ readonly class ProcessActionAlertNotificationService
 
     /**
      * Create a notification record and dispatch the notification job.
+     *
+     * Cross-instance deduplication: the same actuación (identified by
+     * action_registration_id) can appear in multiple process instances when
+     * courts publish the same entry under several radicado duplicates.
+     * Before creating a new record, verify that no notification already exists
+     * for ANY ProcessAction sharing the same action_registration_id for this
+     * organization/type/severity combination. This prevents repeated alerts
+     * to the client for what is logically one single actuación.
      */
     private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType, ?string $severityColor = null): void
     {
+        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+
+        // Check for an existing notification across all instances of this actuación.
+        $morphClass = $action->getMorphClass();
+        $crossInstanceDuplicate = OrganizationNotification::query()
+            ->where('organization_id', $organizationId)
+            ->where('notification_type', $notificationType)
+            ->where('severity_color', $severityColor)
+            ->where('notifiable_type', $morphClass)
+            ->whereIn('notifiable_id', function ($sub) use ($action): void {
+                $sub->select('id')
+                    ->from('process_actions')
+                    ->where('action_registration_id', $action->action_registration_id);
+            })
+            ->exists();
+
+        if ($crossInstanceDuplicate) {
+            Log::channel($logChannel)->info('ProcessActionAlertNotificationService: skipping cross-instance duplicate notification', [
+                'action_registration_id' => $action->action_registration_id,
+                'action_id' => $action->id,
+                'organization_id' => $organizationId,
+                'type' => $notificationType,
+            ]);
+
+            return;
+        }
+
         OrganizationNotification::query()->firstOrCreate(
             [
                 'organization_id' => $organizationId,
                 'notifiable_id' => $action->id,
-                'notifiable_type' => $action->getMorphClass(),
+                'notifiable_type' => $morphClass,
                 'notification_type' => $notificationType,
                 'severity_color' => $severityColor,
             ],
@@ -147,7 +182,7 @@ readonly class ProcessActionAlertNotificationService
             ]
         );
 
-        Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+        Log::channel($logChannel)
             ->info('Notification recorded for digest', [
                 'organization_id' => $organizationId,
                 'type' => $notificationType,
