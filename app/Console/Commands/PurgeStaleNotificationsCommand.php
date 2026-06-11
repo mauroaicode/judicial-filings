@@ -85,25 +85,25 @@ class PurgeStaleNotificationsCommand extends Command
         $totalSilenced = 0;
 
         foreach ($organizationIds as $organizationId) {
-            // Find the most recent action_date that was already notified for this org.
+            // Find the most recent registration_date already included in a digest for this org.
             $lastNotifiedDate = DB::table('organization_notifications')
                 ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
                 ->where('organization_notifications.organization_id', $organizationId)
                 ->where('organization_notifications.notifiable_type', $morphClass)
                 ->where('organization_notifications.is_email_notified', true)
-                ->max('process_actions.action_date');
+                ->max('process_actions.registration_date');
 
             $cutoff = $lastNotifiedDate
                 ? Carbon::parse($lastNotifiedDate)->startOfDay()
                 : $fallbackDate;
 
-            // Find all pending notifications for this org whose action_date <= cutoff
+            // Find all pending notifications for this org whose registration_date <= cutoff
             $staleIds = DB::table('organization_notifications')
                 ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
                 ->where('organization_notifications.organization_id', $organizationId)
                 ->where('organization_notifications.notifiable_type', $morphClass)
                 ->where('organization_notifications.is_email_notified', false)
-                ->whereDate('process_actions.action_date', '<=', $cutoff)
+                ->whereDate('process_actions.registration_date', '<=', $cutoff)
                 ->pluck('organization_notifications.id');
 
             if ($staleIds->isEmpty()) {
