@@ -29,16 +29,17 @@ class NotificationDigestService
     {
         $morphClass = (new ProcessAction)->getMorphClass();
 
-        // Determine the last action_date that was successfully emailed to this org.
-        // Any pending notification whose action_date is strictly before this cutoff is
-        // considered historical noise (e.g. from duplicate-instance bulk-fetches) and
-        // must not be included in the outgoing digest.
-        $lastNotifiedActionDate = \Illuminate\Support\Facades\DB::table('organization_notifications')
+        // Determine the last registration_date already included in a digest for this org.
+        // We use registration_date (not action_date) because the Rama Judicial can publish
+        // an actuación whose legal date is old but whose registration in the portal is recent.
+        // Any pending notification whose registration_date is before this cutoff is
+        // considered historical noise and must not be included in the outgoing digest.
+        $lastNotifiedRegistrationDate = \Illuminate\Support\Facades\DB::table('organization_notifications')
             ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
             ->where('organization_notifications.organization_id', $organization->id)
             ->where('organization_notifications.notifiable_type', $morphClass)
             ->where('organization_notifications.is_email_notified', true)
-            ->max('process_actions.action_date');
+            ->max('process_actions.registration_date');
 
         // 1. Get all pending email notifications for this organization
         $query = $organization->notifications()
@@ -47,10 +48,10 @@ class NotificationDigestService
             ->orderedByNotifiableRegistrationDateDesc()
             ->with(['notifiable.process']);
 
-        // If we have a prior successful notification, restrict to actuaciones that are
-        // strictly more recent — prevents flooding clients with historical backlog.
-        if ($lastNotifiedActionDate !== null) {
-            $query->whereHas('notifiable', fn ($q) => $q->whereDate('action_date', '>=', $lastNotifiedActionDate));
+        // If we have a prior successful digest, restrict to actuaciones registered on or
+        // after that date — prevents flooding clients with historical backlog.
+        if ($lastNotifiedRegistrationDate !== null) {
+            $query->whereHas('notifiable', fn ($q) => $q->whereDate('registration_date', '>=', $lastNotifiedRegistrationDate));
         }
 
         $notifications = $query->get();
@@ -75,39 +76,43 @@ class NotificationDigestService
             return;
         }
 
-        // 3. Find the organization's email (from channel or explicitly)
-        $emailChannel = $organization->notificationChannels()
-            ->where('channel_type', 'email')
-            ->where('is_active', true)
-            ->first();
+        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
-        if (! $emailChannel || empty($emailChannel->channel_value)) {
-            Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->warning('NotificationDigestService: No active email channel found', [
-                    'organization_id' => $organization->id,
-                ]);
-
-            return;
-        }
-
-        // 4. Persist the digest record BEFORE sending — gives it an ID for the frontend
-        //    and links notifications regardless of whether channels succeed.
+        // 3. Persist the digest record BEFORE sending — gives it an ID for the frontend
+        //    and links notifications regardless of whether delivery channels are active.
         $digest = NotificationDigest::query()->create([
             'organization_id' => $organization->id,
             'data' => $digestData->toArray(),
             // Channel timestamps are set individually AFTER each successful send.
         ]);
 
-        // 5. Mark notifications as notified and link them to the digest.
+        // 4. Mark notifications as notified and link them to the digest.
         //    This prevents double-sending if a channel later fails and we retry.
         $this->markAsNotified($notifications, $digest->id);
 
-        // 6. Send the consolidated email and record the timestamp only on success.
-        $this->sendEmailChannel($digest, $digestData, $emailChannel->channel_value, $organization->id, $organization->name);
+        // 5. Send the consolidated email only when the email channel is active.
+        $emailChannel = $organization->notificationChannels()
+            ->where('channel_type', 'email')
+            ->where('is_active', true)
+            ->first();
 
-        // 7. Send internal notification (Bell/Websocket) — only ONE per digest.
+        if ($emailChannel && ! empty($emailChannel->channel_value)) {
+            $this->sendEmailChannel($digest, $digestData, $emailChannel->channel_value, $organization->id, $organization->name);
+        } else {
+            Log::channel($logChannel)->info('NotificationDigestService: Skipping email channel (inactive or missing)', [
+                'organization_id' => $organization->id,
+                'digest_id' => $digest->id,
+            ]);
+        }
+
+        // 6. Send internal notification (Bell/Websocket) only when the internal channel is active.
+        $internalChannelActive = $organization->notificationChannels()
+            ->where('channel_type', 'internal')
+            ->where('is_active', true)
+            ->exists();
+
         $users = $organization->appUsers;
-        if ($users->isNotEmpty()) {
+        if ($internalChannelActive && $users->isNotEmpty()) {
             $actionsCount = $digestData->where('is_alert', false)->count();
             $alertsCount = $digestData->where('is_alert', true)->count();
 
@@ -117,13 +122,18 @@ class NotificationDigestService
                     new ConsolidatedJudicialActionsNotification($digest, $actionsCount, $alertsCount)
                 );
             } catch (\Throwable $e) {
-                Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                Log::channel($logChannel)
                     ->error('NotificationDigestService: Failed to send internal notification', [
                         'organization_id' => $organization->id,
                         'digest_id' => $digest->id,
                         'message' => $e->getMessage(),
                     ]);
             }
+        } elseif (! $internalChannelActive) {
+            Log::channel($logChannel)->info('NotificationDigestService: Skipping internal channel (inactive)', [
+                'organization_id' => $organization->id,
+                'digest_id' => $digest->id,
+            ]);
         }
     }
 
