@@ -165,7 +165,11 @@ class RepairProcessInstanceActionsCommand extends Command
             $notify = (bool) $this->option('notify');
             $this->info("Re-syncing radicado {$syncRadicado}".($notify ? ' (with notifications)' : ' (without notifications)').'...');
 
-            $syncService->syncByProcessNumber($syncRadicado, notify: $notify);
+            $syncService->syncByProcessNumber(
+                processNumber: $syncRadicado,
+                notify: $notify,
+                skipInactiveThreshold: true,
+            );
 
             $this->info('Sync completed.');
         } elseif ($this->option('sync') && $dryRun) {

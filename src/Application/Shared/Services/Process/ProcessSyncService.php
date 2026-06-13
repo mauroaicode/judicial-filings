@@ -266,7 +266,7 @@ class ProcessSyncService
      * Sync actuaciones and sujetos for all process instances of a radicado with one API call.
      * Only processes that are active in at least one organization are synced.
      */
-    public function syncByProcessNumber(string $processNumber, bool $notify = true): void
+    public function syncByProcessNumber(string $processNumber, bool $notify = true, bool $skipInactiveThreshold = false): void
     {
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
@@ -305,6 +305,7 @@ class ProcessSyncService
             processNumber: $processNumber,
             processes: $processes,
             notify: $notify,
+            skipInactiveThreshold: $skipInactiveThreshold,
         );
 
         Log::channel($channel)->info('ProcessSyncService: finished sync for radicado', [
@@ -332,7 +333,10 @@ class ProcessSyncService
         foreach ($processes as $process) {
             $apiProcessId = (int) $process->process_id;
 
-            if (! $skipInactiveThreshold && $thresholdDays > 0 && $process->last_activity_date !== null
+            if (! $skipInactiveThreshold
+                && ! $this->hasPendingActuacionesSync($process)
+                && $thresholdDays > 0
+                && $process->last_activity_date !== null
                 && $process->last_activity_date->lt(now()->subDays($thresholdDays)->startOfDay())) {
                 Log::channel($channel)->info('ProcessSyncService: skipping actuaciones fetch (inactive process)', [
                     'process_number' => $processNumber,
@@ -630,16 +634,29 @@ class ProcessSyncService
     }
 
     /**
+     * True when API metadata reports activity newer than the newest actuación stored in DB.
+     * In that state the daily inactive skip must not run — there are pending rows to import.
+     */
+    private function hasPendingActuacionesSync(Process $process): bool
+    {
+        if ($process->last_activity_date === null) {
+            return false;
+        }
+
+        $dbMaxDate = $process->actions()->max('action_date');
+
+        if ($dbMaxDate === null) {
+            return true;
+        }
+
+        return Date::parse($process->last_activity_date)->startOfDay()
+            ->gt(Date::parse($dbMaxDate)->startOfDay());
+    }
+
+    /**
      * Determine the earliest date from which notifications should be triggered
      * when a new process instance (with no existing actions) is synced during
      * the daily cron.
-     *
-     * Priority:
-     * 1. Max last_activity_date from sibling instances that already have synced
-     *    actuaciones — this is the "known state" of the radicado.
-     * 2. Fallback: now() minus the configured window (new_instance_notify_days).
-     *
-     * Historical actuaciones are always stored; this date only gates notifications.
      */
     private function resolveRadicadoNotifyFromDate(string $processNumber): Carbon
     {
