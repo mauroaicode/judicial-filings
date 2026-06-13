@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
@@ -20,7 +21,6 @@ use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessDataSource;
-use Src\Domain\Shared\Enums\SeverityColor;
 use Throwable;
 
 readonly class RegisterProcessService
@@ -46,8 +46,15 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    public function handle(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole = null, string $proxySeed = '', ?string $appUserId = null, ?array $prefetchedApiProcessesFromPortal = null): RegisterProcessResult
-    {
+    public function handle(
+        string $processNumber,
+        string $organizationId,
+        ?ProcessLawyerRole $lawyerRole = null,
+        string $proxySeed = '',
+        ?string $appUserId = null,
+        ?array $prefetchedApiProcessesFromPortal = null,
+        bool $deferRegistrationDigest = false,
+    ): RegisterProcessResult {
         if ($proxySeed !== '') {
             $this->judicialBranchConsultService->withSeed($proxySeed);
         }
@@ -57,26 +64,24 @@ readonly class RegisterProcessService
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
 
         if ($existingProcesses->isNotEmpty()) {
-            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId);
+            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId, $deferRegistrationDigest);
         }
 
-        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole, $appUserId, $prefetchedApiProcessesFromPortal);
+        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole, $appUserId, $prefetchedApiProcessesFromPortal, $deferRegistrationDigest);
     }
 
     /**
-     * Attaches all existing DB instances of a radicado to the organization (no API calls).
-     *
-     * Called when the radicado is already registered globally (by another organization).
-     * The daily sync guarantees all instances are up to date in the DB.
+     * Attaches all existing DB instances of a radicado to the organization, then syncs
+     * with the Rama Judicial (first page) and queues recent-actuación alerts for this org only.
      *
      * @param  Collection<int, Process>  $processes  All DB instances of the radicado
      * @param  string  $organizationId  Organization UUID
      *
      * @throws Throwable
      */
-    private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId): RegisterProcessResult
+    private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId, bool $deferRegistrationDigest = false): RegisterProcessResult
     {
-        return DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId): RegisterProcessResult {
+        $result = DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId): RegisterProcessResult {
             /** @var Collection<int, Process> $attached */
             $attached = collect();
             $privateCount = 0;
@@ -104,6 +109,20 @@ readonly class RegisterProcessService
                 privateCount: $privateCount,
             );
         });
+
+        $processNumber = (string) $processes->first()->process_number;
+        $this->processSyncService->syncForRegistration(
+            $processNumber,
+            $organizationId,
+            dispatchDigest: ! $deferRegistrationDigest,
+        );
+
+        foreach ($result->processes as $process) {
+            $process->refresh();
+            $this->recalculateAlertLevelAfterSync($process, $organizationId, $lawyerRole);
+        }
+
+        return $result;
     }
 
     /**
@@ -118,8 +137,14 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    private function registerFromApi(string $processNumber, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId, ?array $prefetchedApiProcessesFromPortal = null): RegisterProcessResult
-    {
+    private function registerFromApi(
+        string $processNumber,
+        string $organizationId,
+        ?ProcessLawyerRole $lawyerRole,
+        ?string $appUserId,
+        ?array $prefetchedApiProcessesFromPortal = null,
+        bool $deferRegistrationDigest = false,
+    ): RegisterProcessResult {
         $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber, $prefetchedApiProcessesFromPortal);
 
         $hasMultipleInstances = count($processesData) > 1;
@@ -129,7 +154,7 @@ readonly class RegisterProcessService
         $registeredProcesses = collect();
         $privateCount = 0;
 
-        return DB::transaction(function () use ($processNumber, $organizationId, $lawyerRole, $appUserId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
+        $result = DB::transaction(function () use ($processNumber, $organizationId, $lawyerRole, $appUserId, $processesData, $hasMultipleInstances, $totalProcesses, &$registeredProcesses, &$privateCount): RegisterProcessResult {
             foreach ($processesData as $processData) {
                 $isPrivate = $processData['esPrivado'] ?? false;
 
@@ -178,12 +203,6 @@ readonly class RegisterProcessService
 
                 $process = $this->createProcess($processNumber, $processId, $detailData, $hasMultipleInstances, $fechaUltimaActuacion);
                 $this->attachProcessToOrganization($process, $organizationId, $lawyerRole, $appUserId);
-                $this->processSyncService->handle($process, false);
-
-                // After sync, last_activity_date is now populated from actuaciones.
-                // Recalculate and persist the semaphore with the updated date.
-                $process->refresh();
-                $this->recalculateAlertLevelAfterSync($process, $organizationId, $lawyerRole);
 
                 $registeredProcesses->push($process);
             }
@@ -204,6 +223,19 @@ readonly class RegisterProcessService
                 privateCount: $privateCount,
             );
         });
+
+        $this->processSyncService->syncForRegistration(
+            $processNumber,
+            $organizationId,
+            dispatchDigest: ! $deferRegistrationDigest,
+        );
+
+        foreach ($result->processes as $process) {
+            $process->refresh();
+            $this->recalculateAlertLevelAfterSync($process, $organizationId, $lawyerRole);
+        }
+
+        return $result;
     }
 
     /**
@@ -364,33 +396,9 @@ readonly class RegisterProcessService
             return null;
         }
 
-        $days = (int) Date::parse($process->last_activity_date)->diffInDays(now());
-
-        return match ($role) {
-            ProcessLawyerRole::PLAINTIFF => $this->getPlaintiffLevel($days),
-            ProcessLawyerRole::DEFENDANT => $this->getDefendantLevel($days),
-        };
-    }
-
-    private function getPlaintiffLevel(int $days): string
-    {
-        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::PLAINTIFF->value.'.'.SeverityColor::RED->value, 90)) {
-            return SeverityColor::RED->value;
-        }
-
-        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::PLAINTIFF->value.'.'.SeverityColor::YELLOW->value, 45)) {
-            return SeverityColor::YELLOW->value;
-        }
-
-        return SeverityColor::GREEN->value;
-    }
-
-    private function getDefendantLevel(int $days): ?string
-    {
-        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::DEFENDANT->value.'.'.SeverityColor::GREEN->value, 90)) {
-            return SeverityColor::GREEN->value;
-        }
-
-        return null;
+        return ProcessAlertLevelHelper::calculate(
+            Date::parse($process->last_activity_date),
+            $role,
+        );
     }
 }

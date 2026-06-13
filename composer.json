@@ -84,7 +84,10 @@
         "pint": "vendor/bin/pint",
         "pest-tests-coverage": "vendor/bin/pest",
         "pest-tests-type-coverage": "vendor/bin/pest",
-        "pest-tests": "vendor/bin/pest"
+        "pest-tests": [
+            "Composer\\Config::disableProcessTimeout",
+            "vendor/bin/pest"
+        ]
     },
     "extra": {
         "laravel": {

@@ -44,6 +44,61 @@ class OrganizationNotificationQueryBuilder extends Builder
     }
 
     /**
+     * Limit judicial-action notifications to processes currently linked to the organization.
+     */
+    public function forActiveOrganizationProcesses(string $organizationId): self
+    {
+        $morphClass = (new ProcessAction)->getMorphClass();
+
+        return $this->where('organization_notifications.notifiable_type', $morphClass)
+            ->whereIn('organization_notifications.notifiable_id', function ($sub) use ($organizationId): void {
+                $sub->select('process_actions.id')
+                    ->from('process_actions')
+                    ->join('processes', 'processes.id', '=', 'process_actions.process_id')
+                    ->join('organization_processes', 'organization_processes.process_id', '=', 'processes.id')
+                    ->where('organization_processes.organization_id', $organizationId)
+                    ->where('organization_processes.is_active', true);
+            });
+    }
+
+    /**
+     * Limit judicial-action notifications to specific radicado numbers.
+     *
+     * @param  array<int, string>  $processNumbers
+     */
+    public function forProcessNumbers(array $processNumbers): self
+    {
+        if ($processNumbers === []) {
+            return $this;
+        }
+
+        $morphClass = (new ProcessAction)->getMorphClass();
+
+        return $this->where('organization_notifications.notifiable_type', $morphClass)
+            ->whereIn('organization_notifications.notifiable_id', function ($sub) use ($processNumbers): void {
+                $sub->select('process_actions.id')
+                    ->from('process_actions')
+                    ->join('processes', 'processes.id', '=', 'process_actions.process_id')
+                    ->whereIn('processes.process_number', $processNumbers);
+            });
+    }
+
+    /**
+     * Limit judicial-action notifications to those registered on or after a date.
+     */
+    public function forProcessActionRegistrationDateOnOrAfter(string $date): self
+    {
+        $morphClass = (new ProcessAction)->getMorphClass();
+
+        return $this->where('organization_notifications.notifiable_type', $morphClass)
+            ->whereIn('organization_notifications.notifiable_id', function ($sub) use ($date): void {
+                $sub->select('process_actions.id')
+                    ->from('process_actions')
+                    ->whereDate('registration_date', '>=', $date);
+            });
+    }
+
+    /**
      * Order by the related ProcessAction's registration_date (newest first).
      */
     public function orderedByNotifiableRegistrationDateDesc(): self

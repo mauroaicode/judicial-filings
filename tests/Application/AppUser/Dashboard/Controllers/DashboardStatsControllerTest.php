@@ -135,7 +135,7 @@ it('counts simulated green for plaintiff with recent activity when filtering sev
     $this->freezeTime();
 
     $movingPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
-    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
+    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(50)]);
 
     $movingPlaintiff->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
@@ -169,6 +169,7 @@ it('accepts severity_color none filter', function (): void {
     $withColor->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => 'red',
     ]);
 

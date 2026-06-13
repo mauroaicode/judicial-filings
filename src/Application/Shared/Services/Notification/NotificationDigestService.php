@@ -25,7 +25,7 @@ class NotificationDigestService
         private readonly GroupProcessActionsService $groupProcessActionsService
     ) {}
 
-    public function sendDigest(Organization $organization): void
+    public function sendDigest(Organization $organization, ?array $limitToProcessNumbers = null): void
     {
         $morphClass = (new ProcessAction)->getMorphClass();
 
@@ -39,19 +39,33 @@ class NotificationDigestService
             ->where('organization_notifications.organization_id', $organization->id)
             ->where('organization_notifications.notifiable_type', $morphClass)
             ->where('organization_notifications.is_email_notified', true)
+            ->whereNotNull('organization_notifications.notification_digest_id')
             ->max('process_actions.registration_date');
 
         // 1. Get all pending email notifications for this organization
         $query = $organization->notifications()
-            ->where('is_email_notified', false)
+            ->forActiveOrganizationProcesses($organization->id)
             ->where('notifiable_type', $morphClass)
+            ->where(function ($q): void {
+                $q->where('is_email_notified', false)
+                    ->orWhere(function ($q2): void {
+                        // Recover registration alerts that were marked notified without a digest
+                        // (e.g. race during bulk import or a deleted digest row).
+                        $q2->whereNull('notification_digest_id')
+                            ->where('notification_type', 'actuacion_registro');
+                    });
+            })
             ->orderedByNotifiableRegistrationDateDesc()
             ->with(['notifiable.process']);
+
+        if ($limitToProcessNumbers !== null && $limitToProcessNumbers !== []) {
+            $query->forProcessNumbers($limitToProcessNumbers);
+        }
 
         // If we have a prior successful digest, restrict to actuaciones registered on or
         // after that date — prevents flooding clients with historical backlog.
         if ($lastNotifiedRegistrationDate !== null) {
-            $query->whereHas('notifiable', fn ($q) => $q->whereDate('registration_date', '>=', $lastNotifiedRegistrationDate));
+            $query->forProcessActionRegistrationDateOnOrAfter($lastNotifiedRegistrationDate);
         }
 
         $notifications = $query->get();
@@ -201,6 +215,7 @@ class NotificationDigestService
 
             // Check if any notification in this group is an alert
             $isAlert = $group->contains('notification_type', 'actuacion_alerta');
+            $isRegistrationAlert = $group->contains('notification_type', 'actuacion_registro');
             $matchedKeywords = null;
             $alertHighlights = [];
 
@@ -234,6 +249,7 @@ class NotificationDigestService
                 'term_end_date' => $action->end_date ? DateFormatHelper::formatDate($action->end_date) : null,
                 'registration_date' => DateFormatHelper::formatDate($action->registration_date),
                 'is_alert' => $isAlert,
+                'is_registration_alert' => $isRegistrationAlert,
                 'matched_keywords' => $matchedKeywords,
                 'alert_highlights' => $alertHighlights,
             ];

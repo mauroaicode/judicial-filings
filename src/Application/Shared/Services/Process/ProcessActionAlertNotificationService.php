@@ -35,10 +35,50 @@ readonly class ProcessActionAlertNotificationService
             ]);
 
         foreach ($organizations as $organization) {
-            $this->notifyNewAction($action, $organization->id);
-
-            $this->processAlertsForOrganization($action, $organization);
+            $this->handleForOrganization($action, $process, $organization->id, 'actuacion');
         }
+    }
+
+    /**
+     * Notify a single organization only (used during manual/bulk registration).
+     */
+    public function handleForOrganization(
+        ProcessAction $action,
+        Process $process,
+        string $organizationId,
+        string $baseNotificationType = 'actuacion'
+    ): void {
+        $organization = Organization::query()->find($organizationId);
+
+        if ($organization === null) {
+            return;
+        }
+
+        $organization->load(['keywords' => fn ($q) => $q->where('status', KeywordStatus::ACTIVE)]);
+
+        $this->notifyNewAction($action, $organizationId, $baseNotificationType);
+        $this->processAlertsForOrganization($action, $organization);
+    }
+
+    /**
+     * Registration/import: list individual actuaciones in app-user notifications and queue digest rows.
+     */
+    public function handleForOrganizationRegistration(
+        ProcessAction $action,
+        Process $process,
+        string $organizationId,
+    ): void {
+        $organization = Organization::query()->find($organizationId);
+
+        if ($organization === null) {
+            return;
+        }
+
+        $organization->load(['keywords' => fn ($q) => $q->where('status', KeywordStatus::ACTIVE)]);
+
+        $this->notifyNewAction($action, $organizationId, 'actuacion');
+        $this->notifyNewAction($action, $organizationId, 'actuacion_registro');
+        $this->processAlertsForOrganization($action, $organization);
     }
 
     /**
@@ -114,9 +154,9 @@ readonly class ProcessActionAlertNotificationService
     /**
      * Dispatch a standard "new action" notification.
      */
-    private function notifyNewAction(ProcessAction $action, string $organizationId): void
+    private function notifyNewAction(ProcessAction $action, string $organizationId, string $notificationType = 'actuacion'): void
     {
-        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion');
+        $this->createNotificationAndDispatch($action, $organizationId, $notificationType);
     }
 
     /**

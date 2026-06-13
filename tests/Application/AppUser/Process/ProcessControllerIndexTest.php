@@ -69,7 +69,7 @@ it('returns processes for user organization', function (): void {
     expect($response->json('total'))->toBe(3);
 });
 
-it('returns green alert_level when process has activity within 30 days', function (): void {
+it('returns green alert_level when process has activity within 45 days', function (): void {
     $this->freezeTime();
 
     $process = Process::factory()->create([
@@ -91,7 +91,7 @@ it('returns green alert_level when process has activity within 30 days', functio
     expect($response->json('data.0.alert_level'))->toBe('green');
 });
 
-it('does not force green alert_level for defendant within 30 days', function (): void {
+it('returns red alert_level for defendant with activity within 45 days', function (): void {
     $this->freezeTime();
 
     $process = Process::factory()->create([
@@ -102,7 +102,7 @@ it('does not force green alert_level for defendant within 30 days', function ():
         'interest_date' => now()->toDateString(),
         'is_active' => true,
         'lawyer_role' => 'defendant',
-        // inactivity_alert_level intentionally null
+        'inactivity_alert_level' => null,
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -110,7 +110,7 @@ it('does not force green alert_level for defendant within 30 days', function ():
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data.0.alert_level'))->toBeNull();
+    expect($response->json('data.0.alert_level'))->toBe('red');
 });
 
 it('does not return processes from other organizations', function (): void {
@@ -429,7 +429,7 @@ it('filters processes by severity_color green including simulated moving plainti
     $this->freezeTime();
 
     $movingPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
-    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
+    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(50)]);
 
     $movingPlaintiff->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
@@ -453,12 +453,12 @@ it('filters processes by severity_color green including simulated moving plainti
     expect($response->json('data.0.alert_level'))->toBe('green');
 });
 
-it('filters processes by severity_color none excluding recent-moving plaintiffs', function (): void {
+it('filters processes by severity_color none when role or last activity is missing', function (): void {
     $this->freezeTime();
 
     $recentPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
-    $oldPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
-    $recentDefendant = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
+    $withoutRole = Process::factory()->create(['last_activity_date' => now()->subDays(40)]);
+    $withoutActivity = Process::factory()->create(['last_activity_date' => null]);
 
     $recentPlaintiff->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
@@ -466,13 +466,13 @@ it('filters processes by severity_color none excluding recent-moving plaintiffs'
         'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => null,
     ]);
-    $oldPlaintiff->organizations()->attach($this->organization->id, [
+    $withoutRole->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
-        'lawyer_role' => 'plaintiff',
+        'lawyer_role' => null,
         'inactivity_alert_level' => null,
     ]);
-    $recentDefendant->organizations()->attach($this->organization->id, [
+    $withoutActivity->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
         'lawyer_role' => 'defendant',
@@ -483,11 +483,10 @@ it('filters processes by severity_color none excluding recent-moving plaintiffs'
         ->getJson('/api/app-user/processes?severity_color=none');
 
     $response->assertStatus(200);
-    // Should include old plaintiff + recent defendant, but exclude recent plaintiff (would show green).
     expect($response->json('data'))->toHaveCount(2);
     $numbers = collect($response->json('data'))->pluck('process_number')->all();
-    expect($numbers)->toContain($oldPlaintiff->process_number);
-    expect($numbers)->toContain($recentDefendant->process_number);
+    expect($numbers)->toContain($withoutRole->process_number);
+    expect($numbers)->toContain($withoutActivity->process_number);
     expect($numbers)->not->toContain($recentPlaintiff->process_number);
 });
 

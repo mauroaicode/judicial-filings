@@ -31,6 +31,7 @@ class RegisterProcessServiceAiChatTest extends TestCase
 
         $consultMock = Mockery::mock(JudicialBranchConsultService::class);
         $syncMock = Mockery::mock(ProcessSyncService::class);
+        $syncMock->shouldReceive('syncForRegistration')->byDefault();
 
         $this->service = new RegisterProcessService($consultMock, $syncMock);
     }

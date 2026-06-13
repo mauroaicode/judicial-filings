@@ -13,6 +13,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Random\RandomException;
+use Src\Application\Admin\Process\Services\ProcessImportBatchService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
@@ -64,6 +65,7 @@ class ImportRadicadoJob implements ShouldQueue
                 $this->organizationId,
                 null,
                 $seed,
+                deferRegistrationDigest: true,
             );
 
             $this->incrementBatchSuccess($result->registeredCount);
@@ -71,6 +73,8 @@ class ImportRadicadoJob implements ShouldQueue
             if ($result->hasMultipleInstances) {
                 $this->incrementMultipleInstancesCount();
             }
+
+            $this->tryDispatchFinalizeImportBatch();
 
             $this->log('info', 'Import radicado finished successfully', [
                 'registered_count' => $result->registeredCount,
@@ -303,6 +307,8 @@ class ImportRadicadoJob implements ShouldQueue
                 'errors' => $errors,
             ]);
         });
+
+        $this->tryDispatchFinalizeImportBatch();
     }
 
     /**
@@ -314,6 +320,11 @@ class ImportRadicadoJob implements ShouldQueue
             ->where('id', $this->processImportBatchId)
             ->lockForUpdate()
             ->first();
+    }
+
+    private function tryDispatchFinalizeImportBatch(): void
+    {
+        resolve(ProcessImportBatchService::class)->tryDispatchFinalize($this->processImportBatchId);
     }
 
     /**
