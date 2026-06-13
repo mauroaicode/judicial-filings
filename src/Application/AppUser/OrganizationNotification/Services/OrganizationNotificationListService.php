@@ -10,6 +10,7 @@ use Illuminate\Support\Collection;
 use Src\Application\AppUser\OrganizationNotification\Resources\OrganizationNotificationListResource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
+use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\ProcessAction;
@@ -17,6 +18,10 @@ use Src\Domain\Process\Models\ProcessAction;
 readonly class OrganizationNotificationListService
 {
     private const VALID_TYPES = ['actuacion', 'actuacion_alerta'];
+
+    public function __construct(
+        private OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+    ) {}
 
     public function handle(string $organizationId, string $type, bool $viewed, int $perPage, int $page, ?string $alertSlug = null): OrganizationNotificationListResource
     {
@@ -51,6 +56,8 @@ readonly class OrganizationNotificationListService
                 });
             }
         }
+
+        $this->registrationCutoffService->applyBellDisplayFilter($query, $organizationId);
 
         return $query
             ->orderedByCreatedAt()

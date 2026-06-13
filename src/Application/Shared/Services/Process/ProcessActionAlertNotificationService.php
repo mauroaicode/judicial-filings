@@ -7,6 +7,7 @@ namespace Src\Application\Shared\Services\Process;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
@@ -18,7 +19,8 @@ use Src\Domain\Process\Models\ProcessActionAlertHighlight;
 readonly class ProcessActionAlertNotificationService
 {
     public function __construct(
-        private ProcessActionKeywordDetectionService $keywordDetection
+        private ProcessActionKeywordDetectionService $keywordDetection,
+        private OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
     ) {}
 
     /**
@@ -207,6 +209,18 @@ readonly class ProcessActionAlertNotificationService
             return;
         }
 
+        if ($this->shouldSkipHistoricalActuacionNotification($action, $organizationId, $notificationType)) {
+            Log::channel($logChannel)->info('ProcessActionAlertNotificationService: skipping historical actuacion notification', [
+                'action_id' => $action->id,
+                'organization_id' => $organizationId,
+                'type' => $notificationType,
+                'registration_date' => $action->registration_date->format('Y-m-d'),
+                'floor' => $this->registrationCutoffService->resolveAppNotificationRegistrationFloor(),
+            ]);
+
+            return;
+        }
+
         OrganizationNotification::query()->firstOrCreate(
             [
                 'organization_id' => $organizationId,
@@ -229,5 +243,17 @@ readonly class ProcessActionAlertNotificationService
                 'color' => $severityColor,
                 'action_id' => $action->id,
             ]);
+    }
+
+    private function shouldSkipHistoricalActuacionNotification(
+        ProcessAction $action,
+        string $organizationId,
+        string $notificationType,
+    ): bool {
+        if (! in_array($notificationType, ['actuacion', 'actuacion_alerta'], true)) {
+            return false;
+        }
+
+        return ! $this->registrationCutoffService->isEligibleForAppActuacionNotification($action, $organizationId);
     }
 }
