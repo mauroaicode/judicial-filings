@@ -17,6 +17,7 @@ use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\ProcessRegistrationSyncModeResolverService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Data\ProcessFilterData;
+use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Data\ToggleProcessStatusData;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
@@ -78,7 +79,9 @@ readonly class ProcessController
             abort(404, __('process.not_found'));
         }
 
-        $subjects = $process->subjects->sort(function ($a, $b): int {
+        $uniqueSubjects = ProcessSubjectIdentityHelper::deduplicate($process->subjects);
+
+        $subjects = $uniqueSubjects->sort(function ($a, $b): int {
             $getPriority = function ($type): int {
                 $type = mb_strtoupper((string) $type);
                 if (str_contains($type, mb_strtoupper(ProcessSubject::TYPE_PLAINTIFF))) {
@@ -105,7 +108,7 @@ readonly class ProcessController
         return response()->json([
             'process' => ProcessDetailResource::fromModel($process, $organization->id)->toArray(),
             'subjects' => $subjects->values()->all(),
-            'subjects_summary' => ProcessSubjectSummaryHelper::summarize($process->subjects),
+            'subjects_summary' => ProcessSubjectSummaryHelper::summarize($uniqueSubjects),
         ]);
     }
 

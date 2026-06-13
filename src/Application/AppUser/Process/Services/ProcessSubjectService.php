@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Services;
 
+use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
@@ -77,16 +78,27 @@ readonly class ProcessSubjectService
 
         $tipoSujeto = (string) ($subjectData['tipoSujeto'] ?? '');
         $subjectType = $this->normalizeSubjectType($tipoSujeto);
+        $name = (string) ($subjectData['nombreRazonSocial'] ?? '');
+        $identification = isset($subjectData['identificacion']) ? (string) $subjectData['identificacion'] : null;
 
-        $subject = ProcessSubject::query()->firstOrCreate(
-            ['subject_registration_id' => $subjectRegistrationId],
-            [
-                'subject_type' => $subjectType,
-                'is_cited' => (bool) ($subjectData['esEmplazado'] ?? false),
-                'identification' => isset($subjectData['identificacion']) ? (string) $subjectData['identificacion'] : null,
-                'name_or_business_name' => (string) ($subjectData['nombreRazonSocial'] ?? ''),
-            ]
+        $subject = ProcessSubjectIdentityHelper::findCanonicalForRadicado(
+            $process->process_number,
+            $subjectType,
+            $name,
+            $identification,
         );
+
+        if (! $subject instanceof ProcessSubject) {
+            $subject = ProcessSubject::query()->firstOrCreate(
+                ['subject_registration_id' => $subjectRegistrationId],
+                [
+                    'subject_type' => $subjectType,
+                    'is_cited' => (bool) ($subjectData['esEmplazado'] ?? false),
+                    'identification' => $identification,
+                    'name_or_business_name' => $name,
+                ]
+            );
+        }
 
         $process->subjects()->syncWithoutDetaching([$subject->id]);
     }

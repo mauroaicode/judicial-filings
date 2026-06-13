@@ -453,6 +453,45 @@ it('filters processes by severity_color green including simulated moving plainti
     expect($response->json('data.0.alert_level'))->toBe('green');
 });
 
+it('filters by severity_color red using the representative instance only', function (): void {
+    $this->freezeTime();
+
+    $sharedNumber = '76001333301320170008888';
+
+    $olderRedInstance = Process::factory()->create([
+        'process_number' => $sharedNumber,
+        'last_activity_date' => now()->subDays(100),
+    ]);
+    $recentGreenInstance = Process::factory()->create([
+        'process_number' => $sharedNumber,
+        'last_activity_date' => now()->subDays(10),
+        'has_multiple_instances' => true,
+    ]);
+
+    foreach ([$olderRedInstance, $recentGreenInstance] as $process) {
+        $process->organizations()->attach($this->organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'lawyer_role' => 'plaintiff',
+        ]);
+    }
+
+    $redResponse = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?severity_color=red');
+
+    $redResponse->assertStatus(200);
+    expect($redResponse->json('data'))->toHaveCount(0);
+    expect($redResponse->json('total'))->toBe(0);
+
+    $greenResponse = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?severity_color=green');
+
+    $greenResponse->assertStatus(200);
+    expect($greenResponse->json('data'))->toHaveCount(1);
+    expect($greenResponse->json('data.0.process_number'))->toBe($sharedNumber);
+    expect($greenResponse->json('data.0.alert_level'))->toBe('green');
+});
+
 it('filters processes by severity_color none when role or last activity is missing', function (): void {
     $this->freezeTime();
 

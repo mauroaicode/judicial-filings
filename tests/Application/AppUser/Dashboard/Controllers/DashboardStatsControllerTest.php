@@ -223,6 +223,76 @@ it('updates semaphore counts when lawyer_role filter is applied', function (): v
     $response->assertJsonPath('semaphores.red', 0);
 });
 
+it('counts each radicado in only one semaphore bucket using the representative instance', function (): void {
+    $this->freezeTime();
+
+    $sharedNumber = '76001333301320170009999';
+
+    $olderRedInstance = Process::factory()->create([
+        'process_number' => $sharedNumber,
+        'last_activity_date' => now()->subDays(100),
+    ]);
+    $recentGreenInstance = Process::factory()->create([
+        'process_number' => $sharedNumber,
+        'last_activity_date' => now()->subDays(10),
+        'has_multiple_instances' => true,
+    ]);
+
+    foreach ([$olderRedInstance, $recentGreenInstance] as $process) {
+        $process->organizations()->attach($this->organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'lawyer_role' => 'plaintiff',
+        ]);
+    }
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+    $response->assertJsonPath('semaphores.red', 0);
+    $response->assertJsonPath('semaphores.yellow', 0);
+    $response->assertJsonPath('semaphores.green', 1);
+});
+
+it('matches total_processes with semaphores red when severity_color filter is applied', function (): void {
+    $this->freezeTime();
+
+    $sharedNumber = '76001333301320170007777';
+
+    $olderRedInstance = Process::factory()->create([
+        'process_number' => $sharedNumber,
+        'last_activity_date' => now()->subDays(100),
+    ]);
+    $recentGreenInstance = Process::factory()->create([
+        'process_number' => $sharedNumber,
+        'last_activity_date' => now()->subDays(10),
+    ]);
+    $onlyRed = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+
+    foreach ([$olderRedInstance, $recentGreenInstance] as $process) {
+        $process->organizations()->attach($this->organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'lawyer_role' => 'plaintiff',
+        ]);
+    }
+
+    $onlyRed->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?severity_color=red');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+    $response->assertJsonPath('semaphores.red', 1);
+});
+
 it('accepts severity_color none filter', function (): void {
     $waiting = Process::factory()->create(['last_activity_date' => null]);
     $withColor = Process::factory()->create(['last_activity_date' => now()]);
