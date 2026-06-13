@@ -39,6 +39,29 @@ it('classifies demandado principal as defendant', function (): void {
     expect($summary['others_count'])->toBe(0);
 });
 
+it('deduplicates the same person linked twice through different registration ids', function (): void {
+    $subjects = new Collection([
+        ProcessSubject::factory()->make([
+            'subject_type' => 'Demandante',
+            'name_or_business_name' => 'JULIANA MONDRAGON MANCHOLA',
+            'subject_registration_id' => 19617709,
+            'identification' => null,
+        ]),
+        ProcessSubject::factory()->make([
+            'subject_type' => 'Demandante',
+            'name_or_business_name' => 'JULIANA MONDRAGON MANCHOLA',
+            'subject_registration_id' => 24955424,
+            'identification' => null,
+        ]),
+    ]);
+
+    $summary = ProcessSubjectSummaryHelper::summarize($subjects);
+
+    expect($summary['plaintiffs_count'])->toBe(1);
+    expect($summary['subjects_count'])->toBe(1);
+    expect($summary['plaintiffs'])->toBe(['Juliana Mondragon Manchola']);
+});
+
 function makeSubjectSummary(string $type, string $name): ProcessSubject
 {
     return ProcessSubject::factory()->make([

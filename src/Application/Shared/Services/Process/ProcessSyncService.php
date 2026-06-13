@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Notification\NotificationDigestService;
+use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Traits\MapsJudicialActuacionTrait;
 use Src\Application\Shared\Traits\MapsJudicialSujetoTrait;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -253,10 +254,20 @@ class ProcessSyncService
             }
 
             $attributes = $this->mapApiSujetoToAttributes($apiSujeto);
-            $subject = ProcessSubject::query()->firstOrCreate(
-                ['subject_registration_id' => $idReg],
-                $attributes
+
+            $subject = ProcessSubjectIdentityHelper::findCanonicalForRadicado(
+                $process->process_number,
+                $attributes['subject_type'],
+                $attributes['name_or_business_name'],
+                $attributes['identification'],
             );
+
+            if (! $subject instanceof ProcessSubject) {
+                $subject = ProcessSubject::query()->firstOrCreate(
+                    ['subject_registration_id' => $idReg],
+                    $attributes
+                );
+            }
 
             $process->subjects()->syncWithoutDetaching([$subject->id]);
         }
@@ -604,23 +615,58 @@ class ProcessSyncService
     {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
-        // Collect all unique subject UUIDs from every instance in this radicado.
-        $allSubjectIds = [];
+        /** @var array<string, ProcessSubject> $canonicalByIdentity */
+        $canonicalByIdentity = [];
+
         foreach ($processes as $process) {
-            foreach ($process->subjects()->pluck('process_subjects.id') as $id) {
-                $allSubjectIds[(string) $id] = true;
+            foreach ($process->subjects as $subject) {
+                $identityKey = ProcessSubjectIdentityHelper::key($subject);
+
+                if (! isset($canonicalByIdentity[$identityKey])) {
+                    $canonicalByIdentity[$identityKey] = $subject;
+
+                    continue;
+                }
+
+                $canonicalByIdentity[$identityKey] = ProcessSubjectIdentityHelper::pickCanonical(
+                    collect([$canonicalByIdentity[$identityKey], $subject]),
+                );
             }
         }
 
-        if ($allSubjectIds === []) {
+        if ($canonicalByIdentity === []) {
             return;
         }
 
-        $subjectIds = array_keys($allSubjectIds);
+        $canonicalIds = collect($canonicalByIdentity)
+            ->map(fn (ProcessSubject $subject): string => (string) $subject->id)
+            ->values()
+            ->all();
 
         foreach ($processes as $process) {
-            $existing = $process->subjects()->pluck('process_subjects.id')->map(fn ($v): string => (string) $v)->all();
-            $missing = array_diff($subjectIds, $existing);
+            $subjects = $process->subjects()->get();
+            $detachIds = [];
+
+            foreach ($subjects as $subject) {
+                $identityKey = ProcessSubjectIdentityHelper::key($subject);
+                $canonicalId = (string) $canonicalByIdentity[$identityKey]->id;
+
+                if ((string) $subject->id !== $canonicalId) {
+                    $detachIds[] = $subject->id;
+                }
+            }
+
+            if ($detachIds !== []) {
+                $process->subjects()->detach($detachIds);
+
+                Log::channel($logChannel)->info('ProcessSyncService: removed duplicate subject links from instance', [
+                    'process_id' => $process->id,
+                    'subjects_removed' => count($detachIds),
+                ]);
+            }
+
+            $existing = $process->subjects()->pluck('process_subjects.id')->map(fn ($value): string => (string) $value)->all();
+            $missing = array_diff($canonicalIds, $existing);
 
             if ($missing !== []) {
                 $process->subjects()->syncWithoutDetaching($missing);

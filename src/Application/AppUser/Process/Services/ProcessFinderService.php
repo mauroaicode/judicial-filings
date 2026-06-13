@@ -9,7 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\LengthAwarePaginator as LengthAwarePaginatorImpl;
 use Src\Application\AppUser\Process\Resources\ProcessIndexResource;
 use Src\Application\Shared\Data\ProcessFilterData;
-use Src\Application\Shared\Helpers\ProcessSeverityColorFilter;
+use Src\Application\Shared\Helpers\ProcessRepresentativeSeverityFilter;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 
@@ -38,30 +38,7 @@ readonly class ProcessFinderService
         $nonPivotFilters->severity_color = null;
         $nonPivotFilters->status = null;
 
-        $baseQuery = (fn () => Process::query()
-            // Strict organization-aware pivot filtering
-            ->whereHas('organizations', function (Builder $query) use ($organizationId, $filters): void {
-                $query->where('organizations.id', $organizationId);
-
-                if ($filters->status) {
-                    $isActive = OrganizationProcessStatus::tryFrom($filters->status) === OrganizationProcessStatus::ACTIVE;
-                    $query->where('organization_processes.is_active', $isActive);
-                }
-
-                if ($filters->lawyer_role) {
-                    if ($filters->lawyer_role === 'none') {
-                        $query->whereNull('organization_processes.lawyer_role');
-                    } else {
-                        $query->where('organization_processes.lawyer_role', $filters->lawyer_role);
-                    }
-                }
-
-                if ($filters->severity_color) {
-                    ProcessSeverityColorFilter::apply($query, $filters->severity_color);
-                }
-            })
-            // Apply all OTHER non-pivot filters (court, dates, etc.)
-            ->filters($nonPivotFilters));
+        $baseQuery = fn () => $this->buildFilteredProcessQuery($organizationId, $filters, $nonPivotFilters);
 
         $total = $baseQuery()
             ->selectRaw('COUNT(DISTINCT process_number) as total')
@@ -90,26 +67,8 @@ readonly class ProcessFinderService
 
         $processes = Process::query()
             ->whereIn('process_number', $processNumbers)
-            // Apply SAME filters here for consistency in instances
             ->whereHas('organizations', function (Builder $query) use ($organizationId, $filters): void {
-                $query->where('organizations.id', $organizationId);
-                // ... Re-apply pivot logic exactly as in baseQuery for strict results
-                if ($filters->status) {
-                    $isActive = OrganizationProcessStatus::tryFrom($filters->status) === OrganizationProcessStatus::ACTIVE;
-                    $query->where('organization_processes.is_active', $isActive);
-                }
-
-                if ($filters->lawyer_role) {
-                    if ($filters->lawyer_role === 'none') {
-                        $query->whereNull('organization_processes.lawyer_role');
-                    } else {
-                        $query->where('organization_processes.lawyer_role', $filters->lawyer_role);
-                    }
-                }
-
-                if ($filters->severity_color) {
-                    ProcessSeverityColorFilter::apply($query, $filters->severity_color);
-                }
+                $this->applyOrganizationPivotFilters($query, $organizationId, $filters);
             })
             ->filters($nonPivotFilters)
             ->with(['subjects', 'organizations' => function ($query) use ($organizationId): void {
@@ -127,9 +86,9 @@ readonly class ProcessFinderService
         foreach ($processNumbers as $position => $processNumber) {
             $instances = $byNumber->get($processNumber, collect())->values();
 
-            // The instances are already filtered by the query above.
-            // Just take the first one as representative.
-            $representative = $instances->first();
+            $representative = $instances
+                ->sortByDesc(fn (Process $process): int => $process->last_activity_date?->getTimestamp() ?? 0)
+                ->first();
 
             if (! $representative instanceof Process) {
                 continue;
@@ -156,5 +115,47 @@ readonly class ProcessFinderService
         );
 
         return $paginator->appends(request()->query());
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<Process>
+     */
+    private function buildFilteredProcessQuery(
+        string $organizationId,
+        ProcessFilterData $filters,
+        ProcessFilterData $nonPivotFilters,
+    ): \Illuminate\Database\Eloquent\Builder {
+        $query = Process::query()
+            ->whereHas('organizations', function (Builder $query) use ($organizationId, $filters): void {
+                $this->applyOrganizationPivotFilters($query, $organizationId, $filters);
+            })
+            ->filters($nonPivotFilters);
+
+        if ($filters->severity_color) {
+            ProcessRepresentativeSeverityFilter::apply($query, $organizationId, $filters->severity_color);
+        }
+
+        return $query;
+    }
+
+    private function applyOrganizationPivotFilters(
+        Builder $query,
+        string $organizationId,
+        ProcessFilterData $filters,
+    ): void {
+        $query->where('organizations.id', $organizationId);
+
+        if ($filters->status) {
+            $isActive = OrganizationProcessStatus::tryFrom($filters->status) === OrganizationProcessStatus::ACTIVE;
+            $query->where('organization_processes.is_active', $isActive);
+        }
+
+        if ($filters->lawyer_role) {
+            if ($filters->lawyer_role === 'none') {
+                $query->whereNull('organization_processes.lawyer_role');
+            } else {
+                $query->where('organization_processes.lawyer_role', $filters->lawyer_role);
+            }
+        }
     }
 }

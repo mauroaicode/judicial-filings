@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Src\Application\Admin\Process\Resources\AdminProcessOrganizationResource;
 use Src\Application\Admin\Process\Resources\AdminProcessSubjectResource;
 use Src\Application\Admin\Process\Services\AdminProcessDetailService;
+use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
 use Src\Domain\Process\Models\Process;
@@ -49,7 +50,9 @@ readonly class AdminProcessDetailController
             $organizationId = (string) $org->id;
         }
 
-        $subjects = $process->subjects->sort(function ($a, $b): int {
+        $uniqueSubjects = ProcessSubjectIdentityHelper::deduplicate($process->subjects);
+
+        $subjects = $uniqueSubjects->sort(function ($a, $b): int {
             $getPriority = function ($type): int {
                 $type = mb_strtoupper((string) $type);
                 if (str_contains($type, mb_strtoupper(ProcessSubject::TYPE_PLAINTIFF))) {
@@ -97,7 +100,7 @@ readonly class AdminProcessDetailController
         return response()->json([
             'process' => $processPayload,
             'subjects' => $subjects->values()->all(),
-            'subjects_summary' => ProcessSubjectSummaryHelper::summarize($process->subjects),
+            'subjects_summary' => ProcessSubjectSummaryHelper::summarize($uniqueSubjects),
             'organizations' => [
                 'count' => $organizationItems->count(),
                 'items' => $organizationItems->all(),

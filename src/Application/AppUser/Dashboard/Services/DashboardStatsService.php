@@ -8,7 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Dashboard\Resources\DashboardStatsResource;
 use Src\Application\Shared\Data\ProcessFilterData;
-use Src\Application\Shared\Helpers\ProcessSeverityColorFilter;
+use Src\Application\Shared\Helpers\ProcessRepresentativeSeverityFilter;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
@@ -79,18 +79,43 @@ readonly class DashboardStatsService
     }
 
     /**
+     * Counts one semaphore color per radicado, using the same representative instance
+     * as the process list (latest last_activity_date among filtered instances).
+     *
      * @return array{red: int, yellow: int, green: int}
      */
     private function getSemaphoreCounts(string $organizationId, ProcessFilterData $filters): array
     {
-        $counts = [];
+        $baseFilters = clone $filters;
+        $baseFilters->severity_color = null;
 
-        foreach (SeverityColor::cases() as $color) {
-            $colorFilters = clone $filters;
-            $colorFilters->severity_color = $color->value;
-            $counts[$color->value] = $this->countDistinctRadicados(
-                $this->buildFilteredProcessQuery($organizationId, $colorFilters),
-            );
+        $processes = $this->buildFilteredProcessQuery($organizationId, $baseFilters)
+            ->select(['processes.id', 'processes.process_number', 'processes.last_activity_date'])
+            ->with(['organizations' => function ($query) use ($organizationId): void {
+                $query->where('organizations.id', $organizationId);
+            }])
+            ->get();
+
+        $counts = [
+            SeverityColor::RED->value => 0,
+            SeverityColor::YELLOW->value => 0,
+            SeverityColor::GREEN->value => 0,
+        ];
+
+        foreach ($processes->groupBy('process_number') as $instances) {
+            $representative = $instances
+                ->sortByDesc(fn (Process $process): int => $process->last_activity_date?->getTimestamp() ?? 0)
+                ->first();
+
+            if (! $representative instanceof Process) {
+                continue;
+            }
+
+            $color = ProcessRepresentativeSeverityFilter::resolveColor($representative, $organizationId);
+
+            if ($color !== null && array_key_exists($color, $counts)) {
+                $counts[$color]++;
+            }
         }
 
         return $counts;
@@ -111,7 +136,7 @@ readonly class DashboardStatsService
         $nonPivotFilters->severity_color = null;
         $nonPivotFilters->status = null;
 
-        return Process::query()
+        $query = Process::query()
             ->whereHas('organizations', function (Builder $query) use ($organizationId, $filters): void {
                 $query->where('organizations.id', $organizationId);
 
@@ -127,12 +152,14 @@ readonly class DashboardStatsService
                         $query->where('organization_processes.lawyer_role', $filters->lawyer_role);
                     }
                 }
-
-                if ($filters->severity_color) {
-                    ProcessSeverityColorFilter::apply($query, $filters->severity_color);
-                }
             })
             ->filters($nonPivotFilters);
+
+        if ($filters->severity_color) {
+            ProcessRepresentativeSeverityFilter::apply($query, $organizationId, $filters->severity_color);
+        }
+
+        return $query;
     }
 
     /**

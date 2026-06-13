@@ -26,6 +26,8 @@ final class ProcessSubjectSummaryHelper
      */
     public static function summarize(Collection $subjects): array
     {
+        $subjects = ProcessSubjectIdentityHelper::deduplicate($subjects);
+
         $grouped = self::group($subjects);
 
         $plaintiffs = self::mapSubjectNames($grouped['plaintiffs']);
