@@ -11,6 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
@@ -24,21 +25,58 @@ class CheckInactiveProcessesJob implements ShouldQueue
      */
     public function handle(): void
     {
-        // Plaintiff >= 90 days => Red
-        $this->evaluateInactivity(ProcessLawyerRole::PLAINTIFF->value, 90, null, 'red', 'inactividad_roja');
+        $yellowThreshold = ProcessAlertLevelHelper::yellowThresholdDays();
+        $redThreshold = ProcessAlertLevelHelper::redThresholdDays();
 
-        // Plaintiff 45-89 days => Yellow
-        $this->evaluateInactivity(ProcessLawyerRole::PLAINTIFF->value, 45, 90, 'yellow', 'inactividad_amarilla');
+        // Demandante: inactividad prolongada es mala.
+        $this->evaluateByLastActivityDate(
+            ProcessLawyerRole::PLAINTIFF->value,
+            $redThreshold,
+            null,
+            'red',
+            'inactividad_roja',
+        );
+        $this->evaluateByLastActivityDate(
+            ProcessLawyerRole::PLAINTIFF->value,
+            $yellowThreshold,
+            $redThreshold,
+            'yellow',
+            'inactividad_amarilla',
+        );
 
-        // Defendant >= 90 days => Green
-        $this->evaluateInactivity(ProcessLawyerRole::DEFENDANT->value, 90, null, 'green', 'inactividad_verde');
+        // Demandado: actividad reciente es mala; inactividad prolongada es favorable.
+        $this->evaluateByRecentActivity(
+            ProcessLawyerRole::DEFENDANT->value,
+            $yellowThreshold,
+            'red',
+            'actividad_roja',
+        );
+        $this->evaluateByLastActivityDate(
+            ProcessLawyerRole::DEFENDANT->value,
+            $yellowThreshold,
+            $redThreshold,
+            'yellow',
+            'actividad_amarilla',
+        );
+        $this->evaluateByLastActivityDate(
+            ProcessLawyerRole::DEFENDANT->value,
+            $redThreshold,
+            null,
+            'green',
+            'inactividad_verde',
+        );
     }
 
     /**
-     * Evaluate process inactivity based on a set of rules.
+     * Processes whose last activity falls in [minDays, maxDays) days ago.
      */
-    private function evaluateInactivity(string $role, int $minDays, ?int $maxDays, string $targetAlertLevel, string $notificationType): void
-    {
+    private function evaluateByLastActivityDate(
+        string $role,
+        int $minDays,
+        ?int $maxDays,
+        string $targetAlertLevel,
+        string $notificationType,
+    ): void {
         $query = Process::query()
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
                 $q->where('organization_processes.lawyer_role', $role)
@@ -54,8 +92,41 @@ class CheckInactiveProcessesJob implements ShouldQueue
             $query->where('last_activity_date', '>', \Illuminate\Support\Facades\Date::now()->subDays($maxDays));
         }
 
-        $processes = $query->get();
+        $this->persistAlertsForProcesses($query->get(), $role, $targetAlertLevel, $notificationType);
+    }
 
+    /**
+     * Processes with activity more recent than the threshold (demandado en riesgo).
+     */
+    private function evaluateByRecentActivity(
+        string $role,
+        int $withinDays,
+        string $targetAlertLevel,
+        string $notificationType,
+    ): void {
+        $query = Process::query()
+            ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
+                $q->where('organization_processes.lawyer_role', $role)
+                    ->where('organization_processes.is_active', true)
+                    ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQ) use ($targetAlertLevel): void {
+                        $subQ->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)
+                            ->orWhereNull('organization_processes.inactivity_alert_level');
+                    });
+            })
+            ->where('last_activity_date', '>', \Illuminate\Support\Facades\Date::now()->subDays($withinDays));
+
+        $this->persistAlertsForProcesses($query->get(), $role, $targetAlertLevel, $notificationType);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Process>  $processes
+     */
+    private function persistAlertsForProcesses(
+        \Illuminate\Support\Collection $processes,
+        string $role,
+        string $targetAlertLevel,
+        string $notificationType,
+    ): void {
         foreach ($processes as $process) {
             DB::transaction(function () use ($process, $role, $targetAlertLevel, $notificationType): void {
                 $organizationsToAlert = $process->organizations()
@@ -72,17 +143,18 @@ class CheckInactiveProcessesJob implements ShouldQueue
                 }
 
                 foreach ($organizationsToAlert as $organization) {
-                    // If target is yellow, do not downgrade from red
-                    if ($targetAlertLevel === 'yellow' && $organization->pivot->inactivity_alert_level === 'red') {
+                    if (
+                        $targetAlertLevel === 'yellow'
+                        && $role === ProcessLawyerRole::PLAINTIFF->value
+                        && $organization->pivot->inactivity_alert_level === 'red'
+                    ) {
                         continue;
                     }
 
-                    // Update pivot
                     $process->organizations()->updateExistingPivot($organization->id, [
                         'inactivity_alert_level' => $targetAlertLevel,
                     ]);
 
-                    // Create the notification record
                     OrganizationNotification::query()->firstOrCreate(
                         [
                             'organization_id' => $organization->id,

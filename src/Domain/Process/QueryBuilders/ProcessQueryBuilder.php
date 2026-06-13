@@ -441,7 +441,7 @@ class ProcessQueryBuilder extends Builder
         }
 
         $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($color): void {
-            $query->where('organization_processes.inactivity_alert_level', $color);
+            \Src\Application\Shared\Helpers\ProcessSeverityColorFilter::apply($query, $color);
         });
     }
 

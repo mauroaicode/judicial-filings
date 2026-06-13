@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Process\Services;
 
-use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Random\RandomException;
 use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Shared\DTOs\ProcessImportReport;
+use Src\Application\Shared\Jobs\FinalizeProcessImportBatchJob;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
-use Src\Application\Shared\Notifications\ProcessImportFinishedNotification;
 use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
+use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Throwable;
 
@@ -20,6 +20,7 @@ readonly class ProcessImportBatchService
 {
     public function __construct(
         private ImportReportNotificationService $notificationService,
+        private ProcessSyncService $processSyncService,
     ) {}
 
     /**
@@ -39,7 +40,6 @@ readonly class ProcessImportBatchService
         $laravelBatch = Bus::batch($jobs)
             ->allowFailures()
             ->onQueue($queueName)
-            ->then(fn (Batch $b) => $this->onBatchCompleted($b->id))
             ->dispatch();
 
         $batch->update(['laravel_batch_id' => $laravelBatch->id]);
@@ -55,18 +55,30 @@ readonly class ProcessImportBatchService
     }
 
     /**
-     * Marks batch as completed, builds the report and dispatches notifications.
-     *
-     * @param  string  $laravelBatchId  Laravel batch identifier
+     * Marks batch as completed, sends import report notifications and builds the
+     * registration consolidado for recent actuaciones (single digest for the whole batch).
      */
-    private function onBatchCompleted(string $laravelBatchId): void
+    public function finalize(string $importBatchId): void
     {
         $importBatch = ProcessImportBatch::query()
             ->with('organization', 'requestedByUser')
-            ->where('laravel_batch_id', $laravelBatchId)
-            ->first();
+            ->find($importBatchId);
 
-        if (! $importBatch) {
+        if (! $importBatch instanceof ProcessImportBatch) {
+            return;
+        }
+
+        if ($importBatch->status === ProcessImportBatch::STATUS_COMPLETED) {
+            try {
+                $this->dispatchImportRegistrationDigest($importBatch);
+            } catch (\Throwable $e) {
+                Log::channel(config('process-import.log_channel', 'process_import'))
+                    ->error('Import batch registration digest failed', [
+                        'batch_id' => $importBatch->id,
+                        'error' => $e->getMessage(),
+                    ]);
+            }
+
             return;
         }
 
@@ -74,16 +86,62 @@ readonly class ProcessImportBatchService
 
         $report = $this->buildReport($importBatch);
 
-        $this->notificationService->notifyAdmin($report);
-        $this->notificationService->notifyOrganization($report, $importBatch->organization_id);
-
-        if ($importBatch->requestedByUser) {
-            $importBatch->requestedByUser->notify(new ProcessImportFinishedNotification($importBatch));
+        try {
+            $this->notificationService->notifyAdmin($report);
+            $this->notificationService->notifyOrganization($report, $importBatch->organization_id);
+        } catch (\Throwable $e) {
+            Log::channel(config('process-import.log_channel', 'process_import'))
+                ->error('Import batch notification dispatch failed', [
+                    'batch_id' => $importBatch->id,
+                    'error' => $e->getMessage(),
+                ]);
         }
 
-        $importBatch->organization->appUsers->each(function ($appUser) use ($importBatch): void {
-            $appUser->notify(new ProcessImportFinishedNotification($importBatch));
-        });
+        try {
+            $this->dispatchImportRegistrationDigest($importBatch);
+        } catch (\Throwable $e) {
+            Log::channel(config('process-import.log_channel', 'process_import'))
+                ->error('Import batch registration digest failed', [
+                    'batch_id' => $importBatch->id,
+                    'error' => $e->getMessage(),
+                ]);
+        }
+    }
+
+    /**
+     * Builds the registration consolidado only for radicados imported in this batch.
+     */
+    private function dispatchImportRegistrationDigest(ProcessImportBatch $importBatch): void
+    {
+        /** @var array<int, string> $processNumbers */
+        $processNumbers = $importBatch->enqueued_process_numbers ?? [];
+
+        $this->processSyncService->dispatchRegistrationDigestIfPending(
+            $importBatch->organization_id,
+            $processNumbers !== [] ? $processNumbers : null,
+        );
+    }
+
+    /**
+     * Dispatches finalize when every radicado job has reported success or failure.
+     */
+    public function tryDispatchFinalize(string $importBatchId): void
+    {
+        $batch = ProcessImportBatch::query()->find($importBatchId);
+
+        if (! $batch instanceof ProcessImportBatch) {
+            return;
+        }
+
+        if ($batch->status !== ProcessImportBatch::STATUS_PROCESSING) {
+            return;
+        }
+
+        if (($batch->success_count + $batch->failed_count) < $batch->total_count) {
+            return;
+        }
+
+        dispatch(new FinalizeProcessImportBatchJob($importBatchId));
     }
 
     /**

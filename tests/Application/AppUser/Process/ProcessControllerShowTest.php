@@ -268,7 +268,9 @@ it('returns green alert_level for plaintiff with recent activity on detail', fun
     expect($response->json('process.lawyer_role'))->toBe('Demandante');
 });
 
-it('returns stored inactivity alert_level on detail when set', function (): void {
+it('returns calculated alert_level on detail from last activity date', function (): void {
+    $this->freezeTime();
+
     $process = Process::factory()->create([
         'last_activity_date' => now()->subDays(5),
     ]);
@@ -284,7 +286,7 @@ it('returns stored inactivity alert_level on detail when set', function (): void
         ->getJson("/api/app-user/processes/{$process->id}");
 
     $response->assertStatus(200);
-    expect($response->json('process.alert_level'))->toBe('yellow');
+    expect($response->json('process.alert_level'))->toBe('green');
 });
 
 it('returns correct status label for active process', function (): void {

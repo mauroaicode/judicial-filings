@@ -61,15 +61,65 @@ it('sets inactivity_alert_level to green and creates green notification for dema
     $job = new CheckInactiveProcessesJob;
     $job->handle();
 
-    // Assert pivot was updated to green
     $pivot = $process->organizations()->first()->pivot;
     expect($pivot->inactivity_alert_level)->toBe('green');
 
-    // Assert organization notification was created for green
     $notification = OrganizationNotification::query()
         ->where('organization_id', $this->organization->id)
         ->where('notifiable_id', $process->id)
         ->where('notification_type', 'inactividad_verde')
+        ->first();
+
+    expect($notification)->not->toBeNull();
+});
+
+it('sets inactivity_alert_level to red and creates red notification for demandado process with recent activity', function (): void {
+    $process = Process::factory()->create([
+        'last_activity_date' => Carbon::now()->subDays(10)->toDateString(),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => ProcessLawyerRole::DEFENDANT->value,
+    ]);
+
+    $job = new CheckInactiveProcessesJob;
+    $job->handle();
+
+    $pivot = $process->organizations()->first()->pivot;
+    expect($pivot->inactivity_alert_level)->toBe('red');
+
+    $notification = OrganizationNotification::query()
+        ->where('organization_id', $this->organization->id)
+        ->where('notifiable_id', $process->id)
+        ->where('notification_type', 'actividad_roja')
+        ->first();
+
+    expect($notification)->not->toBeNull();
+});
+
+it('sets inactivity_alert_level to yellow and creates yellow notification for demandado process inactive 45-89 days', function (): void {
+    $process = Process::factory()->create([
+        'last_activity_date' => Carbon::now()->subDays(50)->toDateString(),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => ProcessLawyerRole::DEFENDANT->value,
+    ]);
+
+    $job = new CheckInactiveProcessesJob;
+    $job->handle();
+
+    $pivot = $process->organizations()->first()->pivot;
+    expect($pivot->inactivity_alert_level)->toBe('yellow');
+
+    $notification = OrganizationNotification::query()
+        ->where('organization_id', $this->organization->id)
+        ->where('notifiable_id', $process->id)
+        ->where('notification_type', 'actividad_amarilla')
         ->first();
 
     expect($notification)->not->toBeNull();

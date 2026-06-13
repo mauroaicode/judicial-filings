@@ -18,16 +18,16 @@ final class ProcessSeverityColorFilter
         match ($severityColor) {
             'none' => self::applyNone($query),
             SeverityColor::GREEN->value => self::applyGreen($query),
+            SeverityColor::RED->value => self::applyRed($query),
+            SeverityColor::YELLOW->value => self::applyYellow($query),
             default => $query->where('organization_processes.inactivity_alert_level', $severityColor),
         };
     }
 
     private static function applyNone(Builder $query): void
     {
-        $cutoff = self::movingCutoffDate();
-
         $query->where(function (Builder $q): void {
-            $q->whereNull('organization_processes.inactivity_alert_level')
+            $q->whereNull('organization_processes.lawyer_role')
                 ->orWhereExists(function (Builder $sub): void {
                     $sub->selectRaw('1')
                         ->from('processes')
@@ -35,48 +35,77 @@ final class ProcessSeverityColorFilter
                         ->whereNull('processes.last_activity_date');
                 });
         });
+    }
 
-        // Exclude plaintiff processes that would display as green (recent activity).
-        $query->where(function (Builder $q) use ($cutoff): void {
-            $q->whereNull('organization_processes.lawyer_role')
-                ->orWhere('organization_processes.lawyer_role', '!=', 'plaintiff')
-                ->orWhereExists(function (Builder $sub) use ($cutoff): void {
+    private static function applyRed(Builder $query): void
+    {
+        $yellowCutoff = self::yellowCutoffDate();
+        $redCutoff = self::redCutoffDate();
+
+        $query->where(function (Builder $q) use ($yellowCutoff, $redCutoff): void {
+            $q->where('organization_processes.inactivity_alert_level', SeverityColor::RED->value)
+                ->orWhere(function (Builder $plaintiff) use ($redCutoff): void {
+                    $plaintiff->where('organization_processes.lawyer_role', 'plaintiff')
+                        ->whereExists(fn (Builder $sub): Builder => self::whereLastActivity($sub, '<=', $redCutoff));
+                })
+                ->orWhere(function (Builder $defendant) use ($yellowCutoff): void {
+                    $defendant->where('organization_processes.lawyer_role', 'defendant')
+                        ->whereExists(fn (Builder $sub): Builder => self::whereLastActivity($sub, '>', $yellowCutoff));
+                });
+        });
+    }
+
+    private static function applyYellow(Builder $query): void
+    {
+        $yellowCutoff = self::yellowCutoffDate();
+        $redCutoff = self::redCutoffDate();
+
+        $query->where(function (Builder $q) use ($yellowCutoff, $redCutoff): void {
+            $q->where('organization_processes.inactivity_alert_level', SeverityColor::YELLOW->value)
+                ->orWhereExists(function (Builder $sub) use ($yellowCutoff, $redCutoff): void {
                     $sub->selectRaw('1')
                         ->from('processes')
                         ->whereColumn('processes.id', 'organization_processes.process_id')
-                        ->where(function (Builder $p) use ($cutoff): void {
-                            $p->whereNull('processes.last_activity_date')
-                                ->orWhere('processes.last_activity_date', '<=', $cutoff);
-                        });
+                        ->whereNotNull('organization_processes.lawyer_role')
+                        ->where('processes.last_activity_date', '<=', $yellowCutoff)
+                        ->where('processes.last_activity_date', '>', $redCutoff);
                 });
         });
     }
 
     private static function applyGreen(Builder $query): void
     {
-        $cutoff = self::movingCutoffDate();
+        $yellowCutoff = self::yellowCutoffDate();
+        $redCutoff = self::redCutoffDate();
 
-        $query->where(function (Builder $q) use ($cutoff): void {
-            // Stored green (e.g. defendant inactivity >= 90 days).
+        $query->where(function (Builder $q) use ($yellowCutoff, $redCutoff): void {
             $q->where('organization_processes.inactivity_alert_level', SeverityColor::GREEN->value)
-                // Simulated green: plaintiff, no stored level, recent activity.
-                ->orWhere(function (Builder $moving) use ($cutoff): void {
-                    $moving->whereNull('organization_processes.inactivity_alert_level')
-                        ->where('organization_processes.lawyer_role', 'plaintiff')
-                        ->whereExists(function (Builder $sub) use ($cutoff): void {
-                            $sub->selectRaw('1')
-                                ->from('processes')
-                                ->whereColumn('processes.id', 'organization_processes.process_id')
-                                ->where('processes.last_activity_date', '>', $cutoff);
-                        });
+                ->orWhere(function (Builder $plaintiff) use ($yellowCutoff): void {
+                    $plaintiff->where('organization_processes.lawyer_role', 'plaintiff')
+                        ->whereExists(fn (Builder $sub): Builder => self::whereLastActivity($sub, '>', $yellowCutoff));
+                })
+                ->orWhere(function (Builder $defendant) use ($redCutoff): void {
+                    $defendant->where('organization_processes.lawyer_role', 'defendant')
+                        ->whereExists(fn (Builder $sub): Builder => self::whereLastActivity($sub, '<=', $redCutoff));
                 });
         });
     }
 
-    private static function movingCutoffDate(): string
+    private static function whereLastActivity(Builder $sub, string $operator, string $cutoff): Builder
     {
-        $movingDays = (int) config('semaphores.moving_days_green', 30);
+        return $sub->selectRaw('1')
+            ->from('processes')
+            ->whereColumn('processes.id', 'organization_processes.process_id')
+            ->where('processes.last_activity_date', $operator, $cutoff);
+    }
 
-        return now()->subDays($movingDays)->startOfDay()->toDateString();
+    private static function yellowCutoffDate(): string
+    {
+        return now()->subDays(ProcessAlertLevelHelper::yellowThresholdDays())->startOfDay()->toDateString();
+    }
+
+    private static function redCutoffDate(): string
+    {
+        return now()->subDays(ProcessAlertLevelHelper::redThresholdDays())->startOfDay()->toDateString();
     }
 }

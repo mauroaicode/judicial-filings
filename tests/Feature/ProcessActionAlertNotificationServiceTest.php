@@ -80,3 +80,35 @@ it('prioritizes red over yellow in notifications', function () {
 
     expect($notification->severity_color)->toBe('red');
 });
+
+it('creates actuacion and actuacion_registro notifications during registration import', function (): void {
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto admisorio',
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
+
+    $service = app(ProcessActionAlertNotificationService::class);
+    $service->handleForOrganizationRegistration($action, $process, $organization->id);
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $organization->id)
+        ->where('notifiable_id', $action->id)
+        ->where('notification_type', 'actuacion')
+        ->exists())->toBeTrue();
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $organization->id)
+        ->where('notifiable_id', $action->id)
+        ->where('notification_type', 'actuacion_registro')
+        ->exists())->toBeTrue();
+});

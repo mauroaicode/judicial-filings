@@ -10,9 +10,11 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
+use Src\Application\Shared\Services\Notification\NotificationDigestService;
 use Src\Application\Shared\Traits\MapsJudicialActuacionTrait;
 use Src\Application\Shared\Traits\MapsJudicialSujetoTrait;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Organization\Models\Organization;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
@@ -27,7 +29,8 @@ class ProcessSyncService
 
     public function __construct(
         private readonly JudicialBranchConsultService $judicialService,
-        private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService
+        private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
+        private readonly NotificationDigestService $notificationDigestService,
     ) {}
 
     public function handle(Process $process, bool $notify = true): void
@@ -58,8 +61,6 @@ class ProcessSyncService
         }
 
         $this->syncActuaciones($process, $actionsResult->data, $notify);
-
-        // Optimización: solo consultar sujetos si el proceso aún no tiene sujetos registrados.
         if (! $process->subjects()->exists()) {
             $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
             if (! $subjectsResult->isSuccessful) {
@@ -74,13 +75,104 @@ class ProcessSyncService
     }
 
     /**
+     * Sync actuaciones for a radicado during manual registration or bulk import.
+     *
+     * - Saves full history for brand-new instances; first page only for existing ones.
+     * - Reuses the same instance-sync loop as the daily cron.
+     * - Queues digest notifications only for the registering organization.
+     * - Only notifies actuaciones within the registration alert window (today/tomorrow).
+     */
+    public function syncForRegistration(string $processNumber, string $organizationId, bool $dispatchDigest = true): void
+    {
+        $processes = Process::query()
+            ->where('process_number', $processNumber)
+            ->where('is_manual_sync', false)
+            ->whereNotNull('process_id')
+            ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value))
+            ->get();
+
+        if ($processes->isEmpty()) {
+            return;
+        }
+
+        $this->judicialService->withSeed($processNumber);
+
+        $this->syncInstancesForRadicado(
+            processNumber: $processNumber,
+            processes: $processes,
+            notify: true,
+            scopedOrganizationId: $organizationId,
+            registrationMode: true,
+            skipInactiveThreshold: true,
+        );
+
+        foreach ($processes as $process) {
+            if (! $process->organizations()->where('organizations.id', $organizationId)->exists()) {
+                continue;
+            }
+
+            $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
+        }
+
+        if ($dispatchDigest) {
+            $this->dispatchRegistrationDigestIfPending($organizationId);
+        }
+    }
+
+    /**
+     * Build the consolidated digest after registration/import when recent actuaciones were queued.
+     */
+    public function dispatchRegistrationDigestIfPending(string $organizationId, ?array $limitToProcessNumbers = null): void
+    {
+        $organization = Organization::query()->find($organizationId);
+
+        if ($organization === null) {
+            return;
+        }
+
+        $morphClass = (new ProcessAction)->getMorphClass();
+        $hasPending = $organization->notifications()
+            ->forActiveOrganizationProcesses($organizationId)
+            ->where('notifiable_type', $morphClass)
+            ->where(function ($q): void {
+                $q->where('is_email_notified', false)
+                    ->orWhere(function ($q2): void {
+                        $q2->whereNull('notification_digest_id')
+                            ->where('notification_type', 'actuacion_registro');
+                    });
+            });
+
+        if ($limitToProcessNumbers !== null && $limitToProcessNumbers !== []) {
+            $hasPending->forProcessNumbers($limitToProcessNumbers);
+        }
+
+        if (! $hasPending->exists()) {
+            return;
+        }
+
+        Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+            ->info('ProcessSyncService: Dispatching registration digest', [
+                'organization_id' => $organizationId,
+                'limit_to_process_numbers' => $limitToProcessNumbers,
+            ]);
+
+        $this->notificationDigestService->sendDigest($organization, $limitToProcessNumbers);
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $apiActuaciones
      * @param  Carbon|null  $notifyFromDate  When set, only notify for actions on or after this date.
      *                                       Allows storing full history while suppressing notifications
      *                                       for historical actuaciones in newly discovered instances.
      */
-    private function syncActuaciones(Process $process, array $apiActuaciones, bool $notify = true, ?Carbon $notifyFromDate = null): void
-    {
+    private function syncActuaciones(
+        Process $process,
+        array $apiActuaciones,
+        bool $notify = true,
+        ?Carbon $notifyFromDate = null,
+        ?string $scopedOrganizationId = null,
+        bool $registrationMode = false,
+    ): void {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         $hasNewActions = false;
@@ -114,23 +206,14 @@ class ProcessSyncService
             ]);
 
             if ($notify) {
-                // Apply date guard: for newly discovered instances, skip notifications for
-                // historical actuaciones that predate the radicado's known activity window.
-                // The action is still persisted above for full historical traceability.
-                if ($notifyFromDate instanceof \Illuminate\Support\Carbon && $actionDate->lt($notifyFromDate)) {
-                    Log::channel($logChannel)->info('ProcessSyncService: Skipping notification for historical action (below notify-from date)', [
-                        'action_id' => $action->id,
-                        'action_date' => $actionDate->format('Y-m-d'),
-                        'notify_from_date' => $notifyFromDate->format('Y-m-d'),
-                    ]);
-
-                    continue;
-                }
-
-                Log::channel($logChannel)->info('ProcessSyncService: Triggering notifications for action', [
-                    'action_id' => $action->id,
-                ]);
-                $this->processActionAlertNotificationService->handle($action, $process);
+                $this->maybeNotifyForAction(
+                    $action,
+                    $process,
+                    $actionDate,
+                    $notifyFromDate,
+                    $scopedOrganizationId,
+                    $registrationMode,
+                );
             }
         }
 
@@ -218,29 +301,41 @@ class ProcessSyncService
 
         $this->judicialService->withSeed($processNumber);
 
+        $this->syncInstancesForRadicado(
+            processNumber: $processNumber,
+            processes: $processes,
+            notify: $notify,
+        );
+
+        Log::channel($channel)->info('ProcessSyncService: finished sync for radicado', [
+            'process_number' => $processNumber,
+        ]);
+    }
+
+    /**
+     * Shared sync loop for cron and registration flows.
+     *
+     * @param  \Illuminate\Support\Collection<int, Process>  $processes
+     */
+    private function syncInstancesForRadicado(
+        string $processNumber,
+        \Illuminate\Support\Collection $processes,
+        bool $notify,
+        ?string $scopedOrganizationId = null,
+        bool $registrationMode = false,
+        bool $skipInactiveThreshold = false,
+    ): void {
+        $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
         $thresholdDays = (int) config('judicial-sync.inactive_skip_threshold_days', 2);
+        $radicadoNotifyFromDate = $registrationMode ? null : $this->resolveRadicadoNotifyFromDate($processNumber);
 
-        // Compute notification cutoff for newly discovered instances:
-        // any instance without existing actions will only trigger notifications
-        // for actuaciones on or after this date, preventing historical floods.
-        $radicadoNotifyFromDate = $this->resolveRadicadoNotifyFromDate($processNumber);
-
-        // Cache for the first-page actuaciones result.
-        // The Rama Judicial publishes the same actuaciones in all duplicate instances
-        // of a radicado. For instances that already have actions (onlyFirstPage=true),
-        // the first API call result is reused by subsequent instances, saving N-1
-        // proxy requests per radicado with duplicate folders.
         /** @var array<int, array<string, mixed>>|null */
         $cachedFirstPageActuaciones = null;
 
         foreach ($processes as $process) {
             $apiProcessId = (int) $process->process_id;
 
-            // Optimización: si el proceso lleva más de N días sin actividad registrada,
-            // se omite fetchActionByProcess para ahorrar una petición al proxy.
-            // Los procesos activos en las últimas 48h siempre se consultan, garantizando
-            // que el cron de las 3:30pm capture actuaciones ocurridas tras el cron de las 9am.
-            if ($thresholdDays > 0 && $process->last_activity_date !== null
+            if (! $skipInactiveThreshold && $thresholdDays > 0 && $process->last_activity_date !== null
                 && $process->last_activity_date->lt(now()->subDays($thresholdDays)->startOfDay())) {
                 Log::channel($channel)->info('ProcessSyncService: skipping actuaciones fetch (inactive process)', [
                     'process_number' => $processNumber,
@@ -252,18 +347,9 @@ class ProcessSyncService
                 continue;
             }
 
-            // Optimización: si ya tenemos actuaciones, solo consultamos la página 1 para detectar novedades.
             $onlyFirstPage = $process->actions()->exists();
+            $notifyFromDate = ($onlyFirstPage || $registrationMode) ? null : $radicadoNotifyFromDate;
 
-            // For instances that already have actions, the existsByActionRegistrationId check
-            // naturally prevents re-storing (and thus re-notifying) old actuaciones.
-            // For brand-new instances (no actions yet), apply the date cutoff so that
-            // fetching the full historical record does not flood clients with old notifications.
-            $notifyFromDate = $onlyFirstPage ? null : $radicadoNotifyFromDate;
-
-            // Reuse cached first-page result for duplicate instances (onlyFirstPage=true only).
-            // A full-history result (onlyFirstPage=false) is never cached because it differs
-            // in length from a first-page result and each new instance must store all its records.
             if ($onlyFirstPage && $cachedFirstPageActuaciones !== null) {
                 Log::channel($channel)->info('ProcessSyncService: reusing cached first-page actuaciones for duplicate instance', [
                     'process_number' => $processNumber,
@@ -283,18 +369,20 @@ class ProcessSyncService
 
                 $apiActuaciones = $actionsResult->data;
 
-                // Cache only first-page results for reuse by sibling instances.
                 if ($onlyFirstPage) {
                     $cachedFirstPageActuaciones = $apiActuaciones;
                 }
             }
 
-            $this->syncActuaciones($process, $apiActuaciones, $notify, $notifyFromDate);
+            $this->syncActuaciones(
+                $process,
+                $apiActuaciones,
+                $notify,
+                $notifyFromDate,
+                $scopedOrganizationId,
+                $registrationMode,
+            );
 
-            // Sujetos: only fetch from API when this instance has no subjects AND no sibling
-            // instance has provided them yet. After the loop, propagateSubjectsAcrossInstances
-            // will link any fetched subjects to all instances that still lack them —
-            // avoiding repeated API calls for duplicate instances that return empty subject data.
             if (! $process->subjects()->exists()) {
                 $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
                 if (! $subjectsResult->isSuccessful) {
@@ -313,14 +401,85 @@ class ProcessSyncService
             ]);
         }
 
-        // Propagate subjects from the instance that has real data to all sibling instances
-        // that still lack them. The Rama Judicial only populates Demandante/Demandado in
-        // one of the duplicate folders; this ensures all instances end up with those subjects.
         $this->propagateSubjectsAcrossInstances($processes);
+    }
 
-        Log::channel($channel)->info('ProcessSyncService: finished sync for radicado', [
-            'process_number' => $processNumber,
+    private function maybeNotifyForAction(
+        ProcessAction $action,
+        Process $process,
+        Carbon $actionDate,
+        ?Carbon $notifyFromDate,
+        ?string $scopedOrganizationId,
+        bool $registrationMode,
+    ): void {
+        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+
+        if ($registrationMode && $scopedOrganizationId !== null) {
+            if (! $this->isRecentForRegistrationAlert($action)) {
+                return;
+            }
+
+            Log::channel($logChannel)->info('ProcessSyncService: Registration alert for recent action', [
+                'action_id' => $action->id,
+                'organization_id' => $scopedOrganizationId,
+            ]);
+            $this->processActionAlertNotificationService->handleForOrganizationRegistration(
+                $action,
+                $process,
+                $scopedOrganizationId,
+            );
+
+            return;
+        }
+
+        if ($notifyFromDate instanceof Carbon && $actionDate->lt($notifyFromDate)) {
+            Log::channel($logChannel)->info('ProcessSyncService: Skipping notification for historical action (below notify-from date)', [
+                'action_id' => $action->id,
+                'action_date' => $actionDate->format('Y-m-d'),
+                'notify_from_date' => $notifyFromDate->format('Y-m-d'),
+            ]);
+
+            return;
+        }
+
+        Log::channel($logChannel)->info('ProcessSyncService: Triggering notifications for action', [
+            'action_id' => $action->id,
         ]);
+        $this->processActionAlertNotificationService->handle($action, $process);
+    }
+
+    private function notifyRecentExistingActionsForOrganization(Process $process, string $organizationId): void
+    {
+        $actions = ProcessAction::query()
+            ->whereProcess($process->id)
+            ->get();
+
+        foreach ($actions as $action) {
+            if (! $this->isRecentForRegistrationAlert($action)) {
+                continue;
+            }
+
+            $this->processActionAlertNotificationService->handleForOrganizationRegistration(
+                $action,
+                $process,
+                $organizationId,
+            );
+        }
+    }
+
+    private function isRecentForRegistrationAlert(ProcessAction $action): bool
+    {
+        $from = today()->startOfDay();
+        $forwardDays = (int) config('judicial-sync.registration_alert_days_forward', 1);
+        $to = today()->addDays($forwardDays)->endOfDay();
+
+        foreach ([$action->action_date, $action->registration_date] as $date) {
+            if ($date->betweenIncluded($from, $to)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

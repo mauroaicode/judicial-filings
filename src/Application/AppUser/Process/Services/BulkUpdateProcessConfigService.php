@@ -8,10 +8,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\Data\BulkUpdateProcessConfigData;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
-use Src\Domain\Shared\Enums\SeverityColor;
 
 readonly class BulkUpdateProcessConfigService
 {
@@ -89,34 +89,10 @@ readonly class BulkUpdateProcessConfigService
             return null;
         }
 
-        $days = (int) Date::parse($process->last_activity_date)->diffInDays(now());
-
-        return match ($role) {
-            ProcessLawyerRole::PLAINTIFF => $this->getPlaintiffLevel($days),
-            ProcessLawyerRole::DEFENDANT => $this->getDefendantLevel($days),
-        };
-    }
-
-    private function getPlaintiffLevel(int $days): string
-    {
-        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::PLAINTIFF->value.'.'.SeverityColor::RED->value, 90)) {
-            return SeverityColor::RED->value;
-        }
-
-        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::PLAINTIFF->value.'.'.SeverityColor::YELLOW->value, 45)) {
-            return SeverityColor::YELLOW->value;
-        }
-
-        return SeverityColor::GREEN->value;
-    }
-
-    private function getDefendantLevel(int $days): ?string
-    {
-        if ($days >= (int) config('semaphores.inactivity_thresholds.'.ProcessLawyerRole::DEFENDANT->value.'.'.SeverityColor::GREEN->value, 90)) {
-            return SeverityColor::GREEN->value;
-        }
-
-        return null;
+        return ProcessAlertLevelHelper::calculate(
+            Date::parse($process->last_activity_date),
+            $role,
+        );
     }
 
     /**

@@ -95,4 +95,17 @@ return [
     |
     */
     'new_instance_notify_days' => (int) env('JUDICIAL_SYNC_NEW_INSTANCE_NOTIFY_DAYS', 7),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Registration Alert Window (days forward)
+    |--------------------------------------------------------------------------
+    |
+    | When a process is newly registered (manual or bulk import), the system
+    | saves the full historical record but only queues digest notifications for
+    | actuaciones whose action_date OR registration_date falls between today
+    | and today + N days (inclusive). Default 1 = today and tomorrow.
+    |
+    */
+    'registration_alert_days_forward' => (int) env('JUDICIAL_SYNC_REGISTRATION_ALERT_DAYS_FORWARD', 1),
 ];

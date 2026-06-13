@@ -4,21 +4,36 @@ Este documento describe el funcionamiento técnico, las reglas de negocio y los 
 
 ## 1. Reglas de Negocio del Semáforo
 
-El sistema clasifica los procesos y actuaciones en tres niveles de severidad (Colores), basados en dos motores: **Inactividad Cronológica** y **Detección Semántica**.
+El sistema clasifica los procesos en tres niveles de severidad (colores), basados en dos motores: **Inactividad Cronológica** (según rol del abogado) y **Detección Semántica** (keywords en actuaciones).
 
-### A. Motor de Inactividad
-Gestionado por el Job `CheckInactiveProcessesJob`. Evalúa el tiempo transcurrido desde la última actuación oficial (`last_activity_date`).
+Todos los umbrales usan **días transcurridos desde la última actuación oficial** (`last_activity_date`).
 
-| Color | Rol del Abogado | Condición (Días Inactivo) | Significado | Notificación |
-| :--- | :--- | :--- | :--- | :--- |
-| 🔴 **Rojo** | Demandante | >= 90 días | **Alerta Crítica:** Riesgo de desistimiento o parálisis grave. | `inactividad_roja` |
-| 🟡 **Amarillo** | Demandante | 45 - 89 días | **Alerta Temprana:** Seguimiento necesario para evitar mora. | `inactividad_amarilla` |
-| 🟢 **Verde** | Demandado | >= 90 días | **Informativo Favorable:** El proceso en contra no avanza (buenas noticias). | `inactividad_verde` |
+### A. Motor de Inactividad — Demandante (`plaintiff`)
 
-### B. Motor de Alertas (Keywords)
+Gestionado por `CheckInactiveProcessesJob` (diario) y calculado en tiempo real por `ProcessAlertLevelHelper` para el listado.
+
+| Color | Condición (días sin actuación) | Significado | Notificación |
+| :--- | :--- | :--- | :--- |
+| 🟢 **Verde** | **< 45 días** | Proceso avanzando; situación favorable. | — |
+| 🟡 **Amarillo** | **45 – 89 días** | Alerta temprana: seguimiento necesario para evitar mora. | `inactividad_amarilla` |
+| 🔴 **Rojo** | **≥ 90 días** | Alerta crítica: riesgo de desistimiento o parálisis grave. | `inactividad_roja` |
+
+### B. Motor de Inactividad — Demandado (`defendant`)
+
+**Lógica invertida respecto al demandante:** actividad reciente es mala (hay que estar pendientes); inactividad prolongada es favorable.
+
+| Color | Condición (días sin actuación) | Significado | Notificación |
+| :--- | :--- | :--- | :--- |
+| 🔴 **Rojo** | **< 45 días** | El proceso en contra avanza; el abogado debe estar pendiente. | `actividad_roja` |
+| 🟡 **Amarillo** | **45 – 89 días** | Actividad moderada; seguimiento recomendado. | `actividad_amarilla` |
+| 🟢 **Verde** | **≥ 90 días** | Informativo favorable: el proceso en contra no avanza. | `inactividad_verde` |
+
+### C. Motor de Alertas (Keywords)
+
 Gestionado por `ProcessActionAlertNotificationService`. Analiza el texto de las nuevas actuaciones judiciales.
 
 *   **Prioridad de Color:** Si una actuación activa múltiples keywords, se asigna el color de mayor severidad detectado (**Rojo > Amarillo > Verde**).
+*   **Independiente del rol:** Aplica igual para demandante y demandado.
 *   **Ejemplos Comunes:**
     *   `Rojo`: Sentencia, Mandamiento, Terminación.
     *   `Amarillo`: Traslado, Memorial, Oficio.
@@ -33,7 +48,7 @@ Gestionado por `ProcessActionAlertNotificationService`. Analiza el texto de las 
 #### `organization_processes` (Tabla Pivote)
 Almacena el estado actual del semáforo para cada organización vinculada a un proceso.
 *   `lawyer_role`: Enum (`plaintiff`, `defendant`). Define qué reglas de inactividad aplicar.
-*   `inactivity_alert_level`: String (`red`, `yellow`, `green`, `null`). Almacena el último estado de inactividad detectado.
+*   `inactivity_alert_level`: String (`red`, `yellow`, `green`, `null`). Persistido por el job diario y al registrar/actualizar configuración. El listado recalcula desde `last_activity_date` vía `ProcessAlertLevelHelper`.
 
 #### `keywords` y `alert_actions_keywords`
 *   `severity_color`: String (`red`, `yellow`, `green`, `null`). Define el peso semántico de la palabra clave.
@@ -56,7 +71,7 @@ El motor de inactividad se ejecuta automáticamente mediante el scheduler de Lar
 Cuando el sistema detecta una **nueva actuación judicial** real a través del `ProcessSyncService`:
 1.  Se actualiza `last_activity_date` en la tabla `processes`.
 2.  Se limpia (`null`) la columna `inactivity_alert_level` en `organization_processes`.
-3.  Esto reinicia el contador de días para el próximo ciclo de alertas de inactividad.
+3.  El semáforo visible se recalcula de inmediato según el nuevo `last_activity_date` y el `lawyer_role`.
 
 ---
 
@@ -72,7 +87,21 @@ El sistema utiliza las siguientes colas para procesar las alertas sin bloquear e
 
 ---
 
-## 5. Pruebas y QA
+## 5. Configuración
+
+Umbrales en `config/semaphores.php`:
+
+```php
+'inactivity_thresholds' => [
+    'plaintiff' => ['red' => 90, 'yellow' => 45],
+    'defendant' => ['green' => 90, 'yellow' => 45],
+],
+```
+
+---
+
+## 6. Pruebas y QA
 Los tests asociados se encuentran en:
+*   `tests/Application/Shared/Helpers/ProcessAlertLevelHelperTest.php`
 *   `tests/Application/Shared/Jobs/CheckInactiveProcessesJobTest.php`
 *   `tests/Feature/ProcessActionAlertNotificationServiceTest.php`

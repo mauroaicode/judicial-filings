@@ -23,11 +23,12 @@ use Throwable;
 /**
  * Orchestrates import-report notifications for both the administrator and the organization.
  *
- * Admin path : always email (ADMIN_PROCESS_IMPORT_REPORT_EMAIL) + always internal (log only).
+ * Admin path : always email (ADMIN_PROCESS_IMPORT_REPORT_EMAIL) + internal audit log.
  *              No DB audit records — admin is not an organization.
  *
  * Org path   : creates an OrganizationNotification record, dispatches the internal channel
- *              (always, regardless of is_active), then all active external channels.
+ *              (always, regardless of is_active) to all app users via ProcessImportFinishedNotification,
+ *              then all active external channels.
  *              Each dispatch attempt is audited in HistoryOrganizationChannelNotification.
  *              OrganizationNotification.is_notified is set to true when at least one channel succeeds.
  *

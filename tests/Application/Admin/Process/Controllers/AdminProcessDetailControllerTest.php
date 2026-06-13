@@ -109,7 +109,7 @@ it('returns admin process detail with subjects and interested organizations', fu
     ]);
 
     expect($response->json('process.status_label'))->toBe('Activo');
-    expect($response->json('process.alert_level'))->toBe('yellow');
+    expect($response->json('process.alert_level'))->toBe('red');
     expect($response->json('process.lawyer_role'))->toBe('Demandado');
     expect($response->json('subjects'))->toHaveCount(2);
     expect($response->json('subjects_summary.plaintiffs_count'))->toBe(1);
@@ -121,7 +121,7 @@ it('returns admin process detail with subjects and interested organizations', fu
     expect($items->firstWhere('id', $orgDefendant->id)['lawyer_role'])->toBe('defendant');
     expect($items->firstWhere('id', $orgDefendant->id)['status'])->toBe('inactive');
     expect($items->firstWhere('id', $orgDefendant->id)['inactivity_alert_level'])->toBe('yellow');
-    expect($items->firstWhere('id', $orgDefendant->id)['alert_level'])->toBe('yellow');
+    expect($items->firstWhere('id', $orgDefendant->id)['alert_level'])->toBe('red');
     expect($items->firstWhere('id', $orgDefendant->id)['type'])->toBe('juridical');
 
     expect($items->firstWhere('id', $orgPlaintiff->id)['lawyer_role'])->toBe('plaintiff');

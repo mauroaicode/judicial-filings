@@ -91,6 +91,7 @@ class PurgeStaleNotificationsCommand extends Command
                 ->where('organization_notifications.organization_id', $organizationId)
                 ->where('organization_notifications.notifiable_type', $morphClass)
                 ->where('organization_notifications.is_email_notified', true)
+                ->whereNotNull('organization_notifications.notification_digest_id')
                 ->max('process_actions.registration_date');
 
             $cutoff = $lastNotifiedDate
