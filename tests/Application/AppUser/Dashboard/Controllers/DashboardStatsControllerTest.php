@@ -47,6 +47,9 @@ it('returns zero counts when organization has no processes nor notifications', f
     $response->assertJsonPath('inactive_processes', 0);
     $response->assertJsonPath('notifications.by_type.actuacion', 0);
     $response->assertJsonPath('notifications.by_type.actuacion_alerta', 0);
+    $response->assertJsonPath('semaphores.red', 0);
+    $response->assertJsonPath('semaphores.yellow', 0);
+    $response->assertJsonPath('semaphores.green', 0);
 });
 
 it('returns correct process counts for organization', function (): void {
@@ -82,7 +85,11 @@ it('returns correct notification counts by type', function (): void {
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now(),
+        'action_date' => now(),
+    ]);
 
     OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),
@@ -157,6 +164,65 @@ it('counts simulated green for plaintiff with recent activity when filtering sev
     $response->assertJsonPath('total_processes', 1);
 });
 
+it('returns semaphore counts by color respecting plaintiff and defendant rules', function (): void {
+    $this->freezeTime();
+
+    $greenPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(10)]);
+    $yellowPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(50)]);
+    $redPlaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+    $redDefendant = Process::factory()->create(['last_activity_date' => now()->subDays(10)]);
+    $greenDefendant = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+
+    foreach ([
+        [$greenPlaintiff, 'plaintiff'],
+        [$yellowPlaintiff, 'plaintiff'],
+        [$redPlaintiff, 'plaintiff'],
+        [$redDefendant, 'defendant'],
+        [$greenDefendant, 'defendant'],
+    ] as [$process, $role]) {
+        $process->organizations()->attach($this->organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'lawyer_role' => $role,
+            'inactivity_alert_level' => null,
+        ]);
+    }
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('semaphores.green', 2);
+    $response->assertJsonPath('semaphores.yellow', 1);
+    $response->assertJsonPath('semaphores.red', 2);
+});
+
+it('updates semaphore counts when lawyer_role filter is applied', function (): void {
+    $this->freezeTime();
+
+    $plaintiff = Process::factory()->create(['last_activity_date' => now()->subDays(10)]);
+    $defendant = Process::factory()->create(['last_activity_date' => now()->subDays(10)]);
+
+    $plaintiff->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+    ]);
+    $defendant->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'defendant',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?lawyer_role=plaintiff');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('semaphores.green', 1);
+    $response->assertJsonPath('semaphores.yellow', 0);
+    $response->assertJsonPath('semaphores.red', 0);
+});
+
 it('accepts severity_color none filter', function (): void {
     $waiting = Process::factory()->create(['last_activity_date' => null]);
     $withColor = Process::factory()->create(['last_activity_date' => now()]);
@@ -186,7 +252,11 @@ it('excludes viewed notifications from counts', function (): void {
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now(),
+        'action_date' => now(),
+    ]);
 
     OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),

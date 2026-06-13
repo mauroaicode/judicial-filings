@@ -22,25 +22,16 @@ use Src\Domain\Process\Services\GroupProcessActionsService;
 class NotificationDigestService
 {
     public function __construct(
-        private readonly GroupProcessActionsService $groupProcessActionsService
+        private readonly GroupProcessActionsService $groupProcessActionsService,
+        private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
     ) {}
 
     public function sendDigest(Organization $organization, ?array $limitToProcessNumbers = null): void
     {
         $morphClass = (new ProcessAction)->getMorphClass();
 
-        // Determine the last registration_date already included in a digest for this org.
-        // We use registration_date (not action_date) because the Rama Judicial can publish
-        // an actuación whose legal date is old but whose registration in the portal is recent.
-        // Any pending notification whose registration_date is before this cutoff is
-        // considered historical noise and must not be included in the outgoing digest.
-        $lastNotifiedRegistrationDate = \Illuminate\Support\Facades\DB::table('organization_notifications')
-            ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
-            ->where('organization_notifications.organization_id', $organization->id)
-            ->where('organization_notifications.notifiable_type', $morphClass)
-            ->where('organization_notifications.is_email_notified', true)
-            ->whereNotNull('organization_notifications.notification_digest_id')
-            ->max('process_actions.registration_date');
+        $lastNotifiedRegistrationDate = $this->registrationCutoffService
+            ->resolveLastNotifiedRegistrationDate($organization->id);
 
         // 1. Get all pending email notifications for this organization
         $query = $organization->notifications()

@@ -123,6 +123,8 @@ it('returns alert_highlights in detail for actuacion_alerta when action has high
     $action = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'annotation' => 'Se abrió período de CONSULTA y se notifica APELACIÓN.',
+        'action_date' => now(),
+        'registration_date' => now(),
     ]);
 
     ProcessActionAlertHighlight::query()->create([
@@ -173,6 +175,8 @@ it('filters actuacion_alerta by alert_slug and returns alert_type in highlights'
         'process_id' => $process->id,
         'action' => 'Auto de apelación',
         'annotation' => 'Se notifica APELACIÓN.',
+        'action_date' => now(),
+        'registration_date' => now(),
     ]);
     $action->alertActionKeywords()->attach($keyword->id);
     ProcessActionAlertHighlight::query()->create([
@@ -210,8 +214,16 @@ it('returns only unviewed notifications by default', function (): void {
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $actionViewed = ProcessAction::factory()->create(['process_id' => $process->id]);
-    $actionUnviewed = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $actionViewed = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
+    $actionUnviewed = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
 
     OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),
@@ -245,7 +257,11 @@ it('marks notifications as viewed and returns count', function (): void {
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
 
     $notification = OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),
@@ -295,7 +311,11 @@ it('mark viewed only updates notifications belonging to user organization', func
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
 
     $otherNotification = OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),
@@ -346,7 +366,11 @@ it('mark all viewed marks all unviewed notifications of the organization', funct
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
 
     $n1 = OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),
@@ -387,7 +411,11 @@ it('mark all viewed with type filters by notification type', function (): void {
         'interest_date' => now()->toDateString(),
         'is_active' => true,
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
 
     $actuacionNotif = OrganizationNotification::create([
         'id' => (string) \Illuminate\Support\Str::uuid(),
@@ -419,4 +447,76 @@ it('mark all viewed with type filters by notification type', function (): void {
     $alertaAfter = OrganizationNotification::query()->where('id', $alertaId)->first();
     expect($actuacionAfter->is_viewed)->toBeTrue()
         ->and($alertaAfter->is_viewed)->toBeFalse();
+});
+
+it('excludes historical actuacion notifications already covered by a sent digest', function (): void {
+    $process = Process::factory()->create(['process_number' => '76001310301820210024600']);
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $digest = \Src\Domain\Notification\Models\NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'email_sent_at' => now(),
+    ]);
+
+    $sentAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => '2026-06-01',
+        'action_date' => '2026-06-01',
+    ]);
+
+    OrganizationNotification::create([
+        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'organization_id' => $this->organization->id,
+        'notifiable_id' => $sentAction->id,
+        'notifiable_type' => $sentAction->getMorphClass(),
+        'notification_type' => 'actuacion',
+        'is_viewed' => true,
+        'is_email_notified' => true,
+        'notification_digest_id' => $digest->id,
+    ]);
+
+    $historicalAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Recepción memorial',
+        'registration_date' => '2020-05-10',
+        'action_date' => '2020-05-10',
+    ]);
+
+    $currentAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Incorpora memorial en despacho',
+        'registration_date' => '2026-06-10',
+        'action_date' => '2026-06-10',
+    ]);
+
+    OrganizationNotification::create([
+        'id' => (string) \Illuminate\Support\Str::uuid(),
+        'organization_id' => $this->organization->id,
+        'notifiable_id' => $historicalAction->id,
+        'notifiable_type' => $historicalAction->getMorphClass(),
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+    ]);
+
+    $currentNotificationId = (string) \Illuminate\Support\Str::uuid();
+
+    OrganizationNotification::create([
+        'id' => $currentNotificationId,
+        'organization_id' => $this->organization->id,
+        'notifiable_id' => $currentAction->id,
+        'notifiable_type' => $currentAction->getMorphClass(),
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/organization-notifications?type=actuacion');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.notification_id'))->toBe($currentNotificationId);
+    expect($response->json('data.0.detail.action'))->toBe('Incorpora memorial en despacho');
 });
