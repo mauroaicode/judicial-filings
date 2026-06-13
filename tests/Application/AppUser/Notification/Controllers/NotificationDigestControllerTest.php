@@ -197,3 +197,26 @@ it('does not collapse multiple actions of same process in digest details', funct
     expect($items)->toBeArray();
     expect(count($items))->toBe(2);
 });
+
+it('handles digest details when party names have leading empty comma segments', function (): void {
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => [
+            [
+                'process_number' => '76001333301320170009301',
+                'demandante' => ', Juan Perez',
+                'demandado' => ', Maria Lopez, Pedro Gomez',
+                'action_text' => 'Auto Decide',
+                'registration_date' => '14/05/2026',
+            ],
+        ],
+    ]);
+
+    $response = getJson('/api/app-user/notification-digests/'.$digest->id);
+
+    $response->assertOk();
+
+    $item = $response->json('data.0.data.0');
+    expect($item['plaintiff'])->toBe('Juan Perez');
+    expect($item['defendant'])->toBe('Maria Lopez (+1)');
+});
