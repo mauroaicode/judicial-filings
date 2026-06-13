@@ -329,9 +329,6 @@ class ProcessSyncService
         $thresholdDays = (int) config('judicial-sync.inactive_skip_threshold_days', 2);
         $radicadoNotifyFromDate = $registrationMode ? null : $this->resolveRadicadoNotifyFromDate($processNumber);
 
-        /** @var array<int, array<string, mixed>>|null */
-        $cachedFirstPageActuaciones = null;
-
         foreach ($processes as $process) {
             $apiProcessId = (int) $process->process_id;
 
@@ -350,29 +347,17 @@ class ProcessSyncService
             $onlyFirstPage = $process->actions()->exists();
             $notifyFromDate = ($onlyFirstPage || $registrationMode) ? null : $radicadoNotifyFromDate;
 
-            if ($onlyFirstPage && $cachedFirstPageActuaciones !== null) {
-                Log::channel($channel)->info('ProcessSyncService: reusing cached first-page actuaciones for duplicate instance', [
+            $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
+            if (! $actionsResult->isSuccessful) {
+                Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
                     'process_number' => $processNumber,
                     'process_id' => $process->id,
                 ]);
-                $apiActuaciones = $cachedFirstPageActuaciones;
-            } else {
-                $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
-                if (! $actionsResult->isSuccessful) {
-                    Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
-                        'process_number' => $processNumber,
-                        'process_id' => $process->id,
-                    ]);
 
-                    continue;
-                }
-
-                $apiActuaciones = $actionsResult->data;
-
-                if ($onlyFirstPage) {
-                    $cachedFirstPageActuaciones = $apiActuaciones;
-                }
+                continue;
             }
+
+            $apiActuaciones = $actionsResult->data;
 
             $this->syncActuaciones(
                 $process,

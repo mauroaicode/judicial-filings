@@ -76,6 +76,7 @@
         "larastan": "vendor/bin/phpstan analyse --configuration=phpstan.neon --memory-limit=1G",
         "rector": "vendor/bin/rector process src --config rector.php",
         "pre-pr": [
+            "Composer\\Config::disableProcessTimeout",
             "@composer larastan",
             "@composer rector",
             "@composer pint",

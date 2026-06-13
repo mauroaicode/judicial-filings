@@ -32,38 +32,187 @@ class NotificationDigestResource extends Resource
     {
         $digest->load([
             'notifications.notifiable.alertHighlights',
-            'notifications.notifiable.process',
+            'notifications.notifiable.process.organizations',
         ]);
 
         $notifLookup = self::buildNotificationLookup($digest);
+        $formattedData = self::formatRawItems($digest->data ?? [], $notifLookup, $filters);
+        $finalData = self::processFinalCollection($formattedData);
 
-        $formattedData = array_map(function (array $item) use (&$notifLookup, $filters): ?array {
+        return self::buildResource($digest, $finalData);
+    }
 
-            // 1. Internal filtering logic
+    /**
+     * Filter raw digest rows without hitting the database.
+     *
+     * @param  array<int, array<string, mixed>>  $data
+     * @return array<int, array<string, mixed>>
+     */
+    public static function filterRawItems(array $data, ?NotificationDigestFilterData $filters = null): array
+    {
+        if (! $filters instanceof NotificationDigestFilterData) {
+            return $data;
+        }
+
+        return array_values(array_filter(
+            $data,
+            static fn (array $item): bool => self::shouldIncludeItem($item, $filters),
+        ));
+    }
+
+    /**
+     * Sort raw digest rows by registration date (desc).
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    public static function sortRawItems(array $items): array
+    {
+        $withSortMeta = array_map(static function (array $item): array {
+            $item['_sort_timestamp'] = self::calculateSortTimestamp($item['registration_date'] ?? null);
+
+            return $item;
+        }, $items);
+
+        usort($withSortMeta, static fn (array $a, array $b): int => $b['_sort_timestamp'] <=> $a['_sort_timestamp']);
+
+        return array_map(static function (array $item): array {
+            unset($item['_sort_timestamp']);
+
+            return $item;
+        }, $withSortMeta);
+    }
+
+    /**
+     * Enrich only the rows needed for the current page.
+     *
+     * @param  array<int, array<string, mixed>>  $pageItems
+     * @return array<int, array<string, mixed>>
+     */
+    public static function formatItemsForPage(
+        NotificationDigest $digest,
+        array $pageItems,
+        string $organizationId,
+    ): array {
+        if ($pageItems === []) {
+            return [];
+        }
+
+        $actionIds = collect($pageItems)
+            ->pluck('process_action_id')
+            ->filter(static fn ($id): bool => is_string($id) && $id !== '' && ! str_starts_with($id, 'synth-'))
+            ->unique()
+            ->values()
+            ->all();
+
+        $notifLookup = self::loadNotificationLookupForActions($digest->id, $organizationId, $actionIds);
+
+        $processNumbers = collect($pageItems)
+            ->filter(static fn (array $item): bool => empty($item['process_id']) && ! empty($item['process_number']))
+            ->pluck('process_number')
+            ->unique()
+            ->values()
+            ->all();
+
+        $processIdsByNumber = $processNumbers === []
+            ? []
+            : \Src\Domain\Process\Models\Process::query()
+                ->whereIn('process_number', $processNumbers)
+                ->pluck('id', 'process_number')
+                ->all();
+
+        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber): array {
+            $item = self::applyKeyMappings($item);
+            $item = self::enrichItemData($item, $notifLookup, $processIdsByNumber);
+            $item = self::applyTitleCaseFormatting($item);
+
+            return self::applyFinalDateFormatting($item);
+        }, $pageItems);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function buildMetadata(NotificationDigest $digest, int $actionsCount): array
+    {
+        $notified = $digest->email_sent_at !== null || $digest->whatsapp_sent_at !== null || $digest->sms_sent_at !== null;
+
+        return [
+            'id' => $digest->id,
+            'date' => DateFormatHelper::formatDate($digest->created_at),
+            'time' => $digest->created_at->format('g:ia'),
+            'period' => DateFormatHelper::getPeriodFromHour((int) $digest->created_at->format('H')),
+            'actions_count' => $actionsCount,
+            'is_notified' => $notified,
+            'email_notified_at' => $digest->email_sent_at ? DateFormatHelper::formatDateWithTime($digest->email_sent_at) : null,
+            'whatsapp_notified_at' => $digest->whatsapp_sent_at ? DateFormatHelper::formatDateWithTime($digest->whatsapp_sent_at) : null,
+            'sms_notified_at' => $digest->sms_sent_at ? DateFormatHelper::formatDateWithTime($digest->sms_sent_at) : null,
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $actionIds
+     * @return array<string, OrganizationNotification>
+     */
+    public static function loadNotificationLookupForActions(
+        string $digestId,
+        string $organizationId,
+        array $actionIds,
+    ): array {
+        if ($actionIds === []) {
+            return [];
+        }
+
+        $lookup = [];
+
+        OrganizationNotification::query()
+            ->where('notification_digest_id', $digestId)
+            ->where('organization_id', $organizationId)
+            ->whereIn('notifiable_id', $actionIds)
+            ->with([
+                'notifiable.alertHighlights',
+                'notifiable.process.organizations' => fn ($q) => $q->where('organizations.id', $organizationId),
+            ])
+            ->get()
+            ->each(function (OrganizationNotification $notif) use (&$lookup): void {
+                $action = $notif->notifiable;
+                if ($action instanceof ProcessAction) {
+                    $lookup[$action->id] = $notif;
+                }
+            });
+
+        return $lookup;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rawItems
+     * @param  array<string, OrganizationNotification|array<int, OrganizationNotification>>  $notifLookup
+     * @return array<int, array<string, mixed>|null>
+     */
+    private static function formatRawItems(
+        array $rawItems,
+        array $notifLookup,
+        ?NotificationDigestFilterData $filters,
+    ): array {
+        return array_map(function (array $item) use ($notifLookup, $filters): ?array {
             if ($filters instanceof NotificationDigestFilterData && ! self::shouldIncludeItem($item, $filters)) {
                 return null;
             }
 
-            // 2. Prepare sorting metadata
             $item['_sort_timestamp'] = self::calculateSortTimestamp($item['registration_date'] ?? null);
-
-            // 3. Normalization and Mappings
             $item = self::applyKeyMappings($item);
-
-            // 4. Enrich with highlights, levels and subjects
             $item = self::enrichItemData($item, $notifLookup);
-
-            // 5. Title Case Formatting
             $item = self::applyTitleCaseFormatting($item);
 
-            // 6. Final Date Formatting
             return self::applyFinalDateFormatting($item);
+        }, $rawItems);
+    }
 
-        }, $digest->data);
-
-        // Clean, Sort and Strip metadata
-        $finalData = self::processFinalCollection($formattedData);
-
+    /**
+     * @param  array<int, array<string, mixed>>  $finalData
+     */
+    private static function buildResource(NotificationDigest $digest, array $finalData): self
+    {
         $notified = $digest->email_sent_at !== null || $digest->whatsapp_sent_at !== null || $digest->sms_sent_at !== null;
 
         return new self(
@@ -72,7 +221,7 @@ class NotificationDigestResource extends Resource
             date: DateFormatHelper::formatDate($digest->created_at),
             time: $digest->created_at->format('g:ia'),
             period: DateFormatHelper::getPeriodFromHour((int) $digest->created_at->format('H')),
-            actions_count: count($finalData), // Initial base count, will be overwritten dynamically by GetNotificationDigestDetailsService
+            actions_count: count($finalData),
             is_notified: $notified,
             email_notified_at: $digest->email_sent_at ? DateFormatHelper::formatDateWithTime($digest->email_sent_at) : null,
             whatsapp_notified_at: $digest->whatsapp_sent_at ? DateFormatHelper::formatDateWithTime($digest->whatsapp_sent_at) : null,
@@ -86,12 +235,7 @@ class NotificationDigestResource extends Resource
         foreach ($digest->notifications as $notif) {
             $action = $notif->notifiable;
             if ($action instanceof ProcessAction) {
-                $key = "{$action->process->process_number}|{$action->action}";
-                if (! isset($notifLookup[$key])) {
-                    $notifLookup[$key] = [];
-                }
-
-                $notifLookup[$key][] = $notif;
+                $notifLookup[$action->id] = $notif;
             }
         }
 
@@ -181,13 +325,17 @@ class NotificationDigestResource extends Resource
         return $item;
     }
 
-    private static function enrichItemData(array $item, array &$notifLookup): array
-    {
-        $lookupKey = ($item['process_number'] ?? '').'|'.($item['action_text'] ?? '');
+    private static function enrichItemData(
+        array $item,
+        array $notifLookup,
+        array $processIdsByNumber = [],
+    ): array {
         /** @var OrganizationNotification|null $matchedNotif */
         $matchedNotif = null;
-        if (isset($notifLookup[$lookupKey]) && count($notifLookup[$lookupKey]) > 0) {
-            $matchedNotif = array_shift($notifLookup[$lookupKey]);
+        $actionId = $item['process_action_id'] ?? null;
+
+        if (is_string($actionId) && $actionId !== '' && isset($notifLookup[$actionId])) {
+            $matchedNotif = $notifLookup[$actionId];
         }
 
         // 1. Alert Highlights
@@ -236,12 +384,17 @@ class NotificationDigestResource extends Resource
             // Fallback: Si no hay match exacto por actuación pero tenemos radicado,
             // intentamos recuperar el process_id buscando el proceso en la organización
             if (empty($item['process_id']) && ! empty($item['process_number'])) {
-                $process = \Src\Domain\Process\Models\Process::query()
-                    ->where('process_number', $item['process_number'])
-                    ->first();
+                $processNumber = (string) $item['process_number'];
+                if (isset($processIdsByNumber[$processNumber])) {
+                    $item['process_id'] = $processIdsByNumber[$processNumber];
+                } else {
+                    $process = \Src\Domain\Process\Models\Process::query()
+                        ->where('process_number', $processNumber)
+                        ->value('id');
 
-                if ($process) {
-                    $item['process_id'] = $process->id;
+                    if ($process) {
+                        $item['process_id'] = $process;
+                    }
                 }
             }
 
@@ -256,12 +409,16 @@ class NotificationDigestResource extends Resource
         $subjects = ['plaintiff' => 'plaintiffs', 'defendant' => 'defendants'];
         foreach ($subjects as $singular => $plural) {
             if (isset($item[$singular]) && is_string($item[$singular])) {
-                $list = array_filter(array_map(trim(...), explode(',', $item[$singular])));
+                $list = array_values(array_filter(
+                    array_map(trim(...), explode(',', $item[$singular])),
+                    static fn (string $name): bool => $name !== '',
+                ));
                 if ($list !== []) {
                     $list = array_map(StrParseHelper::toTitleCase(...), $list);
                     $item[$plural] = $list;
                     $count = count($list);
-                    $item[$singular] = $count > 1 ? "{$list[0]} (+".($count - 1).')' : $list[0];
+                    $first = $list[0];
+                    $item[$singular] = $count > 1 ? "{$first} (+".($count - 1).')' : $first;
                 } else {
                     $item[$plural] = [];
                 }

@@ -4,60 +4,51 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Notification\Services;
 
-use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
 use Src\Domain\Notification\Models\NotificationDigest;
-use Src\Domain\Process\Services\GroupProcessActionsService;
+use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Process\Models\ProcessAction;
 
 class GetNotificationDigestDetailsService
 {
-    public function __construct(
-        private readonly GroupProcessActionsService $groupProcessActionsService
-    ) {}
-
     public function handle(string $organizationId, string $digestId, NotificationDigestFilterData $filters): LengthAwarePaginator
     {
         $digest = $this->findDigest($organizationId, $digestId);
+        $rawData = $digest->data;
 
-        $resource = NotificationDigestResource::fromModel($digest, $filters)->toArray();
+        // Cheap in-memory pipeline on stored JSON (no DB enrichment yet).
+        $items = NotificationDigestResource::filterRawItems($rawData, $filters);
+        $items = $this->attachMissingProcessActionIds($digest, $items);
+        $items = $this->removeDuplicates(collect($items))->values()->all();
+        // Rows were already grouped/merged when the digest was persisted.
+        $items = NotificationDigestResource::sortRawItems($items);
 
-        $resource['data'] = collect($resource['data'] ?? []);
+        $totalActions = count($items);
+        $currentPage = max(1, (int) \Illuminate\Pagination\Paginator::resolveCurrentPage());
+        $perPage = max(1, $filters->per_page ?: 20);
+        $pageItems = array_slice($items, ($currentPage - 1) * $perPage, $perPage);
 
-        $resource['data'] = $this->removeDuplicates(
-            $resource['data']
+        $enrichedPage = NotificationDigestResource::formatItemsForPage(
+            $digest,
+            $pageItems,
+            $organizationId,
         );
 
-        $resource['data'] = $this->groupProcessActions(
-            $resource['data']
+        $resource = array_merge(
+            NotificationDigestResource::buildMetadata($digest, $totalActions),
+            ['data' => $enrichedPage],
         );
 
-        $resource['data'] = $this->sortByRegistrationDate(
-            $resource['data']
-        )->all();
-
-        $totalActions = count($resource['data']);
-        $resource['actions_count'] = $totalActions;
-
-        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
-        $perPage = $filters->per_page ?: 20;
-
-        $pagedActions = array_slice($resource['data'], ($currentPage - 1) * $perPage, $perPage);
-        $resource['data'] = $pagedActions;
-
-        // Calculamos los campos "from" y "to" correctos basados en las actuaciones internas (no en el wrapper)
-        $paginator = new class([$resource], $totalActions, $perPage, $currentPage, ['path' => request()->url(), 'query' => array_merge(request()->query(), $filters->toArray())]) extends LengthAwarePaginator
+        return new class([$resource], $totalActions, $perPage, $currentPage, ['path' => request()->url(), 'query' => array_merge(request()->query(), $filters->toArray())]) extends LengthAwarePaginator
         {
             public function toArray()
             {
                 $array = parent::toArray();
+                $actualItemsCount = count($this->items->first()['data'] ?? []);
 
-                // Extraemos cuántas actuaciones reales vinieron en esta página
-                $actualItemsCount = count(func_num_args() === 0 ? $this->items->first()['data'] ?? [] : []);
-
-                // Recalculamos matemáticamente from y to
                 if ($actualItemsCount > 0) {
                     $array['from'] = ($this->currentPage() - 1) * $this->perPage() + 1;
                     $array['to'] = $array['from'] + $actualItemsCount - 1;
@@ -69,8 +60,6 @@ class GetNotificationDigestDetailsService
                 return $array;
             }
         };
-
-        return $paginator;
     }
 
     private function findDigest(string $organizationId, string $digestId): NotificationDigest
@@ -97,8 +86,6 @@ class GetNotificationDigestDetailsService
             $date = $item['action_date'] ?? '';
             $annotation = $item['annotation'] ?? '';
 
-            // Preferimos un ID estable de la actuación si existe.
-            // El hash es solo fallback para datos legacy/residuales sin ID.
             return $id !== '' ? $id : md5($radicado.$text.$date.$annotation);
         })
             ->map(function (Collection $group) {
@@ -124,63 +111,55 @@ class GetNotificationDigestDetailsService
             ->values();
     }
 
-    private function groupProcessActions(Collection $data): Collection
+    /**
+     * Legacy digests may not persist process_action_id in JSON; resolve from linked notifications.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    private function attachMissingProcessActionIds(NotificationDigest $digest, array $items): array
     {
-        if ($data->isEmpty()) {
-            return collect();
+        $needsAttachment = collect($items)->contains(
+            static fn (array $item): bool => empty($item['process_action_id']),
+        );
+
+        if (! $needsAttachment) {
+            return $items;
         }
 
-        // 1. Relacionamos las actuaciones (añade fijacion_action_id y notified_action_id)
-        $tagged = $this->groupProcessActionsService->handle($data);
+        $queues = [];
+        $morphClass = (new ProcessAction)->getMorphClass();
 
-        $toRemove = collect();
-        $merged = $tagged->map(function (array $item) use ($tagged, $toRemove): array {
-            // Si esto es un Auto que ya fue absorbido por una fijación, lo ignoramos guardando su ID para remover
-            if (isset($item['fijacion_action_id']) && $tagged->contains('process_action_id', $item['fijacion_action_id'])) {
-                $toRemove->push($item['process_action_id'] ?? $item['id']);
+        OrganizationNotification::query()
+            ->where('notification_digest_id', $digest->id)
+            ->where('notifiable_type', $morphClass)
+            ->with([
+                'notifiable' => fn ($q) => $q->select('id', 'process_id', 'action'),
+                'notifiable.process' => fn ($q) => $q->select('id', 'process_number'),
+            ])
+            ->get()
+            ->each(function (OrganizationNotification $notif) use (&$queues): void {
+                $action = $notif->notifiable;
+                if (! $action instanceof ProcessAction) {
+                    return;
+                }
+
+                $processNumber = $action->process->process_number ?? '';
+                $key = "{$processNumber}|{$action->action}";
+                $queues[$key][] = $action->id;
+            });
+
+        return array_map(static function (array $item) use (&$queues): array {
+            if (! empty($item['process_action_id'])) {
+                return $item;
             }
 
-            // Si esto es un Estado/Fijación con un Auto enlazado, jalamos el texto del auto hacia acá
-            if (isset($item['notified_action_id'])) {
-                $auto = $tagged->firstWhere('process_action_id', $item['notified_action_id']);
-
-                if ($auto) {
-                    $item['is_merged'] = true;
-                    $item['linked_action_text'] = $auto['action_text'] ?? '';
-                    $item['linked_annotation'] = $auto['annotation'] ?? '';
-
-                    // Mezclamos el estatus de alerta
-                    $item['is_alert'] = ($item['is_alert'] ?? false) || ($auto['is_alert'] ?? false);
-
-                    // Unimos keywords
-                    $item['matched_keywords'] = collect([$item['matched_keywords'] ?? '', $auto['matched_keywords'] ?? ''])
-                        ->filter()
-                        ->unique()
-                        ->implode(', ');
-                }
+            $key = ($item['process_number'] ?? '').'|'.($item['action_text'] ?? '');
+            if ($key !== '|' && (isset($queues[$key]) && $queues[$key] !== [])) {
+                $item['process_action_id'] = array_shift($queues[$key]);
             }
 
             return $item;
-        });
-
-        // 2. Removemos los Autos huérfanos que ahora son parte de un Estado
-        return $merged->reject(fn (array $item): bool => ! empty($item['process_action_id']) && $toRemove->contains($item['process_action_id']))->values();
-    }
-
-    private function sortByRegistrationDate(Collection $data): Collection
-    {
-        if ($data->isEmpty()) {
-            return collect();
-        }
-
-        return $data->sortByDesc(function (array $item) {
-            $carbon = Carbon::class;
-            try {
-                return $carbon::createFromLocaleFormat('d !de F !de Y', 'es', $item['registration_date'] ?? '');
-            } catch (\Exception) {
-                return $item['registration_date'] ?? '';
-            }
-        })
-            ->values();
+        }, $items);
     }
 }
