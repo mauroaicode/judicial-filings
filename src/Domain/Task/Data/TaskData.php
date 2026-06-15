@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Src\Domain\Task\Data;
 
 use Spatie\LaravelData\Attributes\Validation\BooleanType;
+use Spatie\LaravelData\Attributes\Validation\Date;
+use Spatie\LaravelData\Attributes\Validation\IntegerType;
+use Spatie\LaravelData\Attributes\Validation\Min;
 use Spatie\LaravelData\Attributes\Validation\Required;
 use Spatie\LaravelData\Attributes\Validation\StringType;
 use Spatie\LaravelData\Attributes\Validation\Uuid;
@@ -23,6 +26,12 @@ class TaskData extends Data
 
         #[Required, StringType]
         public string $description,
+
+        #[Required, Date]
+        public string $due_date,
+
+        #[Required, IntegerType, Min(0)]
+        public int $reminder_days,
 
         #[Required, BooleanType]
         public bool $is_admin,

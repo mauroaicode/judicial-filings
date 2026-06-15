@@ -80,4 +80,6 @@ return [
     'subject_type' => 'Subject Type',
     'name_or_business_name' => 'Name / Business Name',
     'subjects' => 'Process Subjects',
+    'due_date' => 'Due Date',
+    'reminder_days' => 'Reminder Days',
 ];

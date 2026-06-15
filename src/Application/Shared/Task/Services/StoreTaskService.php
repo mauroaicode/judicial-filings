@@ -7,6 +7,7 @@ namespace Src\Application\Shared\Task\Services;
 use Illuminate\Validation\ValidationException;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Task\Data\TaskData;
+use Src\Domain\Task\Enums\TaskStatus;
 use Src\Domain\Task\Models\Task;
 
 class StoreTaskService
@@ -46,6 +47,9 @@ class StoreTaskService
         return Task::query()->create([
             'title' => $data->title,
             'description' => $data->description,
+            'due_date' => $data->due_date,
+            'reminder_days' => $data->reminder_days,
+            'status' => TaskStatus::PENDING,
             'is_admin' => $data->is_admin,
             'process_id' => $data->process_id,
             'organization_id' => $data->organization_id,

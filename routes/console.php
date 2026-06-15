@@ -11,5 +11,7 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new CheckInactiveProcessesJob)->dailyAt('08:00');
 
-// Métricas del dashboard de Horizon (Jobs Per Minute, etc.)
+Schedule::command('tasks:send-due-date-reminders')->dailyAt('08:00');
+Schedule::command('tasks:send-urgency-alerts')->dailyAt('08:00');
+
 Schedule::command('horizon:snapshot')->everyFiveMinutes();

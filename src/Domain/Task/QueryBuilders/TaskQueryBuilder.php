@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Domain\Task\QueryBuilders;
 
 use Illuminate\Database\Eloquent\Builder;
+use Src\Domain\Task\Enums\TaskStatus;
 use Src\Domain\Task\Models\Task;
 
 /**
@@ -30,6 +31,18 @@ class TaskQueryBuilder extends Builder
     public function whereProcess(string $processId): self
     {
         return $this->where('process_id', $processId);
+    }
+
+    public function whereStatus(TaskStatus|string $status): self
+    {
+        $value = $status instanceof TaskStatus ? $status->value : $status;
+
+        return $this->where('status', $value);
+    }
+
+    public function excludingCompleted(): self
+    {
+        return $this->where('status', '!=', TaskStatus::COMPLETED->value);
     }
 
     public function orderedByCreatedAt(): self
