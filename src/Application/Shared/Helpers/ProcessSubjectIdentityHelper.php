@@ -26,7 +26,7 @@ final class ProcessSubjectIdentityHelper
     {
         return mb_strtoupper(trim($subjectType))
             .'|'.mb_strtoupper(trim($name))
-            .'|'.mb_strtoupper(trim((string) ($identification ?? '')));
+            .'|'.mb_strtoupper(trim($identification ?? ''));
     }
 
     public static function findCanonicalForRadicado(
@@ -38,7 +38,7 @@ final class ProcessSubjectIdentityHelper
         $targetKey = self::keyFromParts($subjectType, $name, $identification);
 
         return ProcessSubject::query()
-            ->whereHas('processes', fn ($query) => $query->where('process_number', $processNumber))
+            ->whereHas('processes', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
             ->get()
             ->first(fn (ProcessSubject $subject): bool => self::key($subject) === $targetKey);
     }
@@ -73,7 +73,7 @@ final class ProcessSubjectIdentityHelper
     {
         return $subjects->sortBy([
             fn (ProcessSubject $subject): int => $subject->subject_registration_id ?? PHP_INT_MAX,
-            fn (ProcessSubject $subject): int => $subject->created_at?->getTimestamp() ?? 0,
+            fn (ProcessSubject $subject): int => $subject->created_at->getTimestamp(),
             fn (ProcessSubject $subject): string => (string) $subject->id,
         ])->first();
     }

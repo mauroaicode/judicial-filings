@@ -60,6 +60,8 @@ class UpdateTaskService
         $task->update([
             'title' => $data->title,
             'description' => $data->description,
+            'due_date' => $data->due_date,
+            'reminder_days' => $data->reminder_days,
             'is_admin' => $data->is_admin,
             'process_id' => $data->process_id,
             'organization_id' => $data->organization_id,

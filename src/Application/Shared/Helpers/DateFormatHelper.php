@@ -75,6 +75,32 @@ class DateFormatHelper
     }
 
     /**
+     * Formato solo fecha con día de la semana: "Viernes, 12 de Junio de 2026".
+     */
+    public static function formatDateWithDayOfWeek(CarbonInterface|Carbon|\DateTimeInterface|string|null $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        $carbon = $value instanceof Carbon ? $value : Date::parse($value);
+        $locale = (string) app()->getLocale();
+        $carbon = $carbon->locale($locale);
+
+        if ($locale === 'es') {
+            return sprintf(
+                '%s, %d de %s de %d',
+                ucfirst($carbon->translatedFormat('l')),
+                $carbon->day,
+                ucfirst($carbon->translatedFormat('F')),
+                $carbon->year,
+            );
+        }
+
+        return $carbon->translatedFormat('l, F j, Y');
+    }
+
+    /**
      * Determina el periodo del día (Mañana, Tarde, Noche) según la hora.
      */
     public static function getPeriodFromHour(int $hour): string

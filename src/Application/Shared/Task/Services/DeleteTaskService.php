@@ -9,7 +9,7 @@ use Src\Domain\Task\Models\Task;
 class DeleteTaskService
 {
     /**
-     * Delete a task by its ID.
+     * Move a task to the trash (soft delete).
      */
     public function handle(string $id, ?string $organizationId = null): void
     {

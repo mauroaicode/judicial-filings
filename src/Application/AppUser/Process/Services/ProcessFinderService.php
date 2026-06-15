@@ -38,7 +38,7 @@ readonly class ProcessFinderService
         $nonPivotFilters->severity_color = null;
         $nonPivotFilters->status = null;
 
-        $baseQuery = fn () => $this->buildFilteredProcessQuery($organizationId, $filters, $nonPivotFilters);
+        $baseQuery = fn (): \Illuminate\Database\Eloquent\Builder => $this->buildFilteredProcessQuery($organizationId, $filters, $nonPivotFilters);
 
         $total = $baseQuery()
             ->selectRaw('COUNT(DISTINCT process_number) as total')

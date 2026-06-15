@@ -27,6 +27,17 @@ return [
         'active' => 'Active',
         'inactive' => 'Inactive',
     ],
+    'task_status' => [
+        'pending' => 'Pending',
+        'completed' => 'Completed',
+        'draft' => 'Draft',
+    ],
+    'task_urgency_level' => [
+        'normal' => 'Normal',
+        'alert_1' => 'Alert (10 days)',
+        'alert_2' => 'High alert (15 days)',
+        'critical' => 'Critical (30+ days)',
+    ],
     'process_lawyer_role' => [
         'plaintiff' => 'Plaintiff',
         'defendant' => 'Defendant',

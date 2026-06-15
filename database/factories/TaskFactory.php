@@ -7,6 +7,7 @@ namespace Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Task\Enums\TaskStatus;
 use Src\Domain\Task\Models\Task;
 
 /**
@@ -26,6 +27,9 @@ class TaskFactory extends Factory
         return [
             'title' => $this->faker->sentence(),
             'description' => $this->faker->paragraph(),
+            'due_date' => now()->addDays(7)->toDateString(),
+            'reminder_days' => $this->faker->numberBetween(0, 7),
+            'status' => TaskStatus::PENDING,
             'is_admin' => false,
             'process_id' => Process::factory(),
             'organization_id' => Organization::factory(),
@@ -36,6 +40,20 @@ class TaskFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_admin' => true,
+        ]);
+    }
+
+    public function completed(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => TaskStatus::COMPLETED,
+        ]);
+    }
+
+    public function draft(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => TaskStatus::DRAFT,
         ]);
     }
 }

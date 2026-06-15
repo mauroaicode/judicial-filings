@@ -27,6 +27,17 @@ return [
         'active' => 'Activa',
         'inactive' => 'Inactiva',
     ],
+    'task_status' => [
+        'pending' => 'Pendiente',
+        'completed' => 'Cumplida',
+        'draft' => 'Borrador',
+    ],
+    'task_urgency_level' => [
+        'normal' => 'Normal',
+        'alert_1' => 'Alerta (10 días)',
+        'alert_2' => 'Alerta alta (15 días)',
+        'critical' => 'Crítico (30+ días)',
+    ],
     'process_lawyer_role' => [
         'plaintiff' => 'Demandante',
         'defendant' => 'Demandado',
