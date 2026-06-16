@@ -9,6 +9,7 @@ use GuzzleHttp\Exception\ClientException;
 use Illuminate\Support\Facades\Log;
 use Src\Application\AppUser\AiChat\Data\SendVoiceMessageData;
 use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
+use Src\Application\AppUser\AiChat\Support\RagQueryStreamBodyHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
 use Src\Domain\Process\Models\Process;
@@ -16,7 +17,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 readonly class AiChatVoiceService
 {
-    public function handle(AiChat $chat, SendVoiceMessageData $data): StreamedResponse
+    public function handle(AiChat $chat, SendVoiceMessageData $data, string $appUserId): StreamedResponse
     {
         $history = $this->getChatHistory($chat);
 
@@ -24,24 +25,19 @@ readonly class AiChatVoiceService
 
         $ragOptions = $this->prepareRagRequestData($chat);
 
-        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions): void {
+        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions, $appUserId): void {
             try {
                 $client = new Client;
 
-                $body = [
-                    'query' => $data->content,
-                    'mode' => $ragOptions['mode'],
-                    'source' => $ragOptions['source'],
-                    'response_type' => config('ai-chat.voice_response_type', 'paragraph'),
-                ];
-
-                if ($ragOptions['user_prompt'] !== '') {
-                    $body['user_prompt'] = $ragOptions['user_prompt'];
-                }
-
-                if ($history !== []) {
-                    $body['conversation_history'] = $history;
-                }
+                $body = RagQueryStreamBodyHelper::build(
+                    sessionId: $appUserId,
+                    query: $data->content,
+                    mode: $ragOptions['mode'],
+                    source: $ragOptions['source'],
+                    responseType: config('ai-chat.voice_response_type', 'paragraph'),
+                    history: $history,
+                    userPrompt: $ragOptions['user_prompt'] !== '' ? $ragOptions['user_prompt'] : null,
+                );
 
                 Log::info('AI voice → rag-api stream request', [
                     'ai_chat_id' => $chat->id,
@@ -58,12 +54,13 @@ readonly class AiChatVoiceService
 
                 $stream = $response->getBody();
                 $fullResponseContent = '';
+                $sseBuffer = '';
 
                 while (! $stream->eof()) {
                     $chunk = $stream->read(1024);
                     echo $chunk;
 
-                    $fullResponseContent .= $this->extractContentFromChunk($chunk);
+                    $fullResponseContent .= $this->extractContentFromSseChunk($chunk, $sseBuffer);
 
                     if (ob_get_level() > 0) {
                         ob_flush();
@@ -71,6 +68,8 @@ readonly class AiChatVoiceService
 
                     flush();
                 }
+
+                $fullResponseContent .= $this->flushSseBuffer($sseBuffer);
 
                 if ($fullResponseContent !== '' && $fullResponseContent !== '0') {
                     $this->saveAssistantMessage($chat, $fullResponseContent);
@@ -134,16 +133,58 @@ readonly class AiChatVoiceService
             ->all();
     }
 
-    private function extractContentFromChunk(string $chunk): string
+    private function extractContentFromSseChunk(string $chunk, string &$sseBuffer): string
+    {
+        $sseBuffer .= $chunk;
+        $lines = explode("\n", $sseBuffer);
+        $sseBuffer = array_pop($lines);
+
+        return $this->extractContentFromSseLines($lines);
+    }
+
+    private function flushSseBuffer(string &$sseBuffer): string
+    {
+        if ($sseBuffer === '') {
+            return '';
+        }
+
+        $lines = [$sseBuffer];
+        $sseBuffer = '';
+
+        return $this->extractContentFromSseLines($lines);
+    }
+
+    /**
+     * Voice mode returns the full text in "answer" (done: true), not in "chunk".
+     *
+     * @param  list<string>  $lines
+     */
+    private function extractContentFromSseLines(array $lines): string
     {
         $content = '';
-        $lines = explode("\n", $chunk);
+
         foreach ($lines as $line) {
-            if (str_starts_with($line, 'data: ')) {
-                $jsonData = json_decode(substr($line, 6), true);
-                if (isset($jsonData['chunk'])) {
-                    $content .= $jsonData['chunk'];
-                }
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (! str_starts_with($line, 'data: ')) {
+                continue;
+            }
+
+            $jsonData = json_decode(substr($line, 6), true);
+            if (! is_array($jsonData)) {
+                continue;
+            }
+
+            if (isset($jsonData['chunk']) && is_string($jsonData['chunk'])) {
+                $content .= $jsonData['chunk'];
+
+                continue;
+            }
+
+            if (isset($jsonData['answer']) && is_string($jsonData['answer'])) {
+                $content .= $jsonData['answer'];
             }
         }
 

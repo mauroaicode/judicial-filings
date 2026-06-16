@@ -6,9 +6,11 @@ namespace Src\Application\AppUser\AiChat\Services;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use Src\Application\AppUser\AiChat\Data\SendMessageData;
 use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
+use Src\Application\AppUser\AiChat\Support\RagQueryStreamBodyHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
@@ -27,20 +29,19 @@ readonly class AiChatStreamService
 
         $ragOptions = $this->prepareRagRequestData($chat, $data);
 
-        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions): void {
+        return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions, $appUserId): void {
             try {
                 $client = new Client;
 
-                $body = [
-                    'query' => $data->content,
-                    'mode' => $ragOptions['mode'],
-                    'response_type' => config('ai-chat.response_type', 'paragraph'),
-                    'user_prompt' => $ragOptions['user_prompt'],
-                ];
-
-                if ($history !== []) {
-                    $body['conversation_history'] = $history;
-                }
+                $body = RagQueryStreamBodyHelper::build(
+                    sessionId: $appUserId,
+                    query: $data->content,
+                    mode: $ragOptions['mode'],
+                    source: (string) config('ai-chat.chat_source', 'chat'),
+                    responseType: config('ai-chat.response_type', 'paragraph'),
+                    history: $history,
+                    userPrompt: $ragOptions['user_prompt'],
+                );
 
                 $response = $client->post($ragOptions['url'], [
                     'json' => $body,
@@ -110,7 +111,7 @@ readonly class AiChatStreamService
 
     private function getChatHistory(AiChat $chat): array
     {
-        /** @var \Illuminate\Database\Eloquent\Collection<int, AiChatMessage> $messages */
+        /** @var Collection<int, AiChatMessage> $messages */
         $messages = $chat->messages()->latest()
             ->limit(10)
             ->get();

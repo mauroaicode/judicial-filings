@@ -42,6 +42,6 @@ readonly class AiChatVoiceController
             ->firstOrFail();
 
         /** @var AiChat $chat */
-        return $this->voiceService->handle($chat, $data);
+        return $this->voiceService->handle($chat, $data, (string) $appUser->id);
     }
 }

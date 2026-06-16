@@ -23,7 +23,11 @@ Responde solo basado en este expediente y ten en cuenta todos los datos entrenad
 
     'voice_response_type' => 'paragraph',
 
-    // Canal y modo para /query/stream (rag-api optimiza voz + wait_message en meta).
+    // Memoria de sesión en rag-api (session_id = id del AppUser autenticado).
+    'enable_memory' => true,
+
+    // source enviado a rag-api por canal.
+    'chat_source' => 'chat',
     'voice_mode' => 'auto',
     'voice_source' => 'voice',
 
