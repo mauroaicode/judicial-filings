@@ -168,6 +168,7 @@ readonly class AiChatVoiceService
             if ($line === '') {
                 continue;
             }
+
             if (! str_starts_with($line, 'data: ')) {
                 continue;
             }

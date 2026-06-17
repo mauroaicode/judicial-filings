@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
+use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
@@ -50,6 +51,16 @@ class ProcessSyncService
         $apiProcessId = $process->process_id;
 
         $this->judicialService->withSeed($process->process_number);
+
+        $siblings = Process::query()->where('process_number', $process->process_number)->get();
+        if (ProcessPhantomInstanceHelper::isLikelyPhantomDuplicate($process, $siblings)) {
+            Log::channel($logChannel)->info('ProcessSyncService::handle skipped actuaciones for phantom duplicate instance', [
+                'process_uuid' => $process->id,
+                'process_number' => $process->process_number,
+            ]);
+
+            return;
+        }
 
         $onlyFirstPage = $process->actions()->exists();
         $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
@@ -190,6 +201,20 @@ class ProcessSyncService
             }
 
             $attributes = $this->mapApiActuacionToAttributes($apiActuacion);
+
+            if ((bool) config('judicial-sync.dedupe_actions_by_content', true)
+                && ProcessAction::query()->existsDuplicateForRadicado($process->process_number, $attributes)) {
+                Log::channel($logChannel)->info('ProcessSyncService: skipping cross-instance duplicate action (content match)', [
+                    'process_id' => $process->id,
+                    'process_number' => $process->process_number,
+                    'reg_id' => $idReg,
+                    'action' => $attributes['action'],
+                    'action_date' => $attributes['action_date'],
+                ]);
+
+                continue;
+            }
+
             $attributes['process_id'] = $process->id;
 
             $action = ProcessAction::query()->create($attributes);
@@ -343,6 +368,15 @@ class ProcessSyncService
 
         foreach ($processes as $process) {
             $apiProcessId = (int) $process->process_id;
+
+            if (ProcessPhantomInstanceHelper::isLikelyPhantomDuplicate($process, $processes)) {
+                Log::channel($channel)->info('ProcessSyncService: skipping phantom duplicate instance actuaciones sync', [
+                    'process_number' => $processNumber,
+                    'process_id' => $process->id,
+                ]);
+
+                continue;
+            }
 
             if (! $skipInactiveThreshold
                 && ! $this->hasPendingActuacionesSync($process)
@@ -516,6 +550,23 @@ class ProcessSyncService
 
                 if ($lastActivity && ($process->last_activity_date === null || $lastActivity > $process->last_activity_date->format('Y-m-d'))) {
                     $updateData['last_activity_date'] = $lastActivity;
+                }
+
+                // Update court/speaker/department in case the process moved to a different court
+                $apiCourt = trim((string) ($apiProceso['despacho'] ?? ''));
+                $apiSpeaker = trim((string) ($apiProceso['ponente'] ?? ''));
+                $apiDepartment = trim((string) ($apiProceso['departamento'] ?? ''));
+
+                if ($apiCourt !== '' && $apiCourt !== $process->court) {
+                    $updateData['court'] = $apiCourt;
+                }
+
+                if ($apiSpeaker !== '' && $apiSpeaker !== $process->speaker) {
+                    $updateData['speaker'] = $apiSpeaker;
+                }
+
+                if ($apiDepartment !== '' && $apiDepartment !== $process->department) {
+                    $updateData['department'] = $apiDepartment;
                 }
 
                 $process->update($updateData);

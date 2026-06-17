@@ -45,6 +45,33 @@ class ProcessActionQueryBuilder extends Builder
     }
 
     /**
+     * Same actuación content already stored on another instance of the radicado.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function existsDuplicateForRadicado(string $processNumber, array $attributes): bool
+    {
+        return $this->whereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
+            ->where('action_date', $attributes['action_date'])
+            ->where('action', $attributes['action'])
+            ->where('annotation', $attributes['annotation'])
+            ->where('registration_date', $attributes['registration_date'])
+            ->exists();
+    }
+
+    /**
+     * Match actuación identity (content) within a radicado, excluding Rama idRegActuacion.
+     */
+    public function whereMatchesContentIdentity(string $processNumber, ProcessAction $action): self
+    {
+        return $this->whereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
+            ->where('action_date', $action->action_date->format('Y-m-d'))
+            ->where('action', $action->action)
+            ->where('annotation', $action->annotation)
+            ->where('registration_date', $action->registration_date->format('Y-m-d'));
+    }
+
+    /**
      * Filter actions by process and action registration ID.
      *
      * @return $this

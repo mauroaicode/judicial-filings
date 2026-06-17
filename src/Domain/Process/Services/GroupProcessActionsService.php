@@ -8,8 +8,31 @@ use Illuminate\Support\Collection;
 
 class GroupProcessActionsService
 {
-    public function handle(Collection $actions): Collection
+    /**
+     * Pair fijaciones with their corresponding autos.
+     *
+     * @param  Collection  $actions  The actions to pair and return.
+     * @param  Collection|null  $context  Extra actions used only as pairing context (not returned).
+     *                                    Pass the items from the next page to enable cross-page pairing.
+     */
+    public function handle(Collection $actions, ?Collection $context = null): Collection
     {
+        if ($context instanceof \Illuminate\Support\Collection && $context->isNotEmpty()) {
+            // Merge primary + context for pairing, then strip context from output
+            $merged = $actions->merge($context)->values();
+            $data = $merged->toArray();
+            $count = count($data);
+
+            $this->processPairing($data, $count, true);
+            $this->processPairing($data, $count, false);
+
+            // Keep only the original primary items (identified by their array position)
+            $primaryCount = $actions->count();
+            $primary = array_slice($data, 0, $primaryCount);
+
+            return collect($primary);
+        }
+
         $data = $actions->toArray();
         $count = count($data);
 
@@ -117,7 +140,13 @@ class GroupProcessActionsService
                     str_contains($otherText, 'reconoce') ||
                     str_contains($otherText, 'admite') ||
                     str_contains($otherText, 'resolución') ||
-                    str_contains($otherText, 'resolucion');
+                    str_contains($otherText, 'resolucion') ||
+                    str_contains($otherText, 'rechaza') ||
+                    str_contains($otherText, 'niega') ||
+                    str_contains($otherText, 'ordena') ||
+                    str_contains($otherText, 'decreta') ||
+                    str_contains($otherText, 'inadmite') ||
+                    str_contains($otherText, 'condena');
 
         if (! $isAutoOk) {
             return false;
@@ -130,15 +159,15 @@ class GroupProcessActionsService
             return true;
         }
 
-        // 5. Verificación por cons_action si están disponibles (tolerancia aumentada a 4)
+        // 5. Verificación por cons_action si están disponibles (tolerancia aumentada a 10)
         $cons1 = (int) ($action1['cons_action'] ?? 0);
         $cons2 = (int) ($action2['cons_action'] ?? 0);
 
-        if ($cons1 > 0 && $cons2 > 0 && abs($cons1 - $cons2) > 4) {
+        if ($cons1 > 0 && $cons2 > 0 && abs($cons1 - $cons2) > 10) {
             return false;
         }
 
-        // 6. Deben ser relativamente cercanos en fecha (máximo 15 días para Notificaciones)
+        // 6. Deben ser relativamente cercanos en fecha (máximo 30 días para Notificaciones)
         $date1Str = $action1['registration_date'] ?? null;
         $date2Str = $action2['registration_date'] ?? null;
 
@@ -147,7 +176,7 @@ class GroupProcessActionsService
                 $d1 = \Illuminate\Support\Facades\Date::parse($date1Str);
                 $d2 = \Illuminate\Support\Facades\Date::parse($date2Str);
 
-                if ($d1->diffInDays($d2) > 15) {
+                if ($d1->diffInDays($d2) > 30) {
                     return false;
                 }
             } catch (\Throwable) {
