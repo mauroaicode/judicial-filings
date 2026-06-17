@@ -112,3 +112,48 @@ it('creates actuacion and actuacion_registro notifications during registration i
         ->where('notification_type', 'actuacion_registro')
         ->exists())->toBeTrue();
 });
+
+it('skips duplicate notifications for the same actuacion content across instances', function (): void {
+    $organization = Organization::factory()->create();
+    $processNumber = '76001400303420230073500';
+
+    $richProcess = Process::factory()->create(['process_number' => $processNumber]);
+    $phantomProcess = Process::factory()->create(['process_number' => $processNumber]);
+
+    $richProcess->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $phantomProcess->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $firstAction = ProcessAction::factory()->create([
+        'process_id' => $richProcess->id,
+        'action_registration_id' => 1111111111,
+        'action' => 'Fijacion estado',
+        'annotation' => 'Actuación registrada el 12/06/2026 a las 18:18:47.',
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
+
+    $duplicateAction = ProcessAction::factory()->create([
+        'process_id' => $phantomProcess->id,
+        'action_registration_id' => 2222222222,
+        'action' => 'Fijacion estado',
+        'annotation' => 'Actuación registrada el 12/06/2026 a las 18:18:47.',
+        'action_date' => $firstAction->action_date,
+        'registration_date' => $firstAction->registration_date,
+    ]);
+
+    $service = app(ProcessActionAlertNotificationService::class);
+    $service->handle($firstAction, $richProcess);
+    $service->handle($duplicateAction, $phantomProcess);
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $organization->id)
+        ->where('notification_type', 'actuacion')
+        ->count())->toBe(1);
+});

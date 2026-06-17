@@ -108,4 +108,18 @@ return [
     |
     */
     'registration_alert_days_forward' => (int) env('JUDICIAL_SYNC_REGISTRATION_ALERT_DAYS_FORWARD', 1),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Duplicate folder / phantom instance handling
+    |--------------------------------------------------------------------------
+    |
+    | Rama Judicial sometimes returns several idProceso rows for the same
+    | radicado (same despacho, empty sujetos). Those folders often replay the
+    | same actuaciones with different idRegActuacion values.
+    |
+    */
+    'skip_phantom_instance_actuaciones' => (bool) env('JUDICIAL_SYNC_SKIP_PHANTOM_INSTANCES', true),
+
+    'dedupe_actions_by_content' => (bool) env('JUDICIAL_SYNC_DEDUPE_ACTIONS_BY_CONTENT', true),
 ];

@@ -30,6 +30,11 @@ readonly class OrganizationNotificationRegistrationCutoffService
             ->where('organization_notifications.notifiable_type', $morphClass)
             ->where('organization_notifications.is_email_notified', true)
             ->whereNotNull('organization_notifications.notification_digest_id')
+            // Never consider future-dated actuaciones: Rama Judicial occasionally publishes
+            // actions with incorrect registration_date values in the future. If one of those
+            // was ever included in a digest, it would push the cutoff into the future and block
+            // all subsequent digests for the organization permanently.
+            ->where('process_actions.registration_date', '<=', today()->format('Y-m-d'))
             ->max('process_actions.registration_date');
 
         if ($maxDate === null) {

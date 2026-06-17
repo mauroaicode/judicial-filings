@@ -185,16 +185,32 @@ readonly class ProcessActionAlertNotificationService
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         // Check for an existing notification across all instances of this actuación.
+        $action->loadMissing('process');
+        $processNumber = (string) ($action->process->process_number ?? '');
         $morphClass = $action->getMorphClass();
         $crossInstanceDuplicate = OrganizationNotification::query()
             ->where('organization_id', $organizationId)
             ->where('notification_type', $notificationType)
             ->where('severity_color', $severityColor)
             ->where('notifiable_type', $morphClass)
-            ->whereIn('notifiable_id', function ($sub) use ($action): void {
-                $sub->select('id')
-                    ->from('process_actions')
-                    ->where('action_registration_id', $action->action_registration_id);
+            ->whereIn('notifiable_id', function ($sub) use ($action, $processNumber): void {
+                $sub->select('pa.id')
+                    ->from('process_actions as pa');
+
+                if ($processNumber !== '') {
+                    $sub->join('processes as p', 'p.id', '=', 'pa.process_id')
+                        ->where('p.process_number', $processNumber);
+                }
+
+                $sub->where(function ($query) use ($action): void {
+                    $query->where('pa.action_registration_id', $action->action_registration_id)
+                        ->orWhere(function ($contentQuery) use ($action): void {
+                            $contentQuery->where('pa.action_date', $action->action_date->format('Y-m-d'))
+                                ->where('pa.action', $action->action)
+                                ->where('pa.annotation', $action->annotation)
+                                ->where('pa.registration_date', $action->registration_date->format('Y-m-d'));
+                        });
+                });
             })
             ->exists();
 

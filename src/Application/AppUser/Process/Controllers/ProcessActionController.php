@@ -12,6 +12,7 @@ use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
 use Src\Application\Shared\Process\Services\ProcessActionFinderService;
+use Src\Application\Shared\Process\Services\ProcessActionPairingContextService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
@@ -23,7 +24,8 @@ readonly class ProcessActionController
     public function __construct(
         private ProcessActionFinderService $processActionFinderService,
         private ProcessDetailService $processDetailService,
-        private GroupProcessActionsService $groupProcessActionsService
+        private GroupProcessActionsService $groupProcessActionsService,
+        private ProcessActionPairingContextService $pairingContextService,
     ) {}
 
     /**
@@ -57,8 +59,12 @@ readonly class ProcessActionController
         $transformedItems = $paginatedActions->getCollection()
             ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel($action, $offset + $key + 1)->toArray());
 
-        // Agrupar Fijaciones con sus Autos
-        $groupedItems = $this->groupProcessActionsService->handle($transformedItems);
+        // Fetch next-page context so cross-page fijación↔auto pairs can be resolved
+        $contextActions = $this->pairingContextService->handle($paginatedActions);
+        $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel($action, 0)->toArray());
+
+        // Agrupar Fijaciones con sus Autos (con contexto de página siguiente)
+        $groupedItems = $this->groupProcessActionsService->handle($transformedItems, $contextItems->isNotEmpty() ? $contextItems : null);
 
         $paginatedActions->setCollection($groupedItems);
 

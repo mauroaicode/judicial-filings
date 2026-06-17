@@ -32,8 +32,9 @@ readonly class ProcessActionFinderService
         }
 
         return $query->filters($filters)
-            ->orderByDesc('cons_action')
+            ->orderedByActionDate()
             ->orderedByRegistrationDate()
+            ->orderByDesc('cons_action')
             ->paginate($perPage)
             ->appends(request()->query());
     }
