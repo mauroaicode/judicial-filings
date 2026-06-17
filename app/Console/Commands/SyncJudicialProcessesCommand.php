@@ -80,11 +80,14 @@ class SyncJudicialProcessesCommand extends Command
             $laravelBatch = Bus::batch($jobs)
                 ->name('Sync Judicial Processes Batch')
                 ->finally(function (Batch $batch) use ($runId): void {
+                    // Dispatch digests first: completeBatch() may throw when sending the Discord
+                    // report, which would otherwise skip digest dispatch for every organization.
+                    DispatchOrganizationDigestsJob::dispatch();
+
                     $record = JudicialSyncRun::query()->find($runId);
                     if ($record !== null) {
                         $record->completeBatch($batch);
                     }
-                    DispatchOrganizationDigestsJob::dispatch();
                 })
                 ->onQueue('judicial-sync')
                 ->dispatch();

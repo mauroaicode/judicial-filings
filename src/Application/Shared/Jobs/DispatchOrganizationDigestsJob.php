@@ -22,7 +22,7 @@ class DispatchOrganizationDigestsJob implements ShouldQueue
 
     public function __construct()
     {
-        $this->queue = config('judicial-sync.jobs.send_notification.queue', 'notifications');
+        $this->queue = config('judicial-sync.jobs.send_notification_dispatcher.queue', 'notifications');
     }
 
     public function handle(): void

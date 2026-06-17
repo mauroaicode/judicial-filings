@@ -169,6 +169,14 @@ class JudicialSyncRun extends Model
             'failed_jobs_count' => $batch->failedJobs,
         ]);
 
-        resolve(JudicialSyncDiscordNotificationService::class)->notifyBatchFinished($this->fresh(), $batch);
+        try {
+            resolve(JudicialSyncDiscordNotificationService::class)->notifyBatchFinished($this->fresh(), $batch);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                ->error('JudicialSyncRun: Discord batch-finished notification failed', [
+                    'run_id' => $this->id,
+                    'message' => $e->getMessage(),
+                ]);
+        }
     }
 }
