@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\ProcessActionIdentityHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable;
 use Src\Application\Shared\Notifications\ConsolidatedJudicialActionsNotification;
@@ -182,15 +183,34 @@ class NotificationDigestService
 
     private function prepareData(Collection $notifications, string $organizationId): Collection
     {
-        return $notifications->groupBy('notifiable_id')->map(function (Collection $group) use ($organizationId): ?array {
-            /** @var OrganizationNotification $notif */
-            $notif = $group->first();
+        return $notifications->groupBy(function (OrganizationNotification $notif): string {
             $action = $notif->notifiable;
 
             if (! $action instanceof ProcessAction) {
+                return 'orphan:'.$notif->id;
+            }
+
+            $action->loadMissing('process');
+            $processNumber = (string) ($action->process->process_number ?? '');
+
+            return $processNumber.'|'.ProcessActionIdentityHelper::fingerprint($action);
+        })->map(function (Collection $group) use ($organizationId): ?array {
+            /** @var \Illuminate\Support\Collection<int, ProcessAction> $actions */
+            $actions = $group
+                ->map(fn (OrganizationNotification $notif) => $notif->notifiable)
+                ->filter(fn ($notifiable) => $notifiable instanceof ProcessAction)
+                ->values();
+
+            if ($actions->isEmpty()) {
                 return null;
             }
 
+            $actions->each(fn (ProcessAction $candidate) => $candidate->loadMissing('process'));
+
+            $action = ProcessActionIdentityHelper::pickCanonical(
+                $actions,
+                $actions->map(fn (ProcessAction $candidate) => $candidate->process)->unique('id')->values(),
+            );
             $process = $action->process;
 
             // Extract Parties (Demandante/Demandado) - explicitly for this process

@@ -6,6 +6,7 @@ namespace Src\Domain\Process\QueryBuilders;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
+use Src\Application\Shared\Helpers\ProcessActionIdentityHelper;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Domain\Process\Models\ProcessAction;
 
@@ -51,12 +52,17 @@ class ProcessActionQueryBuilder extends Builder
      */
     public function existsDuplicateForRadicado(string $processNumber, array $attributes): bool
     {
-        return $this->whereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
-            ->where('action_date', $attributes['action_date'])
-            ->where('action', $attributes['action'])
-            ->where('annotation', $attributes['annotation'])
-            ->where('registration_date', $attributes['registration_date'])
-            ->exists();
+        $targetFingerprint = ProcessActionIdentityHelper::fingerprintFromAttributes($attributes);
+
+        foreach (ProcessAction::query()
+            ->whereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
+            ->cursor() as $action) {
+            if (ProcessActionIdentityHelper::fingerprint($action) === $targetFingerprint) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -64,11 +70,28 @@ class ProcessActionQueryBuilder extends Builder
      */
     public function whereMatchesContentIdentity(string $processNumber, ProcessAction $action): self
     {
-        return $this->whereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
-            ->where('action_date', $action->action_date->format('Y-m-d'))
-            ->where('action', $action->action)
-            ->where('annotation', $action->annotation)
-            ->where('registration_date', $action->registration_date->format('Y-m-d'));
+        $ids = $this->matchingContentFingerprintIds(
+            $processNumber,
+            ProcessActionIdentityHelper::fingerprint($action),
+        );
+
+        if ($ids->isEmpty()) {
+            return $this->whereRaw('0 = 1');
+        }
+
+        return $this->whereIn('id', $ids->all());
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function matchingContentFingerprintIds(string $processNumber, string $targetFingerprint): \Illuminate\Support\Collection
+    {
+        return ProcessAction::query()
+            ->whereHas('process', fn (\Illuminate\Contracts\Database\Query\Builder $query) => $query->where('process_number', $processNumber))
+            ->get(['id', 'action_date', 'action', 'annotation', 'registration_date'])
+            ->filter(fn (ProcessAction $action): bool => ProcessActionIdentityHelper::fingerprint($action) === $targetFingerprint)
+            ->pluck('id');
     }
 
     /**

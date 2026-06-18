@@ -1,6 +1,7 @@
 <?php
 
 use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationService;
+use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Keyword\Models\Keyword;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
@@ -21,11 +22,14 @@ it('detects severity color from matched keywords and stores it in notification',
         'organization_id' => $organization->id,
         'keyword' => 'traslado',
         'severity_color' => 'yellow',
+        'status' => KeywordStatus::ACTIVE,
     ]);
 
     $action = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'annotation' => 'Se ordena el traslado de la liquidación',
+        'action_date' => now(),
+        'registration_date' => now(),
     ]);
 
     $service = app(ProcessActionAlertNotificationService::class);
@@ -55,6 +59,7 @@ it('prioritizes red over yellow in notifications', function () {
         'organization_id' => $organization->id,
         'keyword' => 'traslado',
         'severity_color' => 'yellow',
+        'status' => KeywordStatus::ACTIVE,
     ]);
 
     // Red keyword
@@ -62,11 +67,14 @@ it('prioritizes red over yellow in notifications', function () {
         'organization_id' => $organization->id,
         'keyword' => 'sentencia',
         'severity_color' => 'red',
+        'status' => KeywordStatus::ACTIVE,
     ]);
 
     $action = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'annotation' => 'Traslado para sentencia definitiva',
+        'action_date' => now(),
+        'registration_date' => now(),
     ]);
 
     $service = app(ProcessActionAlertNotificationService::class);

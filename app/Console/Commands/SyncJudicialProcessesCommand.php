@@ -79,10 +79,15 @@ class SyncJudicialProcessesCommand extends Command
         try {
             $laravelBatch = Bus::batch($jobs)
                 ->name('Sync Judicial Processes Batch')
-                ->finally(function (Batch $batch) use ($runId): void {
-                    // Dispatch digests first: completeBatch() may throw when sending the Discord
-                    // report, which would otherwise skip digest dispatch for every organization.
-                    DispatchOrganizationDigestsJob::dispatch();
+                ->finally(function (Batch $batch) use ($runId, $channel): void {
+                    // Run digest dispatch synchronously: async dispatch() from this batch
+                    // callback was not being processed reliably after large sync batches.
+                    DispatchOrganizationDigestsJob::dispatchSync();
+
+                    Log::channel($channel)->info('SyncJudicialProcessesCommand: Digest dispatch completed after batch', [
+                        'run_id' => $runId,
+                        'batch_id' => $batch->id,
+                    ]);
 
                     $record = JudicialSyncRun::query()->find($runId);
                     if ($record !== null) {

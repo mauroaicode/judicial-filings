@@ -6,6 +6,7 @@ namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
@@ -109,26 +110,30 @@ class ProcessSyncService
 
         $this->judicialService->withSeed($processNumber);
 
-        $this->syncInstancesForRadicado(
-            processNumber: $processNumber,
-            processes: $processes,
-            notify: true,
-            scopedOrganizationId: $organizationId,
-            registrationMode: true,
-            skipInactiveThreshold: true,
-        );
+        $lock = Cache::lock('judicial-sync:radicado:'.$processNumber, 300);
 
-        foreach ($processes as $process) {
-            if (! $process->organizations()->where('organizations.id', $organizationId)->exists()) {
-                continue;
+        $lock->block(120, function () use ($processNumber, $processes, $organizationId, $dispatchDigest): void {
+            $this->syncInstancesForRadicado(
+                processNumber: $processNumber,
+                processes: $processes,
+                notify: true,
+                scopedOrganizationId: $organizationId,
+                registrationMode: true,
+                skipInactiveThreshold: true,
+            );
+
+            foreach ($processes as $process) {
+                if (! $process->organizations()->where('organizations.id', $organizationId)->exists()) {
+                    continue;
+                }
+
+                $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
             }
 
-            $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
-        }
-
-        if ($dispatchDigest) {
-            $this->dispatchRegistrationDigestIfPending($organizationId);
-        }
+            if ($dispatchDigest) {
+                $this->dispatchRegistrationDigestIfPending($organizationId);
+            }
+        });
     }
 
     /**
@@ -337,16 +342,20 @@ class ProcessSyncService
 
         $this->judicialService->withSeed($processNumber);
 
-        $this->syncInstancesForRadicado(
-            processNumber: $processNumber,
-            processes: $processes,
-            notify: $notify,
-            skipInactiveThreshold: $skipInactiveThreshold,
-        );
+        $lock = Cache::lock('judicial-sync:radicado:'.$processNumber, 300);
 
-        Log::channel($channel)->info('ProcessSyncService: finished sync for radicado', [
-            'process_number' => $processNumber,
-        ]);
+        $lock->block(120, function () use ($processNumber, $processes, $notify, $skipInactiveThreshold, $channel): void {
+            $this->syncInstancesForRadicado(
+                processNumber: $processNumber,
+                processes: $processes,
+                notify: $notify,
+                skipInactiveThreshold: $skipInactiveThreshold,
+            );
+
+            Log::channel($channel)->info('ProcessSyncService: finished sync for radicado', [
+                'process_number' => $processNumber,
+            ]);
+        });
     }
 
     /**
