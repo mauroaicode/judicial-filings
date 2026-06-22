@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Src\Application\AppUser\AiChat\Data\SendMessageData;
 use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
 use Src\Application\AppUser\AiChat\Support\RagQueryStreamBodyHelper;
+use Src\Application\AppUser\AiChat\Support\RagSseProxyHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
@@ -31,7 +32,9 @@ readonly class AiChatStreamService
 
         return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions, $appUserId): void {
             try {
-                $client = new Client;
+                RagSseProxyHelper::flushKeepAlive();
+
+                $client = new Client(RagSseProxyHelper::guzzleOptions());
 
                 $body = RagQueryStreamBodyHelper::build(
                     sessionId: $appUserId,
@@ -49,21 +52,17 @@ readonly class AiChatStreamService
                     'headers' => ['Accept' => 'text/event-stream'],
                 ]);
 
-                $body = $response->getBody();
                 $fullResponseContent = '';
+                $sseBuffer = '';
 
-                while (! $body->eof()) {
-                    $chunk = $body->read(1024);
-                    echo $chunk;
-
-                    $fullResponseContent .= $this->extractContentFromChunk($chunk);
-
-                    if (ob_get_level() > 0) {
-                        ob_flush();
+                RagSseProxyHelper::relay(
+                    $response->getBody(),
+                    function (string $chunk) use (&$fullResponseContent, &$sseBuffer): void {
+                        $fullResponseContent .= $this->extractContentFromSseChunk($chunk, $sseBuffer);
                     }
+                );
 
-                    flush();
-                }
+                $fullResponseContent .= $this->flushSseBuffer($sseBuffer);
 
                 if ($fullResponseContent !== '' && $fullResponseContent !== '0') {
                     $this->saveAssistantMessage($chat, $fullResponseContent, $data->search_mode);
@@ -125,16 +124,55 @@ readonly class AiChatStreamService
             ->all();
     }
 
-    private function extractContentFromChunk(string $chunk): string
+    private function extractContentFromSseChunk(string $chunk, string &$sseBuffer): string
+    {
+        $sseBuffer .= $chunk;
+        $lines = explode("\n", $sseBuffer);
+        $sseBuffer = array_pop($lines) ?? '';
+
+        return $this->extractContentFromSseLines($lines);
+    }
+
+    private function flushSseBuffer(string &$sseBuffer): string
+    {
+        if ($sseBuffer === '') {
+            return '';
+        }
+
+        $lines = [$sseBuffer];
+        $sseBuffer = '';
+
+        return $this->extractContentFromSseLines($lines);
+    }
+
+    /**
+     * Text chat may stream incremental "chunk" events and/or a final "answer" on done.
+     *
+     * @param  list<string>  $lines
+     */
+    private function extractContentFromSseLines(array $lines): string
     {
         $content = '';
-        $lines = explode("\n", $chunk);
+
         foreach ($lines as $line) {
-            if (str_starts_with($line, 'data: ')) {
-                $jsonData = json_decode(substr($line, 6), true);
-                if (isset($jsonData['chunk'])) {
-                    $content .= $jsonData['chunk'];
-                }
+            $line = trim($line);
+            if ($line === '' || ! str_starts_with($line, 'data: ')) {
+                continue;
+            }
+
+            $jsonData = json_decode(substr($line, 6), true);
+            if (! is_array($jsonData)) {
+                continue;
+            }
+
+            if (isset($jsonData['chunk']) && is_string($jsonData['chunk'])) {
+                $content .= $jsonData['chunk'];
+
+                continue;
+            }
+
+            if (isset($jsonData['answer']) && is_string($jsonData['answer'])) {
+                $content .= $jsonData['answer'];
             }
         }
 

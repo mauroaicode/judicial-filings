@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Src\Application\AppUser\AiChat\Data\SendVoiceMessageData;
 use Src\Application\AppUser\AiChat\Jobs\UpdateAiChatTitleJob;
 use Src\Application\AppUser\AiChat\Support\RagQueryStreamBodyHelper;
+use Src\Application\AppUser\AiChat\Support\RagSseProxyHelper;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AiChat\Models\AiChatMessage;
 use Src\Domain\Process\Models\Process;
@@ -27,7 +28,9 @@ readonly class AiChatVoiceService
 
         return new StreamedResponse(function () use ($chat, $data, $history, $ragOptions, $appUserId): void {
             try {
-                $client = new Client;
+                RagSseProxyHelper::flushKeepAlive();
+
+                $client = new Client(RagSseProxyHelper::guzzleOptions());
 
                 $body = RagQueryStreamBodyHelper::build(
                     sessionId: $appUserId,
@@ -52,22 +55,15 @@ readonly class AiChatVoiceService
                     'headers' => ['Accept' => 'text/event-stream'],
                 ]);
 
-                $stream = $response->getBody();
                 $fullResponseContent = '';
                 $sseBuffer = '';
 
-                while (! $stream->eof()) {
-                    $chunk = $stream->read(1024);
-                    echo $chunk;
-
-                    $fullResponseContent .= $this->extractContentFromSseChunk($chunk, $sseBuffer);
-
-                    if (ob_get_level() > 0) {
-                        ob_flush();
+                RagSseProxyHelper::relay(
+                    $response->getBody(),
+                    function (string $chunk) use (&$fullResponseContent, &$sseBuffer): void {
+                        $fullResponseContent .= $this->extractContentFromSseChunk($chunk, $sseBuffer);
                     }
-
-                    flush();
-                }
+                );
 
                 $fullResponseContent .= $this->flushSseBuffer($sseBuffer);
 

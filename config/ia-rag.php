@@ -18,7 +18,7 @@ return [
 
     'base_url' => env('IA_RAG_BASE_URL', 'http://localhost:8000'),
 
-    'timeout' => env('IA_RAG_TIMEOUT', 120),
+    'timeout' => env('IA_RAG_TIMEOUT', 180),
 
     'task_max_attempts' => env('IA_RAG_TASK_MAX_ATTEMPTS', 60),
     'task_retry_delay' => env('IA_RAG_TASK_RETRY_DELAY', 2),
