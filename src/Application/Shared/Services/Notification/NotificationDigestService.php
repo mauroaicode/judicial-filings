@@ -198,7 +198,7 @@ class NotificationDigestService
             /** @var \Illuminate\Support\Collection<int, ProcessAction> $actions */
             $actions = $group
                 ->map(fn (OrganizationNotification $notif) => $notif->notifiable)
-                ->filter(fn ($notifiable) => $notifiable instanceof ProcessAction)
+                ->filter(fn ($notifiable): bool => $notifiable instanceof ProcessAction)
                 ->values();
 
             if ($actions->isEmpty()) {

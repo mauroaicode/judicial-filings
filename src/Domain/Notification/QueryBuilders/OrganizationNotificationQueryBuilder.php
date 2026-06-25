@@ -84,6 +84,26 @@ class OrganizationNotificationQueryBuilder extends Builder
     }
 
     /**
+     * Actuaciones within the registration window, or first discovered today (Rama may
+     * return stale registration_date values for entries newly visible in the API).
+     */
+    public function forActuacionVisibleByRegistrationOrDiscoveredToday(string $registrationFloorDate): self
+    {
+        $morphClass = (new ProcessAction)->getMorphClass();
+        $discoveredSince = today()->format('Y-m-d');
+
+        return $this->where('organization_notifications.notifiable_type', $morphClass)
+            ->whereIn('organization_notifications.notifiable_id', function ($sub) use ($registrationFloorDate, $discoveredSince): void {
+                $sub->select('process_actions.id')
+                    ->from('process_actions')
+                    ->where(function (\Illuminate\Contracts\Database\Query\Builder $query) use ($registrationFloorDate, $discoveredSince): void {
+                        $query->whereDate('registration_date', '>=', $registrationFloorDate)
+                            ->orWhereDate('created_at', '>=', $discoveredSince);
+                    });
+            });
+    }
+
+    /**
      * Limit judicial-action notifications to those registered on or after a date.
      */
     public function forProcessActionRegistrationDateOnOrAfter(string $date): self

@@ -481,15 +481,17 @@ it('excludes historical actuacion notifications already covered by a sent digest
     $historicalAction = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action' => 'Recepción memorial',
-        'registration_date' => '2020-05-10',
-        'action_date' => '2020-05-10',
+        'registration_date' => now()->subYears(5)->toDateString(),
+        'action_date' => now()->subYears(5)->toDateString(),
+        'created_at' => now()->subYears(5),
     ]);
 
     $currentAction = ProcessAction::factory()->create([
         'process_id' => $process->id,
         'action' => 'Incorpora memorial en despacho',
-        'registration_date' => '2026-06-10',
-        'action_date' => '2026-06-10',
+        'registration_date' => now()->subDays(2)->toDateString(),
+        'action_date' => now()->subDays(2)->toDateString(),
+        'created_at' => now()->subDays(2),
     ]);
 
     OrganizationNotification::create([

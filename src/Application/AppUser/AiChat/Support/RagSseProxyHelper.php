@@ -66,7 +66,7 @@ final class RagSseProxyHelper
             if ($chunk === '') {
                 $meta = stream_get_meta_data($resource);
 
-                if ($meta['timed_out'] ?? false) {
+                if ($meta['timed_out']) {
                     self::flushKeepAlive();
 
                     continue;

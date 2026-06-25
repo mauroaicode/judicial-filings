@@ -60,9 +60,22 @@ readonly class OrganizationNotificationRegistrationCutoffService
 
     public function isEligibleForAppActuacionNotification(ProcessAction $action, string $organizationId): bool
     {
+        if ($this->isNewlyDiscoveredActuacion($action)) {
+            return true;
+        }
+
         $floor = $this->resolveAppNotificationRegistrationFloor();
 
         return $action->registration_date->format('Y-m-d') >= $floor;
+    }
+
+    /**
+     * Actuación first persisted during today's sync — notify even when Rama's
+     * registration_date is older than the rolling window.
+     */
+    public function isNewlyDiscoveredActuacion(ProcessAction $action): bool
+    {
+        return $action->created_at->greaterThanOrEqualTo(today()->startOfDay());
     }
 
     /**
@@ -83,7 +96,7 @@ readonly class OrganizationNotificationRegistrationCutoffService
         $cutoff = $this->resolveLastNotifiedRegistrationDate($organizationId);
 
         if ($cutoff !== null) {
-            $query->forProcessActionRegistrationDateOnOrAfter($cutoff);
+            $query->forActuacionVisibleByRegistrationOrDiscoveredToday($cutoff);
         }
 
         return $query;

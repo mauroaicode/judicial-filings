@@ -121,6 +121,33 @@ it('creates actuacion and actuacion_registro notifications during registration i
         ->exists())->toBeTrue();
 });
 
+it('notifies actuaciones discovered today even when registration_date is historical', function (): void {
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'ARCHIVO',
+        'action_date' => now()->subDays(10),
+        'registration_date' => now()->subDays(10),
+        'created_at' => now(),
+    ]);
+
+    $service = app(ProcessActionAlertNotificationService::class);
+    $service->handle($action, $process);
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $organization->id)
+        ->where('notifiable_id', $action->id)
+        ->where('notification_type', 'actuacion')
+        ->exists())->toBeTrue();
+});
+
 it('skips duplicate notifications for the same actuacion content across instances', function (): void {
     $organization = Organization::factory()->create();
     $processNumber = '76001400303420230073500';

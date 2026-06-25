@@ -128,7 +128,7 @@ readonly class AiChatStreamService
     {
         $sseBuffer .= $chunk;
         $lines = explode("\n", $sseBuffer);
-        $sseBuffer = array_pop($lines) ?? '';
+        $sseBuffer = array_pop($lines);
 
         return $this->extractContentFromSseLines($lines);
     }
@@ -156,7 +156,11 @@ readonly class AiChatStreamService
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if ($line === '' || ! str_starts_with($line, 'data: ')) {
+            if ($line === '') {
+                continue;
+            }
+
+            if (! str_starts_with($line, 'data: ')) {
                 continue;
             }
 

@@ -196,12 +196,12 @@ readonly class ProcessActionAlertNotificationService
             : collect([$action->id]);
 
         $crossInstanceDuplicate = OrganizationNotification::query()
-                ->where('organization_id', $organizationId)
-                ->where('notification_type', $notificationType)
-                ->where('severity_color', $severityColor)
-                ->where('notifiable_type', $morphClass)
-                ->whereIn('notifiable_id', $matchingActionIds->all())
-                ->exists();
+            ->where('organization_id', $organizationId)
+            ->where('notification_type', $notificationType)
+            ->where('severity_color', $severityColor)
+            ->where('notifiable_type', $morphClass)
+            ->whereIn('notifiable_id', $matchingActionIds->all())
+            ->exists();
 
         if ($crossInstanceDuplicate) {
             Log::channel($logChannel)->info('ProcessActionAlertNotificationService: skipping cross-instance duplicate notification', [
