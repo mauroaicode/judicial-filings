@@ -158,7 +158,11 @@ class NotificationDigestService
 
         try {
             Mail::to($recipientEmail)->send(
-                new ConsolidatedJudicialActionsMailable($digestData, StrParseHelper::toTitleCase($organizationName))
+                new ConsolidatedJudicialActionsMailable(
+                    $digestData,
+                    StrParseHelper::toTitleCase($organizationName),
+                    $digest->id,
+                )
             );
 
             // Only mark as sent if Mail::send() did not throw

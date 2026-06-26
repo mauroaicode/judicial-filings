@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', config('app.name'))</title>
+    @yield('styles')
 </head>
 <body style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1F2937; max-width: @yield('max_width', '600px'); margin: 0 auto; padding: 20px; background-color: #F3F0F9;">
-    <div style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 12px rgba(36, 22, 62, 0.05); overflow: hidden; border: 1px solid #E5E7EB;">
+    <div style="background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 12px rgba(36, 22, 62, 0.05); overflow: @yield('card_overflow', 'hidden'); border: 1px solid #E5E7EB;">
         <!-- Header -->
         <div style="background-color: #FFFFFF; padding: 30px 30px 25px; text-align: center; border-bottom: 2px solid #F0EBF8;">
             <img src="{{ config('app.url') }}/images/logo-notijudicial-grande.png" alt="{{ config('app.name') }}" style="height: 65px; width: auto; display: block; margin-left: auto; margin-right: auto;">

@@ -16,13 +16,25 @@ class ConsolidatedJudicialActionsMailable extends Mailable
     use Queueable;
     use SerializesModels;
 
+    /** @var array<string, mixed> */
+    public readonly array $emailViewData;
+
     /**
-     * @param  Collection  $data  This collection contains structured data for each row in the table
+     * @param  Collection<int, array<string, mixed>>  $data
      */
     public function __construct(
-        public readonly Collection $data,
-        public readonly string $organizationName
-    ) {}
+        Collection $data,
+        public readonly string $organizationName,
+        public readonly string $digestId,
+        ?ConsolidatedDigestEmailPresenter $presenter = null,
+    ) {
+        $presenter ??= new ConsolidatedDigestEmailPresenter;
+
+        $this->emailViewData = array_merge(
+            $presenter->present($data, $digestId),
+            ['data' => $data],
+        );
+    }
 
     public function envelope(): Envelope
     {
@@ -35,6 +47,7 @@ class ConsolidatedJudicialActionsMailable extends Mailable
     {
         return new Content(
             view: 'emails.consolidated-judicial-actions',
+            with: $this->emailViewData,
         );
     }
 }
