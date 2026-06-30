@@ -103,6 +103,7 @@ return [
     'consolidated_notifications_term' => 'Plazo',
     'consolidated_notifications_keywords' => 'Palabras clave: :keywords',
     'consolidated_notifications_remaining' => '{1} ... y :count actuación más en el portal.|[2,*] ... y :count actuaciones más en el portal.',
+    'consolidated_notifications_scroll_hint' => 'Desliza horizontalmente la tabla para ver todas las columnas.',
     'consolidated_notifications_cta' => 'Ver detalle completo en NotiJudicial',
     'config_updated_successfully' => 'Configuración del proceso actualizada exitosamente.',
     'subjects_synced_successfully' => 'Sujetos procesales guardados exitosamente.',

@@ -10,14 +10,7 @@ final class ConsolidatedDigestEmailPresenter
 {
     /**
      * @return array{
-     *     processGroups: Collection<int, array{
-     *         process_number: string,
-     *         court: string,
-     *         demandante: string,
-     *         demandado: string,
-     *         has_alert: bool,
-     *         actions: list<array<string, mixed>>
-     *     }>,
+     *     displayedRows: Collection<int, array<string, mixed>>,
      *     totalActionsCount: int,
      *     totalProcessesCount: int,
      *     alertsCount: int,
@@ -35,10 +28,8 @@ final class ConsolidatedDigestEmailPresenter
         $displayed = $sorted->take($maxRows);
         $remainingActionsCount = max(0, $totalActionsCount - $displayed->count());
 
-        $processGroups = $this->groupByProcess($displayed);
-
         return [
-            'processGroups' => $processGroups,
+            'displayedRows' => $displayed,
             'totalActionsCount' => $totalActionsCount,
             'totalProcessesCount' => $sorted->unique('process_number')->count(),
             'alertsCount' => $sorted->where('is_alert', true)->count(),
@@ -64,37 +55,6 @@ final class ConsolidatedDigestEmailPresenter
 
             return 0;
         })->values();
-    }
-
-    /**
-     * @param  Collection<int, array<string, mixed>>  $displayed
-     * @return Collection<int, array{
-     *     process_number: string,
-     *     court: string,
-     *     demandante: string,
-     *     demandado: string,
-     *     has_alert: bool,
-     *     actions: list<array<string, mixed>>
-     * }>
-     */
-    private function groupByProcess(Collection $displayed): Collection
-    {
-        return $displayed
-            ->groupBy('process_number')
-            ->map(function (Collection $actions, string $processNumber): array {
-                /** @var array<string, mixed> $first */
-                $first = $actions->first();
-
-                return [
-                    'process_number' => $processNumber,
-                    'court' => (string) ($first['court'] ?? ''),
-                    'demandante' => (string) ($first['demandante'] ?? '---'),
-                    'demandado' => (string) ($first['demandado'] ?? '---'),
-                    'has_alert' => $actions->contains(fn (array $row): bool => (bool) ($row['is_alert'] ?? false)),
-                    'actions' => array_values($actions->values()->all()),
-                ];
-            })
-            ->values();
     }
 
     private function resolveDigestUrl(string $digestId): string

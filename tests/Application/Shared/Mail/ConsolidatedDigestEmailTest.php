@@ -54,27 +54,11 @@ it('prioritizes alerts and limits rows for the email presenter', function (): vo
         ->and($presented['remainingActionsCount'])->toBe(2)
         ->and($presented['alertsCount'])->toBe(1)
         ->and($presented['digestUrl'])->toBe('https://app.example.com/actuaciones/notification-digests/digest-uuid')
-        ->and($presented['processGroups']->flatMap(fn (array $group) => $group['actions'])->first()['action_text'])
+        ->and($presented['displayedRows']->first()['action_text'])
         ->toBe('Alerta 1');
 });
 
-it('groups displayed actions by process number', function (): void {
-    $data = collect([
-        makeDigestRow('111', false, 'A1'),
-        makeDigestRow('111', false, 'A2'),
-        makeDigestRow('222', false, 'B1'),
-    ]);
-
-    config(['notification.mail.digest_max_rows' => 8]);
-
-    $groups = (new ConsolidatedDigestEmailPresenter)->present($data, 'digest-uuid')['processGroups'];
-
-    expect($groups)->toHaveCount(2)
-        ->and($groups->firstWhere('process_number', '111')['actions'])->toHaveCount(2)
-        ->and($groups->firstWhere('process_number', '222')['actions'])->toHaveCount(1);
-});
-
-it('renders grouped digest email without wide table markup', function (): void {
+it('renders scrollable table digest email markup', function (): void {
     $data = collect([
         makeDigestRow('76001418900120220081900', true, 'Fijacion Estado'),
         makeDigestRow('76001418900120220081900', false, 'Auto Ordena'),
@@ -87,8 +71,13 @@ it('renders grouped digest email without wide table markup', function (): void {
         ->toContain('76001418900120220081900')
         ->toContain('Ver detalle completo en NotiJudicial')
         ->toContain('https://app.example.com/actuaciones/notification-digests/digest-uuid')
-        ->not->toContain('min-width: 800px')
-        ->not->toContain('<thead>');
+        ->toContain('consolidated-table-clip')
+        ->toContain('consolidated-table-scroll')
+        ->toContain('-webkit-overflow-scrolling: touch')
+        ->toContain('Desliza horizontalmente la tabla para ver todas las columnas.')
+        ->toContain('<thead>')
+        ->toContain('min-width: 900px')
+        ->not->toContain('overflow: visible');
 });
 
 it('shows remaining actions notice when digest exceeds configured max rows', function (): void {

@@ -100,6 +100,7 @@ return [
     'consolidated_notifications_term' => 'Term',
     'consolidated_notifications_keywords' => 'Keywords: :keywords',
     'consolidated_notifications_remaining' => '{1} ... and :count more action in the portal.|[2,*] ... and :count more actions in the portal.',
+    'consolidated_notifications_scroll_hint' => 'Swipe the table horizontally to see all columns.',
     'consolidated_notifications_cta' => 'View full detail in NotiJudicial',
 
     'config_updated_successfully' => 'Process configuration updated successfully.',
