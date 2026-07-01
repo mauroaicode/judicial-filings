@@ -7,6 +7,8 @@
         : 'process.consolidated_notifications_header_singular';
 @endphp
 @extends('emails.layouts.email')
+@section('max_width', '1200px')
+@section('content_padding', '32px 16px')
 @section('title', __('process.consolidated_notifications_title'))
 
 @section('styles')
@@ -30,12 +32,12 @@
         }
 
         .consolidated-table {
-            width: 100%;
-            min-width: 900px;
+            width: 100% !important;
             border-collapse: collapse;
             font-family: sans-serif;
             font-size: 12px;
             border: 1px solid #E5E7EB;
+            table-layout: auto;
         }
 
         .consolidated-radicacion {
@@ -56,7 +58,15 @@
             }
 
             .email-content-pad {
-                padding: 24px 16px !important;
+                padding: 24px 12px !important;
+            }
+
+            .consolidated-table-scroll {
+                overflow-x: scroll !important;
+            }
+
+            .consolidated-table {
+                min-width: 900px !important;
             }
         }
     </style>
@@ -88,7 +98,7 @@
         </p>
     </div>
 
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-bottom: 30px; table-layout: fixed; width: 100%; max-width: 100%;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-bottom: 30px; width: 100%; max-width: 100%;">
         <tr>
             <td style="padding: 0; width: 100%; max-width: 100%; overflow: hidden;">
                 <!--[if mso]>
@@ -96,7 +106,7 @@
                 <![endif]-->
                 <div class="consolidated-table-clip" style="display: block; width: 100%; max-width: 100%; overflow: hidden; box-sizing: border-box;">
                     <div class="consolidated-table-scroll" style="display: block; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; box-sizing: border-box;">
-                        <table class="consolidated-table" role="presentation" style="width: 100%; min-width: 900px; border-collapse: collapse; font-family: sans-serif; font-size: 12px; border: 1px solid #E5E7EB;">
+                        <table class="consolidated-table" role="presentation" style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 12px; border: 1px solid #E5E7EB;">
                             <thead>
                             <tr style="background-color: #F3F4F6; text-align: left; border-bottom: 2px solid #E5E7EB;">
                                 <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Juzgado</th>
@@ -114,20 +124,20 @@
                             <tbody>
                             @foreach($displayedRows as $row)
                                 <tr style="border-bottom: 1px solid #E5E7EB; vertical-align: middle; {{ ($row['is_alert'] ?? false) ? 'background-color: #FEF2F2;' : '' }}">
-                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify; min-width: 140px;">
+                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify;">
                                         <div style="line-height: 1.4;">{{ Str::limit($row['court'], 45) }}</div>
                                     </td>
-                                    <td class="consolidated-radicacion" style="padding: 8px; border: 1px solid #E5E7EB; text-align: center; min-width: 130px; word-break: break-all; overflow-wrap: break-word; white-space: normal;">
+                                    <td class="consolidated-radicacion" style="padding: 8px; border: 1px solid #E5E7EB; text-align: center; word-break: break-all; overflow-wrap: break-word; white-space: normal;">
                                         {{ $row['process_number'] }}
                                     </td>
-                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify; min-width: 120px;">
+                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify;">
                                         <div style="line-height: 1.4;">{{ Str::limit($row['demandante'], 40) }}</div>
                                     </td>
-                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify; min-width: 120px;">
+                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify;">
                                         <div style="line-height: 1.4;">{{ Str::limit($row['demandado'], 40) }}</div>
                                     </td>
                                     <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: center; white-space: nowrap;">{{ $row['action_date'] }}</td>
-                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify; min-width: 150px;">
+                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify;">
                                         <div style="line-height: 1.4;">
                                             @if(!empty($row['is_merged']))
                                                 <div style="margin-bottom: 5px;">
@@ -143,7 +153,7 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify; min-width: 140px;">
+                                    <td style="padding: 8px; border: 1px solid #E5E7EB; text-align: justify;">
                                         <div style="line-height: 1.4;">
                                             @php
                                                 $annotation = $row['annotation'] ?? '---';

@@ -87,7 +87,7 @@ return [
     'consolidated_notifications_title' => 'Resumen Judicial Consolidado',
     'consolidated_notifications_header_singular' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVO MOVIMIENTO EL SIGUIENTE PROCESO!',
     'consolidated_notifications_header_plural' => '¡NUESTRO SISTEMA DE NOTIFICACIONES JUDICIALES PERSONALIZADO LE INFORMA QUE EL DÍA :date TUVIERON MOVIMIENTO LOS SIGUIENTES PROCESOS!',
-    'consolidated_notifications_intro' => 'Estimado usuario, se han detectado nuevas actuaciones en sus procesos seguidos. A continuación el resumen:',
+    'consolidated_notifications_intro' => 'Estimado usuario, se han detectado nuevas actuaciones en sus procesos seguidos. A continuación el detalle consolidado:',
     'consolidated_notifications_summary_actions' => '{0} Sin actuaciones nuevas|{1} :count nueva actuación|[2,*] :count nuevas actuaciones',
     'consolidated_notifications_summary_processes' => '{1} en :count proceso|[2,*] en :count procesos',
     'consolidated_notifications_summary_alerts' => '{1} :count alerta|[2,*] :count alertas',

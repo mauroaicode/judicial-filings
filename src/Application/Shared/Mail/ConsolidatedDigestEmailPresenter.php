@@ -22,11 +22,11 @@ final class ConsolidatedDigestEmailPresenter
     public function present(Collection $data, string $digestId): array
     {
         $sorted = $this->sortForEmail($data);
-        $maxRows = max(1, (int) config('notification.mail.digest_max_rows', 8));
+        $maxRows = (int) config('notification.mail.digest_max_rows', 0);
 
         $totalActionsCount = $sorted->count();
-        $displayed = $sorted->take($maxRows);
-        $remainingActionsCount = max(0, $totalActionsCount - $displayed->count());
+        $displayed = $maxRows > 0 ? $sorted->take($maxRows) : $sorted;
+        $remainingActionsCount = $maxRows > 0 ? max(0, $totalActionsCount - $displayed->count()) : 0;
 
         return [
             'displayedRows' => $displayed,

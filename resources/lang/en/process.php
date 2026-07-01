@@ -84,7 +84,7 @@ return [
     'consolidated_notifications_title' => 'Consolidated Judicial Summary',
     'consolidated_notifications_header_singular' => 'OUR PERSONALIZED JUDICIAL NOTIFICATION SYSTEM INFORMS YOU THAT ON :date THE FOLLOWING PROCESS HAD MOVEMENT!',
     'consolidated_notifications_header_plural' => 'OUR PERSONALIZED JUDICIAL NOTIFICATION SYSTEM INFORMS YOU THAT ON :date THE FOLLOWING PROCESSES HAD MOVEMENT!',
-    'consolidated_notifications_intro' => 'Dear user, new actions have been detected in your followed processes. Below is the summary:',
+    'consolidated_notifications_intro' => 'Dear user, new actions have been detected in your followed processes. Below is the consolidated detail:',
     'consolidated_notifications_summary_actions' => '{0} No new actions|{1} :count new action|[2,*] :count new actions',
     'consolidated_notifications_summary_processes' => '{1} across :count process|[2,*] across :count processes',
     'consolidated_notifications_summary_alerts' => '{1} :count alert|[2,*] :count alerts',

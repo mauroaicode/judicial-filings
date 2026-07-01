@@ -38,7 +38,18 @@ function makeDigestRow(
     ];
 }
 
-it('prioritizes alerts and limits rows for the email presenter', function (): void {
+it('shows all rows by default without a row limit', function (): void {
+    config(['notification.mail.digest_max_rows' => 0]);
+
+    $data = Collection::times(5, fn (int $i) => makeDigestRow('111', false, "Actuación {$i}"));
+
+    $presented = (new ConsolidatedDigestEmailPresenter)->present($data, 'digest-uuid');
+
+    expect($presented['displayedActionsCount'])->toBe(5)
+        ->and($presented['remainingActionsCount'])->toBe(0);
+});
+
+it('prioritizes alerts and limits rows when digest_max_rows is configured', function (): void {
     $data = collect([
         makeDigestRow('111', false, 'Normal 1'),
         makeDigestRow('111', true, 'Alerta 1'),
@@ -59,6 +70,8 @@ it('prioritizes alerts and limits rows for the email presenter', function (): vo
 });
 
 it('renders scrollable table digest email markup', function (): void {
+    config(['notification.mail.digest_max_rows' => 0]);
+
     $data = collect([
         makeDigestRow('76001418900120220081900', true, 'Fijacion Estado'),
         makeDigestRow('76001418900120220081900', false, 'Auto Ordena'),
@@ -76,11 +89,14 @@ it('renders scrollable table digest email markup', function (): void {
         ->toContain('-webkit-overflow-scrolling: touch')
         ->toContain('Desliza horizontalmente la tabla para ver todas las columnas.')
         ->toContain('<thead>')
-        ->toContain('min-width: 900px')
+        ->toContain('overflow-x: scroll')
+        ->toContain('max-width: 1200px')
         ->not->toContain('overflow: visible');
 });
 
 it('shows remaining actions notice when digest exceeds configured max rows', function (): void {
+    config(['notification.mail.digest_max_rows' => 3]);
+
     $data = Collection::times(5, fn (int $i) => makeDigestRow('111', false, "Actuación {$i}"));
 
     $html = (new ConsolidatedJudicialActionsMailable($data, 'Org', 'digest-uuid'))->render();
