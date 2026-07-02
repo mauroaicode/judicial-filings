@@ -529,6 +529,40 @@ it('filters processes by severity_color none when role or last activity is missi
     expect($numbers)->not->toContain($recentPlaintiff->process_number);
 });
 
+it('excludes inactive tracking processes from severity_color filters', function (): void {
+    $this->freezeTime();
+
+    $inactiveRed = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+    $activeRed = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+
+    $inactiveRed->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => false,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => 'red',
+    ]);
+    $activeRed->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => 'red',
+    ]);
+
+    $redResponse = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?severity_color=red');
+
+    $redResponse->assertStatus(200);
+    expect($redResponse->json('data'))->toHaveCount(1);
+    expect($redResponse->json('data.0.process_number'))->toBe($activeRed->process_number);
+
+    $inactiveResponse = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?status=inactive');
+
+    $inactiveResponse->assertStatus(200);
+    expect($inactiveResponse->json('data'))->toHaveCount(1);
+    expect($inactiveResponse->json('data.0.process_number'))->toBe($inactiveRed->process_number);
+});
+
 it('filters processes by created_at date', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();

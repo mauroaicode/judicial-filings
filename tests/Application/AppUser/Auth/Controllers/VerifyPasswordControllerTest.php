@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Organization\Models\Organization;
 
 beforeEach(function (): void {
+    $this->organization = Organization::factory()->create(['is_active' => true]);
     $this->appUser = AppUser::factory()->create([
         'email' => 'lock-test@example.com',
         'identification' => '9876543210',
         'password' => Hash::make('correct-password'),
         'email_verified_at' => now(),
     ]);
+    $this->appUser->organizations()->attach($this->organization->id, ['is_owner' => true]);
 
     $this->token = $this->appUser->createToken('test-token')->plainTextToken;
 });

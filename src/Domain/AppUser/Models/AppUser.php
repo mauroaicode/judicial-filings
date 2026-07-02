@@ -174,6 +174,11 @@ class AppUser extends Model implements Authenticatable
         return $this->organizations()->wherePivot('is_owner', true);
     }
 
+    public function belongsToActiveOrganization(): bool
+    {
+        return $this->organizations()->where('organizations.is_active', true)->exists();
+    }
+
     /**
      * Get the guard name for the model.
      * Used by Spatie Permission to determine which guard to use.

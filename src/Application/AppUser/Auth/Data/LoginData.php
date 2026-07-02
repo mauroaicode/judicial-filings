@@ -47,6 +47,12 @@ class LoginData extends Data
                 return;
             }
 
+            if (! $appUser->belongsToActiveOrganization()) {
+                $validator->errors()->add('identification', __('auth.user_inactive'));
+
+                return;
+            }
+
             if (! Hash::check(value: $data['password'], hashedValue: $appUser->password)) {
                 $validator->errors()->add('identification', __('auth.failed'));
             }

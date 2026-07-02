@@ -35,7 +35,7 @@ final class ProcessRepresentativeSeverityFilter
         $numbers = [];
 
         foreach ($processes->groupBy('process_number') as $instances) {
-            $representative = self::representativeInstance($instances);
+            $representative = self::representativeInstance($instances, $organizationId);
 
             if (! $representative instanceof Process) {
                 continue;
@@ -72,6 +72,10 @@ final class ProcessRepresentativeSeverityFilter
             return null;
         }
 
+        if (! (bool) $organization->pivot->is_active) {
+            return null;
+        }
+
         $role = $organization->pivot->lawyer_role;
         $lawyerRole = is_string($role) ? ProcessLawyerRole::tryFrom($role) : null;
 
@@ -85,10 +89,32 @@ final class ProcessRepresentativeSeverityFilter
     /**
      * @param  Collection<int, Process>  $instances
      */
-    private static function representativeInstance(Collection $instances): ?Process
+    public static function resolveRepresentativeColor(Collection $instances, string $organizationId): ?string
+    {
+        $representative = self::representativeInstance($instances, $organizationId);
+
+        return $representative instanceof Process
+            ? self::resolveColor($representative, $organizationId)
+            : null;
+    }
+
+    /**
+     * @param  Collection<int, Process>  $instances
+     */
+    private static function representativeInstance(Collection $instances, string $organizationId): ?Process
     {
         return $instances
+            ->filter(fn (Process $process): bool => self::isPivotActive($process, $organizationId))
             ->sortByDesc(fn (Process $process): int => $process->last_activity_date?->getTimestamp() ?? 0)
             ->first();
+    }
+
+    private static function isPivotActive(Process $process, string $organizationId): bool
+    {
+        $organization = $process->organizations->firstWhere('id', $organizationId);
+
+        return $organization !== null
+            && $organization->pivot !== null
+            && (bool) $organization->pivot->is_active;
     }
 }

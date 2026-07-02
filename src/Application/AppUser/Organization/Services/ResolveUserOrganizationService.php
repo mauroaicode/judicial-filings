@@ -18,10 +18,10 @@ class ResolveUserOrganizationService
         $user = auth()->user();
 
         if ($user instanceof AppUser) {
-            $organization = $user->organizations()->first();
+            $organization = $user->organizations()->where('organizations.is_active', true)->first();
 
             if (! $organization) {
-                abort(422, __('process.user_has_no_organization'));
+                abort(401, 'auth.user_inactive');
             }
 
             return $organization;

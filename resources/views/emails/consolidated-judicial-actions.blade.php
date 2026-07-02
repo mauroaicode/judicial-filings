@@ -25,7 +25,7 @@
             display: block !important;
             width: 100% !important;
             max-width: 100% !important;
-            overflow-x: auto !important;
+            overflow-x: scroll !important;
             overflow-y: hidden !important;
             -webkit-overflow-scrolling: touch !important;
             box-sizing: border-box !important;
@@ -33,6 +33,7 @@
 
         .consolidated-table {
             width: 100% !important;
+            min-width: 900px !important;
             border-collapse: collapse;
             font-family: sans-serif;
             font-size: 12px;
@@ -53,20 +54,8 @@
         }
 
         @media only screen and (max-width: 640px) {
-            .consolidated-scroll-hint {
-                display: block !important;
-            }
-
             .email-content-pad {
                 padding: 24px 12px !important;
-            }
-
-            .consolidated-table-scroll {
-                overflow-x: scroll !important;
-            }
-
-            .consolidated-table {
-                min-width: 900px !important;
             }
         }
     </style>
@@ -93,7 +82,7 @@
             </p>
         </div>
 
-        <p class="consolidated-scroll-hint" style="display: none; margin: 0 0 10px 0; font-size: 12px; color: #9CA3AF; font-style: italic;">
+        <p class="consolidated-scroll-hint" style="display: block; margin: 0 0 12px 0; font-size: 12px; color: #9CA3AF; font-style: italic; text-align: center;">
             {{ __('process.consolidated_notifications_scroll_hint') }}
         </p>
     </div>
@@ -105,8 +94,8 @@
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td>
                 <![endif]-->
                 <div class="consolidated-table-clip" style="display: block; width: 100%; max-width: 100%; overflow: hidden; box-sizing: border-box;">
-                    <div class="consolidated-table-scroll" style="display: block; width: 100%; max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; box-sizing: border-box;">
-                        <table class="consolidated-table" role="presentation" style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 12px; border: 1px solid #E5E7EB;">
+                    <div class="consolidated-table-scroll" style="display: block; width: 100%; max-width: 100%; overflow-x: scroll; overflow-y: hidden; -webkit-overflow-scrolling: touch; box-sizing: border-box;">
+                        <table class="consolidated-table" role="presentation" style="width: 100%; min-width: 900px; border-collapse: collapse; font-family: sans-serif; font-size: 12px; border: 1px solid #E5E7EB;">
                             <thead>
                             <tr style="background-color: #F3F4F6; text-align: left; border-bottom: 2px solid #E5E7EB;">
                                 <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Juzgado</th>

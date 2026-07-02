@@ -103,15 +103,7 @@ readonly class DashboardStatsService
         ];
 
         foreach ($processes->groupBy('process_number') as $instances) {
-            $representative = $instances
-                ->sortByDesc(fn (Process $process): int => $process->last_activity_date?->getTimestamp() ?? 0)
-                ->first();
-
-            if (! $representative instanceof Process) {
-                continue;
-            }
-
-            $color = ProcessRepresentativeSeverityFilter::resolveColor($representative, $organizationId);
+            $color = ProcessRepresentativeSeverityFilter::resolveRepresentativeColor($instances, $organizationId);
 
             if ($color !== null && array_key_exists($color, $counts)) {
                 $counts[$color]++;

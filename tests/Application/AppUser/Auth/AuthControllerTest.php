@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Organization\Models\Organization;
 
 beforeEach(function (): void {
+    $this->organization = Organization::factory()->create(['is_active' => true]);
     $this->appUser = AppUser::factory()->create([
         'email' => 'test@example.com',
         'identification' => '1234567890',
         'password' => Hash::make('password1234'),
         'email_verified_at' => now(),
     ]);
+    $this->appUser->organizations()->attach($this->organization->id, ['is_owner' => true]);
 });
 
 it('allows user to login with valid credentials', function (): void {
@@ -64,6 +67,20 @@ it('rejects login with unverified email', function (): void {
     $response->assertStatus(422);
     $response->assertJson([
         'messages' => [__('auth.email_not_verified')],
+    ]);
+});
+
+it('rejects login when organization is inactive', function (): void {
+    $this->organization->update(['is_active' => false]);
+
+    $response = $this->postJson('/api/app-user/login', [
+        'identification' => '1234567890',
+        'password' => 'password1234',
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJson([
+        'messages' => [__('auth.user_inactive')],
     ]);
 });
 

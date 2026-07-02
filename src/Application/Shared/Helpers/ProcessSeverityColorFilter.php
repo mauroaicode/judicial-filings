@@ -15,6 +15,8 @@ final class ProcessSeverityColorFilter
 {
     public static function apply(Builder $query, string $severityColor): void
     {
+        $query->where('organization_processes.is_active', true);
+
         match ($severityColor) {
             'none' => self::applyNone($query),
             SeverityColor::GREEN->value => self::applyGreen($query),

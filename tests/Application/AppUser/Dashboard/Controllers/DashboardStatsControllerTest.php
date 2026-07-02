@@ -344,3 +344,33 @@ it('excludes viewed notifications from counts', function (): void {
     $response->assertStatus(200);
     $response->assertJsonPath('notifications.by_type.actuacion', 0);
 });
+
+it('excludes inactive tracking processes from semaphore counts', function (): void {
+    $this->freezeTime();
+
+    $inactiveRed = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+    $activeRed = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+
+    $inactiveRed->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => false,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => 'red',
+    ]);
+    $activeRed->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => 'red',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 2);
+    $response->assertJsonPath('inactive_processes', 1);
+    $response->assertJsonPath('semaphores.red', 1);
+    $response->assertJsonPath('semaphores.yellow', 0);
+    $response->assertJsonPath('semaphores.green', 0);
+});
