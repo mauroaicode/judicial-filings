@@ -70,7 +70,10 @@ it('prioritizes alerts and limits rows when digest_max_rows is configured', func
 });
 
 it('renders scrollable table digest email markup', function (): void {
-    config(['notification.mail.digest_max_rows' => 0]);
+    config([
+        'notification.mail.digest_max_rows' => 0,
+        'notification.mail.digest_table_width' => 1280,
+    ]);
 
     $data = collect([
         makeDigestRow('76001418900120220081900', true, 'Fijacion Estado'),
@@ -84,14 +87,14 @@ it('renders scrollable table digest email markup', function (): void {
         ->toContain('76001418900120220081900')
         ->toContain('Ver detalle completo en NotiJudicial')
         ->toContain('https://app.example.com/actuaciones/notification-digests/digest-uuid')
-        ->toContain('consolidated-table-clip')
-        ->toContain('consolidated-table-scroll')
+        ->toContain('consolidated-table-shell')
+        ->toContain('table-layout: fixed')
         ->toContain('-webkit-overflow-scrolling: touch')
         ->toContain('Desliza horizontalmente la tabla para ver todas las columnas.')
         ->toContain('<thead>')
+        ->toContain('width: 1280px')
         ->toContain('overflow-x: scroll')
-        ->toContain('max-width: 1200px')
-        ->not->toContain('overflow: visible');
+        ->toContain('max-width: 1200px');
 });
 
 it('shows remaining actions notice when digest exceeds configured max rows', function (): void {

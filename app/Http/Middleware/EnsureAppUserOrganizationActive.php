@@ -24,6 +24,10 @@ class EnsureAppUserOrganizationActive
             return $next($request);
         }
 
+        if (! $user->organizations()->exists()) {
+            return $next($request);
+        }
+
         if (! $user->belongsToActiveOrganization()) {
             return response()->json([
                 'messages' => [__('auth.user_inactive')],
