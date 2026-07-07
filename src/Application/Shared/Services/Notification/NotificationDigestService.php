@@ -27,12 +27,16 @@ class NotificationDigestService
         private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
     ) {}
 
-    public function sendDigest(Organization $organization, ?array $limitToProcessNumbers = null): void
-    {
+    public function sendDigest(
+        Organization $organization,
+        ?array $limitToProcessNumbers = null,
+        bool $skipRegistrationCutoff = false,
+    ): void {
         $morphClass = (new ProcessAction)->getMorphClass();
 
-        $lastNotifiedRegistrationDate = $this->registrationCutoffService
-            ->resolveLastNotifiedRegistrationDate($organization->id);
+        $lastNotifiedRegistrationDate = $skipRegistrationCutoff
+            ? null
+            : $this->registrationCutoffService->resolveLastNotifiedRegistrationDate($organization->id);
 
         // 1. Get all pending email notifications for this organization
         $query = $organization->notifications()

@@ -220,3 +220,53 @@ it('handles digest details when party names have leading empty comma segments', 
     expect($item['plaintiff'])->toBe('Juan Perez');
     expect($item['defendant'])->toBe('Maria Lopez (+1)');
 });
+
+it('returns calculated alert_level on digest detail matching process list semantics', function (): void {
+    $process = Process::factory()->create([
+        'process_number' => '76001333301320170009302',
+        'last_activity_date' => now()->subDays(10),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now(),
+        'lawyer_role' => 'plaintiff',
+        'inactivity_alert_level' => null,
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now(),
+    ]);
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => [
+            [
+                'process_number' => $process->process_number,
+                'process_action_id' => $action->id,
+                'action_text' => 'Auto Decide',
+                'registration_date' => now()->format('Y-m-d'),
+            ],
+        ],
+    ]);
+
+    DB::table('organization_notifications')->insert([
+        'id' => fake()->uuid(),
+        'organization_id' => $this->organization->id,
+        'notification_digest_id' => $digest->id,
+        'notifiable_id' => $action->id,
+        'notifiable_type' => ProcessAction::class,
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => true,
+        'is_email_notified' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $response = getJson('/api/app-user/notification-digests/'.$digest->id);
+
+    $response->assertOk();
+    expect($response->json('data.0.data.0.alert_level'))->toBe('green');
+});

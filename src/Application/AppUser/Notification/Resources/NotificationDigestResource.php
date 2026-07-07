@@ -8,9 +8,12 @@ use Illuminate\Support\Facades\Date;
 use Spatie\LaravelData\Resource;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
+use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 
 class NotificationDigestResource extends Resource
@@ -36,7 +39,7 @@ class NotificationDigestResource extends Resource
         ]);
 
         $notifLookup = self::buildNotificationLookup($digest);
-        $formattedData = self::formatRawItems($digest->data ?? [], $notifLookup, $filters);
+        $formattedData = self::formatRawItems($digest->data ?? [], $notifLookup, $digest->organization_id, $filters);
         $finalData = self::processFinalCollection($formattedData);
 
         return self::buildResource($digest, $finalData);
@@ -121,9 +124,9 @@ class NotificationDigestResource extends Resource
                 ->pluck('id', 'process_number')
                 ->all();
 
-        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber): array {
+        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber, $organizationId): array {
             $item = self::applyKeyMappings($item);
-            $item = self::enrichItemData($item, $notifLookup, $processIdsByNumber);
+            $item = self::enrichItemData($item, $notifLookup, $organizationId, $processIdsByNumber);
             $item = self::applyTitleCaseFormatting($item);
 
             return self::applyFinalDateFormatting($item);
@@ -192,16 +195,17 @@ class NotificationDigestResource extends Resource
     private static function formatRawItems(
         array $rawItems,
         array $notifLookup,
+        string $organizationId,
         ?NotificationDigestFilterData $filters,
     ): array {
-        return array_map(function (array $item) use ($notifLookup, $filters): ?array {
+        return array_map(function (array $item) use ($notifLookup, $organizationId, $filters): ?array {
             if ($filters instanceof NotificationDigestFilterData && ! self::shouldIncludeItem($item, $filters)) {
                 return null;
             }
 
             $item['_sort_timestamp'] = self::calculateSortTimestamp($item['registration_date'] ?? null);
             $item = self::applyKeyMappings($item);
-            $item = self::enrichItemData($item, $notifLookup);
+            $item = self::enrichItemData($item, $notifLookup, $organizationId);
             $item = self::applyTitleCaseFormatting($item);
 
             return self::applyFinalDateFormatting($item);
@@ -328,6 +332,7 @@ class NotificationDigestResource extends Resource
     private static function enrichItemData(
         array $item,
         array $notifLookup,
+        string $organizationId,
         array $processIdsByNumber = [],
     ): array {
         /** @var OrganizationNotification|null $matchedNotif */
@@ -362,14 +367,9 @@ class NotificationDigestResource extends Resource
                 $process = $actionModel->process;
                 $item['process_id'] = $process->id;
                 $orgProc = $process->organizations->firstWhere('id', $matchedNotif->organization_id);
-                $item['alert_level'] = $orgProc?->pivot->inactivity_alert_level;
-
-                $role = $orgProc?->pivot->lawyer_role;
-                if (is_string($role)) {
-                    $role = \Src\Domain\Process\Enums\ProcessLawyerRole::tryFrom($role);
-                }
-
-                $item['lawyer_role'] = $role instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $role->getLabel() : (string) $role;
+                $role = self::parseLawyerRole($orgProc?->pivot->lawyer_role);
+                $item['alert_level'] = self::resolveAlertLevelForProcess($process, $organizationId, $orgProc?->pivot->inactivity_alert_level, $role);
+                $item['lawyer_role'] = $role instanceof ProcessLawyerRole ? $role->getLabel() : (string) ($orgProc?->pivot->lawyer_role ?? '');
 
                 // Inyectamos el ID de la actuación y el consecutivo para poder relacionar actuaciones
                 $item['process_action_id'] = $actionModel->id;
@@ -402,6 +402,19 @@ class NotificationDigestResource extends Resource
             // le inyectamos un ID sintético basado en su hash para permitir que las validaciones de emparejamiento sigan funcionando
             if (empty($item['process_action_id']) && empty($item['id'])) {
                 $item['process_action_id'] = 'synth-'.md5(($item['process_number'] ?? '').($item['action_text'] ?? '').($item['annotation'] ?? ''));
+            }
+
+            if (! empty($item['process_id']) && empty($item['alert_level'])) {
+                $process = Process::query()
+                    ->with(['organizations' => fn ($q) => $q->where('organizations.id', $organizationId)])
+                    ->find($item['process_id']);
+
+                if ($process instanceof Process) {
+                    $orgProc = $process->organizations->firstWhere('id', $organizationId);
+                    $role = self::parseLawyerRole($orgProc?->pivot->lawyer_role);
+                    $item['alert_level'] = self::resolveAlertLevelForProcess($process, $organizationId, $orgProc?->pivot->inactivity_alert_level, $role);
+                    $item['lawyer_role'] ??= $role instanceof ProcessLawyerRole ? $role->getLabel() : (string) ($orgProc?->pivot->lawyer_role ?? '');
+                }
             }
         }
 
@@ -454,6 +467,37 @@ class NotificationDigestResource extends Resource
         }
 
         return $item;
+    }
+
+    private static function parseLawyerRole(mixed $role): ?ProcessLawyerRole
+    {
+        if ($role instanceof ProcessLawyerRole) {
+            return $role;
+        }
+
+        return is_string($role) ? ProcessLawyerRole::tryFrom($role) : null;
+    }
+
+    private static function resolveAlertLevelForProcess(
+        Process $process,
+        string $organizationId,
+        ?string $storedAlertLevel,
+        ?ProcessLawyerRole $lawyerRole,
+    ): ?string {
+        if (! $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole) {
+            $organization = $process->relationLoaded('organizations')
+                ? $process->organizations->firstWhere('id', $organizationId)
+                : $process->organizations()->where('organizations.id', $organizationId)->first();
+
+            $lawyerRole = self::parseLawyerRole($organization?->pivot->lawyer_role);
+            $storedAlertLevel ??= $organization?->pivot->inactivity_alert_level;
+        }
+
+        return ProcessAlertLevelHelper::resolve(
+            $storedAlertLevel,
+            $process->last_activity_date,
+            $lawyerRole,
+        );
     }
 
     private static function processFinalCollection(array $formattedData): array

@@ -48,7 +48,8 @@ readonly class ProcessActionAlertNotificationService
         ProcessAction $action,
         Process $process,
         string $organizationId,
-        string $baseNotificationType = 'actuacion'
+        string $baseNotificationType = 'actuacion',
+        bool $forceIncludeHistorical = false,
     ): void {
         $organization = Organization::query()->find($organizationId);
 
@@ -58,8 +59,8 @@ readonly class ProcessActionAlertNotificationService
 
         $organization->load(['keywords' => fn ($q) => $q->where('status', KeywordStatus::ACTIVE)]);
 
-        $this->notifyNewAction($action, $organizationId, $baseNotificationType);
-        $this->processAlertsForOrganization($action, $organization);
+        $this->notifyNewAction($action, $organizationId, $baseNotificationType, $forceIncludeHistorical);
+        $this->processAlertsForOrganization($action, $organization, $forceIncludeHistorical);
     }
 
     /**
@@ -99,8 +100,11 @@ readonly class ProcessActionAlertNotificationService
     /**
      * Execute keyword detection and coordinate highlighting for a specific organization.
      */
-    private function processAlertsForOrganization(ProcessAction $action, Organization $organization): void
-    {
+    private function processAlertsForOrganization(
+        ProcessAction $action,
+        Organization $organization,
+        bool $forceIncludeHistorical = false,
+    ): void {
         $detectionResults = $this->keywordDetection->handle($action, $organization->keywords);
 
         if ($detectionResults->isEmpty()) {
@@ -118,7 +122,7 @@ readonly class ProcessActionAlertNotificationService
             }
         }
 
-        $this->notifyAlertDetected($action, $organization->id, $bestColor);
+        $this->notifyAlertDetected($action, $organization->id, $bestColor, $forceIncludeHistorical);
 
         $this->registerHighlightsAndGlobalKeywords($action, $organization->id, $detectionResults);
     }
@@ -156,17 +160,25 @@ readonly class ProcessActionAlertNotificationService
     /**
      * Dispatch a standard "new action" notification.
      */
-    private function notifyNewAction(ProcessAction $action, string $organizationId, string $notificationType = 'actuacion'): void
-    {
-        $this->createNotificationAndDispatch($action, $organizationId, $notificationType);
+    private function notifyNewAction(
+        ProcessAction $action,
+        string $organizationId,
+        string $notificationType = 'actuacion',
+        bool $forceIncludeHistorical = false,
+    ): void {
+        $this->createNotificationAndDispatch($action, $organizationId, $notificationType, null, $forceIncludeHistorical);
     }
 
     /**
      * Dispatch a keyword-triggered "alert" notification.
      */
-    private function notifyAlertDetected(ProcessAction $action, string $organizationId, ?string $severityColor = null): void
-    {
-        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta', $severityColor);
+    private function notifyAlertDetected(
+        ProcessAction $action,
+        string $organizationId,
+        ?string $severityColor = null,
+        bool $forceIncludeHistorical = false,
+    ): void {
+        $this->createNotificationAndDispatch($action, $organizationId, 'actuacion_alerta', $severityColor, $forceIncludeHistorical);
     }
 
     /**
@@ -180,8 +192,13 @@ readonly class ProcessActionAlertNotificationService
      * organization/type/severity combination. This prevents repeated alerts
      * to the client for what is logically one single actuación.
      */
-    private function createNotificationAndDispatch(ProcessAction $action, string $organizationId, string $notificationType, ?string $severityColor = null): void
-    {
+    private function createNotificationAndDispatch(
+        ProcessAction $action,
+        string $organizationId,
+        string $notificationType,
+        ?string $severityColor = null,
+        bool $forceIncludeHistorical = false,
+    ): void {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         // Check for an existing notification across all instances of this actuación (by content).
@@ -214,7 +231,7 @@ readonly class ProcessActionAlertNotificationService
             return;
         }
 
-        if ($this->shouldSkipHistoricalActuacionNotification($action, $organizationId, $notificationType)) {
+        if (! $forceIncludeHistorical && $this->shouldSkipHistoricalActuacionNotification($action, $organizationId, $notificationType)) {
             Log::channel($logChannel)->info('ProcessActionAlertNotificationService: skipping historical actuacion notification', [
                 'action_id' => $action->id,
                 'organization_id' => $organizationId,
