@@ -101,6 +101,12 @@ return [
     'consolidated_notifications_keywords' => 'Keywords: :keywords',
     'consolidated_notifications_remaining' => '{1} ... and :count more action in the portal.|[2,*] ... and :count more actions in the portal.',
     'consolidated_notifications_scroll_hint' => 'Swipe the table horizontally to see all columns.',
+    'consolidated_notifications_mobile_banner_text' => 'Table looking cut off on your phone? On Android, horizontal swipe changes email. Open the full detail in the portal:',
+    'consolidated_notifications_mobile_banner_cta' => 'View full table in NotiJudicial →',
+    'consolidated_notifications_mobile_hint' => 'On mobile, each action is shown as a card with all details.',
+    'consolidated_notifications_term_start' => 'Starts',
+    'consolidated_notifications_term_end' => 'Ends',
+    'consolidated_notifications_registration' => 'Registration',
     'consolidated_notifications_cta' => 'View full detail in NotiJudicial',
 
     'config_updated_successfully' => 'Process configuration updated successfully.',

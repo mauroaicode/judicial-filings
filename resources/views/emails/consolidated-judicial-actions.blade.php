@@ -10,48 +10,32 @@
 @extends('emails.layouts.email')
 @section('max_width', '1200px')
 @section('content_padding', '32px 16px')
+@section('card_overflow_x', 'auto')
+@section('content_overflow_x', 'auto')
 @section('title', __('process.consolidated_notifications_title'))
 
 @section('styles')
     <style type="text/css">
-        .consolidated-table-shell {
-            table-layout: fixed !important;
-            width: 100% !important;
-            max-width: 100% !important;
+        .consolidated-header {
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            hyphens: auto;
         }
 
         .consolidated-table-scroll {
             display: block !important;
             width: 100% !important;
             max-width: 100% !important;
-            overflow-x: scroll !important;
+            overflow-x: auto !important;
             overflow-y: hidden !important;
             -webkit-overflow-scrolling: touch !important;
             box-sizing: border-box !important;
-        }
-
-        .consolidated-table {
-            width: {{ $tableWidth }}px !important;
-            min-width: {{ $tableWidth }}px !important;
-            max-width: none !important;
-            border-collapse: collapse;
-            font-family: sans-serif;
-            font-size: 12px;
-            border: 1px solid #E5E7EB;
-            table-layout: auto;
-            margin: 0;
         }
 
         .consolidated-radicacion {
             word-break: break-all;
             overflow-wrap: break-word;
             white-space: normal !important;
-        }
-
-        .consolidated-header {
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
-            hyphens: auto;
         }
 
         @media only screen and (max-width: 640px) {
@@ -83,28 +67,29 @@
             </p>
         </div>
 
-        <p style="display: block; margin: 0 0 12px 0; font-size: 12px; color: #9CA3AF; font-style: italic; text-align: center;">
+        <p style="margin: 0 0 12px 0; font-size: 12px; color: #9CA3AF; font-style: italic; text-align: center;">
             {{ __('process.consolidated_notifications_scroll_hint') }}
         </p>
     </div>
 
-    <table role="presentation" class="consolidated-table-shell" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout: fixed; width: 100%; max-width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout: fixed; width: 100%; max-width: 100%; border-collapse: collapse; margin-bottom: 30px;">
         <tr>
-            <td align="left" valign="top" width="100%" style="padding: 0; width: 100%; max-width: 100%;">
-                <div class="consolidated-table-scroll" style="display: block; width: 100%; max-width: 100%; overflow-x: scroll; overflow-y: hidden; -webkit-overflow-scrolling: touch; box-sizing: border-box;">
-                    <table class="consolidated-table" role="presentation" width="{{ $tableWidth }}" cellpadding="0" cellspacing="0" border="0" align="left" style="width: {{ $tableWidth }}px; min-width: {{ $tableWidth }}px; max-width: none; border-collapse: collapse; font-family: sans-serif; font-size: 12px; border: 1px solid #E5E7EB; margin: 0;">
+            <td align="left" valign="top" style="padding: 0; width: 100%;">
+                <div class="consolidated-table-scroll" style="display: block; width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; box-sizing: border-box;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left"
+                           style="width: {{ $tableWidth }}px; min-width: {{ $tableWidth }}px; border-collapse: collapse; font-family: sans-serif; font-size: 12px; border: 1px solid #E5E7EB; margin: 0;">
                         <thead>
                         <tr style="background-color: #F3F4F6; text-align: left; border-bottom: 2px solid #E5E7EB;">
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Juzgado</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Radicación</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Demandante</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Demandado</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Fecha Actuación</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Actuación</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Anotación</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Inicia</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Finaliza</th>
-                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">Registro</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_court') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_radicacion') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_plaintiff') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_defendant') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_action_date') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_action') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_annotation') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_term_start') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_term_end') }}</th>
+                            <th style="padding: 10px; border: 1px solid #E5E7EB; white-space: nowrap;">{{ __('process.consolidated_notifications_registration') }}</th>
                         </tr>
                         </thead>
                         <tbody>

@@ -87,13 +87,11 @@ it('renders scrollable table digest email markup', function (): void {
         ->toContain('76001418900120220081900')
         ->toContain('Ver detalle completo en NotiJudicial')
         ->toContain('https://app.example.com/actuaciones/notification-digests/digest-uuid')
-        ->toContain('consolidated-table-shell')
-        ->toContain('table-layout: fixed')
         ->toContain('-webkit-overflow-scrolling: touch')
         ->toContain('Desliza horizontalmente la tabla para ver todas las columnas.')
         ->toContain('<thead>')
         ->toContain('width: 1280px')
-        ->toContain('overflow-x: scroll')
+        ->toContain('overflow-x: auto')
         ->toContain('max-width: 1200px');
 });
 
