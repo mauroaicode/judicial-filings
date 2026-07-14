@@ -14,6 +14,7 @@ return [
     'organization_process_status' => [
         'active' => 'Active',
         'inactive' => 'Inactive',
+        'suspended' => 'Suspended',
     ],
     'organization_type' => [
         'natural' => 'Natural person',
@@ -31,6 +32,10 @@ return [
         'pending' => 'Pending',
         'completed' => 'Completed',
         'draft' => 'Draft',
+    ],
+    'task_type' => [
+        'general' => 'General',
+        'suspension' => 'Suspension',
     ],
     'task_urgency_level' => [
         'normal' => 'Normal',

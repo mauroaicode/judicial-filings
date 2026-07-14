@@ -179,7 +179,7 @@ class Process extends Model
             'organization_processes',
             'process_id',
             'organization_id'
-        )->withPivot(['interest_date', 'is_active', 'lawyer_role', 'inactivity_alert_level'])->withTimestamps();
+        )->withPivot(['interest_date', 'is_active', 'status', 'lawyer_role', 'inactivity_alert_level'])->withTimestamps();
     }
 
     /**

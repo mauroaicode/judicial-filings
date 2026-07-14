@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Process\Services;
 
+use Illuminate\Validation\ValidationException;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\Process;
 
 readonly class ToggleProcessStatusService
@@ -23,6 +26,8 @@ readonly class ToggleProcessStatusService
             abort(404, __('process.not_found'));
         }
 
+        $this->ensureNotSuspendedByAgenda($organizationId, $processId);
+
         $this->updatePivotStatus($process, $organizationId, $isActive);
     }
 
@@ -37,13 +42,33 @@ readonly class ToggleProcessStatusService
             ->first();
     }
 
+    private function ensureNotSuspendedByAgenda(string $organizationId, string $processId): void
+    {
+        $organizationProcess = OrganizationProcess::query()
+            ->where('organization_id', $organizationId)
+            ->where('process_id', $processId)
+            ->first();
+
+        if (
+            $organizationProcess
+            && OrganizationProcessStatus::fromPivot($organizationProcess) === OrganizationProcessStatus::SUSPENDED
+        ) {
+            throw ValidationException::withMessages([
+                'is_active' => [__('process.cannot_toggle_while_suspended')],
+            ]);
+        }
+    }
+
     /**
-     * Update the is_active flag on the organization_processes pivot.
+     * Update the is_active flag and status on the organization_processes pivot.
      */
     private function updatePivotStatus(Process $process, string $organizationId, bool $isActive): void
     {
+        $status = OrganizationProcessStatus::fromBoolean($isActive);
+
         $process->organizations()->updateExistingPivot($organizationId, [
             'is_active' => $isActive,
+            'status' => $status->value,
         ]);
     }
 }

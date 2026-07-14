@@ -6,6 +6,7 @@ namespace Src\Application\Shared\Helpers;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 
@@ -72,7 +73,9 @@ final class ProcessRepresentativeSeverityFilter
             return null;
         }
 
-        if (! (bool) $organization->pivot->is_active) {
+        $status = OrganizationProcessStatus::fromPivot($organization->pivot);
+
+        if ($status !== OrganizationProcessStatus::ACTIVE) {
             return null;
         }
 
@@ -113,8 +116,10 @@ final class ProcessRepresentativeSeverityFilter
     {
         $organization = $process->organizations->firstWhere('id', $organizationId);
 
-        return $organization !== null
-            && $organization->pivot !== null
-            && (bool) $organization->pivot->is_active;
+        if ($organization === null || $organization->pivot === null) {
+            return false;
+        }
+
+        return OrganizationProcessStatus::fromPivot($organization->pivot) === OrganizationProcessStatus::ACTIVE;
     }
 }

@@ -56,6 +56,28 @@ it('filters tasks by process', function (): void {
     expect($results->first()->process_id)->toBe($this->process->id);
 });
 
+it('filters tasks by type', function (): void {
+    Task::factory()->create([
+        'organization_id' => $this->organization->id,
+        'type' => \Src\Domain\Task\Enums\TaskType::GENERAL,
+    ]);
+    Task::factory()->suspension()->create([
+        'organization_id' => $this->organization->id,
+    ]);
+
+    $general = Task::query()
+        ->whereOrganization($this->organization->id)
+        ->whereType(\Src\Domain\Task\Enums\TaskType::GENERAL)
+        ->get();
+    $suspension = Task::query()
+        ->whereOrganization($this->organization->id)
+        ->whereType(\Src\Domain\Task\Enums\TaskType::SUSPENSION)
+        ->get();
+
+    expect($general)->toHaveCount(1);
+    expect($suspension)->toHaveCount(1);
+});
+
 it('filters tasks by status', function (): void {
     Task::factory()->create([
         'organization_id' => $this->organization->id,

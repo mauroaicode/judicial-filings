@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
 use Src\Domain\Role\Models\Role;
@@ -41,12 +42,14 @@ it('returns admin process detail with subjects and interested organizations', fu
     $process->organizations()->attach($orgPlaintiff->id, [
         'interest_date' => '2026-04-10',
         'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
         'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => null,
     ]);
     $process->organizations()->attach($orgDefendant->id, [
         'interest_date' => '2026-04-22',
         'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
         'lawyer_role' => 'defendant',
         'inactivity_alert_level' => 'yellow',
     ]);
@@ -139,11 +142,13 @@ it('shows process as active when at least one organization is still interested',
     $process->organizations()->attach($inactiveOrg->id, [
         'interest_date' => '2026-04-22',
         'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
         'lawyer_role' => 'defendant',
     ]);
     $process->organizations()->attach($activeOrg->id, [
         'interest_date' => '2026-03-18',
         'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
         'lawyer_role' => null,
     ]);
 

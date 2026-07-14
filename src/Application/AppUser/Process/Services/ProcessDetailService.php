@@ -23,6 +23,12 @@ readonly class ProcessDetailService
             ->with(['organizations' => function ($query) use ($organizationId): void {
                 $query->where('organizations.id', $organizationId);
             }])
+            ->withCount([
+                'tasks as tasks_count' => function ($query) use ($organizationId): void {
+                    $query->where('organization_id', $organizationId)
+                        ->where('is_admin', false);
+                },
+            ])
             ->first();
     }
 }

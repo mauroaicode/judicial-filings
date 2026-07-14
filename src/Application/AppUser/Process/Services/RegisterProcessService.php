@@ -352,6 +352,7 @@ readonly class RegisterProcessService
             $organizationId => [
                 'interest_date' => now()->toDateString(),
                 'is_active' => true,
+                'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
                 'lawyer_role' => $lawyerRole?->value,
                 'inactivity_alert_level' => $alertLevel,
             ],

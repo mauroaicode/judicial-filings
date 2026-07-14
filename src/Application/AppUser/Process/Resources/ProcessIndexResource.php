@@ -7,6 +7,7 @@ namespace Src\Application\AppUser\Process\Resources;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessSemaphoreHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
@@ -25,7 +26,10 @@ class ProcessIndexResource extends Resource
         public ?string $last_activity_date,
         public bool $is_private,
         public bool $has_multiple_instances,
+        public string $status,
         public string $status_label,
+        /** @var array{paused: bool, reason: string|null, message: string|null} */
+        public array $semaphore,
         public string $created_at,
         public string $term_start_date,
         public string $term_end_date,
@@ -48,16 +52,15 @@ class ProcessIndexResource extends Resource
 
     public static function fromModel(Process $process, string $organizationId, int $index = 0): self
     {
-        $isActive = false;
         $createdAt = $process->created_at;
         $alertLevel = null;
         $lawyerRoleLabel = null;
         $lawyerRole = null;
+        $organization = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
             if ($organization && $organization->pivot) {
-                $isActive = (bool) $organization->pivot->is_active;
                 if ($organization->pivot->created_at) {
                     $createdAt = $organization->pivot->created_at;
                 }
@@ -74,13 +77,14 @@ class ProcessIndexResource extends Resource
             }
         }
 
-        $alertLevel = ProcessAlertLevelHelper::resolve(
+        $status = OrganizationProcessStatus::fromPivot($organization?->pivot);
+        $semaphore = ProcessSemaphoreHelper::resolve($status);
+
+        $calculatedAlertLevel = ProcessAlertLevelHelper::resolve(
             $alertLevel,
             $process->last_activity_date,
             $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $lawyerRole : null,
         );
-
-        $status = OrganizationProcessStatus::fromBoolean($isActive);
 
         $subjectSummary = $process->relationLoaded('subjects')
             ? ProcessSubjectSummaryHelper::summarize($process->subjects)
@@ -97,7 +101,9 @@ class ProcessIndexResource extends Resource
             last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : null,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
+            status: $status->value,
             status_label: $status->getLabel(),
+            semaphore: $semaphore,
             created_at: DateFormatHelper::formatDate($createdAt),
             term_start_date: '-',
             term_end_date: '-',
@@ -111,7 +117,7 @@ class ProcessIndexResource extends Resource
             subjects_count: $subjectSummary['subjects_count'],
             other_subject: $subjectSummary['other_subject'],
             others: $subjectSummary['others'],
-            alert_level: $alertLevel,
+            alert_level: ProcessSemaphoreHelper::resolveAlertLevel($status, $calculatedAlertLevel),
             lawyer_role: $lawyerRoleLabel,
         );
     }

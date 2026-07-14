@@ -42,8 +42,7 @@ class AdminProcessOrganizationResource extends Resource
         }
 
         $storedAlertLevel = $pivot ? $pivot->inactivity_alert_level : null;
-        $isActive = $pivot && (bool) $pivot->is_active;
-        $status = OrganizationProcessStatus::fromBoolean($isActive);
+        $status = OrganizationProcessStatus::fromPivot($pivot);
 
         $orgType = OrganizationType::tryFrom((string) $organization->type);
 

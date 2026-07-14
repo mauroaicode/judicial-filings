@@ -7,6 +7,7 @@ namespace Src\Application\AppUser\Process\Resources;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessSemaphoreHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -31,13 +32,17 @@ class ProcessDetailResource extends Resource
         public bool $is_private,
         public bool $has_multiple_instances,
         public ?string $last_api_update,
+        public string $status,
         public string $status_label,
+        /** @var array{paused: bool, reason: string|null, message: string|null} */
+        public array $semaphore,
         public string $created_at,
         public string $updated_at,
         public string $term_start_date,
         public string $term_end_date,
         public ?string $alert_level = null,
         public ?string $lawyer_role = null,
+        public int $tasks_count = 0,
     ) {}
 
     /**
@@ -74,17 +79,17 @@ class ProcessDetailResource extends Resource
             }
         }
 
-        $isActive = $statusActiveIfAnyOrganization && $process->relationLoaded('organizations')
-            ? $process->organizations->contains(fn ($org): bool => (bool) $org->pivot->is_active)
-            : (bool) ($organization && $organization->pivot ? $organization->pivot->is_active : false);
+        $status = $statusActiveIfAnyOrganization && $process->relationLoaded('organizations')
+            ? self::resolveStatusAcrossOrganizations($process)
+            : OrganizationProcessStatus::fromPivot($organization?->pivot);
 
-        $alertLevel = ProcessAlertLevelHelper::resolve(
+        $semaphore = ProcessSemaphoreHelper::resolve($status);
+
+        $calculatedAlertLevel = ProcessAlertLevelHelper::resolve(
             $alertLevel,
             $process->last_activity_date,
             $lawyerRole instanceof \Src\Domain\Process\Enums\ProcessLawyerRole ? $lawyerRole : null,
         );
-
-        $status = OrganizationProcessStatus::fromBoolean($isActive);
 
         return new self(
             id: $process->id,
@@ -104,13 +109,32 @@ class ProcessDetailResource extends Resource
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
             last_api_update: $process->last_api_update ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_api_update) : null,
+            status: $status->value,
             status_label: $status->getLabel(),
+            semaphore: $semaphore,
             created_at: DateFormatHelper::formatDateTime($createdAt),
             updated_at: DateFormatHelper::formatDateTime($process->updated_at),
             term_start_date: '-',
             term_end_date: '-',
-            alert_level: $alertLevel,
+            alert_level: ProcessSemaphoreHelper::resolveAlertLevel($status, $calculatedAlertLevel),
             lawyer_role: $lawyerRoleLabel,
+            tasks_count: (int) ($process->tasks_count ?? 0),
         );
+    }
+
+    private static function resolveStatusAcrossOrganizations(Process $process): OrganizationProcessStatus
+    {
+        $statuses = $process->organizations
+            ->map(fn ($org): \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus => OrganizationProcessStatus::fromPivot($org->pivot));
+
+        if ($statuses->contains(OrganizationProcessStatus::ACTIVE)) {
+            return OrganizationProcessStatus::ACTIVE;
+        }
+
+        if ($statuses->contains(OrganizationProcessStatus::SUSPENDED)) {
+            return OrganizationProcessStatus::SUSPENDED;
+        }
+
+        return OrganizationProcessStatus::INACTIVE;
     }
 }

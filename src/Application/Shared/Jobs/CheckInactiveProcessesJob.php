@@ -81,6 +81,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
                 $q->where('organization_processes.lawyer_role', $role)
                     ->where('organization_processes.is_active', true)
+                    ->where('organization_processes.status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQ) use ($targetAlertLevel): void {
                         $subQ->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)
                             ->orWhereNull('organization_processes.inactivity_alert_level');
@@ -108,6 +109,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
                 $q->where('organization_processes.lawyer_role', $role)
                     ->where('organization_processes.is_active', true)
+                    ->where('organization_processes.status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQ) use ($targetAlertLevel): void {
                         $subQ->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)
                             ->orWhereNull('organization_processes.inactivity_alert_level');
@@ -131,6 +133,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             DB::transaction(function () use ($process, $role, $targetAlertLevel, $notificationType): void {
                 $organizationsToAlert = $process->organizations()
                     ->wherePivot('is_active', true)
+                    ->wherePivot('status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
                     ->wherePivot('lawyer_role', $role)
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $q) use ($targetAlertLevel): void {
                         $q->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)

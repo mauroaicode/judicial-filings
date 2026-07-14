@@ -7,7 +7,7 @@ return [
     'log_channel' => env('TASK_URGENCY_LOG_CHANNEL', 'stack'),
 
     /*
-    | Days since task creation (pending, not completed) for urgency alerts.
+    | Days past the task due date (pending, not completed) for urgency alerts.
     | normal < alert_1 < alert_2 < critical
     */
     'urgency_thresholds' => [

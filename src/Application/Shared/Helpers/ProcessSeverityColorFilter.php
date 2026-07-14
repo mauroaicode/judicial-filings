@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Helpers;
 
 use Illuminate\Contracts\Database\Query\Builder;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Shared\Enums\SeverityColor;
 
 /**
@@ -15,7 +16,7 @@ final class ProcessSeverityColorFilter
 {
     public static function apply(Builder $query, string $severityColor): void
     {
-        $query->where('organization_processes.is_active', true);
+        $query->where('organization_processes.status', OrganizationProcessStatus::ACTIVE->value);
 
         match ($severityColor) {
             'none' => self::applyNone($query),

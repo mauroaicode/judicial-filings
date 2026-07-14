@@ -146,8 +146,10 @@ readonly class ProcessFinderService
         $query->where('organizations.id', $organizationId);
 
         if ($filters->status) {
-            $isActive = OrganizationProcessStatus::tryFrom($filters->status) === OrganizationProcessStatus::ACTIVE;
-            $query->where('organization_processes.is_active', $isActive);
+            $statusEnum = OrganizationProcessStatus::tryFrom($filters->status);
+            if ($statusEnum) {
+                $query->where('organization_processes.status', $statusEnum->value);
+            }
         }
 
         if ($filters->lawyer_role) {

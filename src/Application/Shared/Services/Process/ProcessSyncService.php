@@ -829,6 +829,9 @@ class ProcessSyncService
                 [
                     'interest_date' => now()->format('Y-m-d'),
                     'is_active' => $isActive,
+                    'status' => $isActive
+                        ? \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value
+                        : \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::INACTIVE->value,
                 ]
             );
         }

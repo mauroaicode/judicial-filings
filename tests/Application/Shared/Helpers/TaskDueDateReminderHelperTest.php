@@ -80,7 +80,6 @@ it('does not send due reminders after due date', function (): void {
 it('blocks urgency alerts while task is before due date', function (): void {
     $task = Task::factory()->make([
         'status' => TaskStatus::PENDING,
-        'created_at' => Carbon::parse('2026-05-01'),
         'due_date' => Carbon::parse('2026-06-20'),
         'reminder_days' => 3,
     ]);
@@ -88,32 +87,27 @@ it('blocks urgency alerts while task is before due date', function (): void {
     expect(TaskUrgencyHelper::resolveNotifiableLevel($task))->toBeNull();
 });
 
-it('allows urgency alerts after due date has passed', function (): void {
+it('does not send urgency alerts in the first 9 days past due', function (): void {
     $task = Task::factory()->make([
         'status' => TaskStatus::PENDING,
-        'created_at' => Carbon::parse('2026-05-01'),
         'due_date' => Carbon::parse('2026-06-10'),
         'reminder_days' => 3,
         'last_notified_urgency_level' => null,
     ]);
 
-    expect(TaskUrgencyHelper::resolveNotifiableLevel($task))->not->toBeNull();
+    expect(TaskUrgencyHelper::daysOverdue($task->due_date))->toBe(4);
+    expect(TaskUrgencyHelper::resolveDisplayLevel($task))->toBe(TaskUrgencyLevel::NORMAL);
+    expect(TaskUrgencyHelper::resolveNotifiableLevel($task))->toBeNull();
 });
 
-it('notifies overdue tasks at alert_1 before creation reaches 10 days', function (): void {
-    Carbon::setTestNow('2026-06-14 08:00:00');
-
+it('sends urgency alerts starting at 10 days past due', function (): void {
     $task = Task::factory()->make([
         'status' => TaskStatus::PENDING,
-        'created_at' => Carbon::parse('2026-06-05'),
-        'due_date' => Carbon::parse('2026-06-12'),
+        'due_date' => Carbon::parse('2026-06-04'),
         'reminder_days' => 5,
         'last_notified_urgency_level' => null,
     ]);
 
-    expect(TaskUrgencyHelper::daysElapsed($task->created_at))->toBe(9);
-    expect(TaskUrgencyHelper::fromCreatedAt($task->created_at))->toBe(TaskUrgencyLevel::NORMAL);
+    expect(TaskUrgencyHelper::daysOverdue($task->due_date))->toBe(10);
     expect(TaskUrgencyHelper::resolveNotifiableLevel($task))->toBe(TaskUrgencyLevel::ALERT_1);
-
-    Carbon::setTestNow();
 });

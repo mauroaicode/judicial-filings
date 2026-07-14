@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 
@@ -60,14 +61,17 @@ it('returns correct process counts for organization', function (): void {
     $process1->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
     ]);
     $process2->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
     ]);
     $process3->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -354,12 +358,14 @@ it('excludes inactive tracking processes from semaphore counts', function (): vo
     $inactiveRed->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
         'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => 'red',
     ]);
     $activeRed->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
         'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => 'red',
     ]);

@@ -22,16 +22,26 @@
                 'label' => __('task.urgency_email_task_title'),
                 'value' => $alert->task->title,
             ],
-            [
-                'label' => __('task.urgency_email_process_number'),
-                'value' => ProcessNumberFormatHelper::display($alert->processNumber()),
-                'highlight' => true,
-                'monospace' => true,
-            ],
-            [
-                'label' => __('task.urgency_email_days_elapsed'),
-                'value' => (string) $alert->daysElapsed,
-            ],
+        ];
+
+        if (filled($alert->task->description)) {
+            $detailRows[] = [
+                'label' => __('task.urgency_email_task_description'),
+                'value' => $alert->task->description,
+                'multiline' => true,
+            ];
+        }
+
+        $detailRows[] = [
+            'label' => __('task.urgency_email_process_number'),
+            'value' => ProcessNumberFormatHelper::display($alert->processNumber()),
+            'highlight' => true,
+            'monospace' => true,
+        ];
+
+        $detailRows[] = [
+            'label' => __('task.urgency_email_days_elapsed'),
+            'value' => (string) $alert->daysElapsed,
         ];
 
         if ($alert->task->due_date) {

@@ -91,6 +91,30 @@ it('returns green alert_level when process has activity within 45 days', functio
     expect($response->json('data.0.alert_level'))->toBe('green');
 });
 
+it('returns paused semaphore without alert_level for suspended processes in the list', function (): void {
+    $this->freezeTime();
+
+    $process = Process::factory()->create([
+        'last_activity_date' => now()->subDays(5),
+    ]);
+
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'suspended',
+        'lawyer_role' => 'plaintiff',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes');
+
+    $response->assertOk();
+    expect($response->json('data.0.status'))->toBe('suspended');
+    expect($response->json('data.0.alert_level'))->toBeNull();
+    expect($response->json('data.0.semaphore.paused'))->toBeTrue();
+    expect($response->json('data.0.semaphore.reason'))->toBe('suspension_task');
+});
+
 it('returns red alert_level for defendant with activity within 45 days', function (): void {
     $this->freezeTime();
 
@@ -389,10 +413,12 @@ it('filters processes by status', function (): void {
     $process1->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'status' => 'active',
     ]);
     $process2->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => false,
+        'status' => 'inactive',
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -401,7 +427,7 @@ it('filters processes by status', function (): void {
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
     expect($response->json('data.0.id'))->toBe($process1->id);
-    expect($response->json('data.0.status_label'))->toBe(__('enums.process_status.active'));
+    expect($response->json('data.0.status_label'))->toBe(__('enums.organization_process_status.active'));
 });
 
 it('filters processes by has_multiple_instances', function (): void {
@@ -538,12 +564,14 @@ it('excludes inactive tracking processes from severity_color filters', function 
     $inactiveRed->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => false,
+        'status' => 'inactive',
         'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => 'red',
     ]);
     $activeRed->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'status' => 'active',
         'lawyer_role' => 'plaintiff',
         'inactivity_alert_level' => 'red',
     ]);
@@ -757,7 +785,13 @@ it('returns correct resource structure', function (): void {
                 'last_activity_date',
                 'is_private',
                 'has_multiple_instances',
+                'status',
                 'status_label',
+                'semaphore' => [
+                    'paused',
+                    'reason',
+                    'message',
+                ],
                 'created_at',
                 'term_start_date',
                 'term_end_date',
@@ -777,7 +811,13 @@ it('returns correct resource structure', function (): void {
                         'last_activity_date',
                         'is_private',
                         'has_multiple_instances',
+                        'status',
                         'status_label',
+                        'semaphore' => [
+                            'paused',
+                            'reason',
+                            'message',
+                        ],
                         'created_at',
                         'term_start_date',
                         'term_end_date',

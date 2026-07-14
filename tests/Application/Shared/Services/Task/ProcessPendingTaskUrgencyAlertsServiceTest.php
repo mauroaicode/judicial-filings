@@ -51,12 +51,11 @@ beforeEach(function (): void {
     $this->service = app(ProcessPendingTaskUrgencyAlertsService::class);
 });
 
-it('sends alert_1 notification once for a 10 day pending task after due date', function (): void {
+it('sends alert_1 notification once for a task 10 days past due', function (): void {
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
         'process_id' => $this->process->id,
-        'created_at' => Carbon::now()->subDays(10),
-        'due_date' => Carbon::now()->subDay()->toDateString(),
+        'due_date' => Carbon::now()->subDays(10)->toDateString(),
         'reminder_days' => 3,
     ]);
 
@@ -86,8 +85,7 @@ it('sends alert_2 when task escalates after alert_1 was notified', function (): 
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
         'process_id' => $this->process->id,
-        'created_at' => Carbon::now()->subDays(15),
-        'due_date' => Carbon::now()->subDay()->toDateString(),
+        'due_date' => Carbon::now()->subDays(15)->toDateString(),
         'reminder_days' => 3,
         'last_notified_urgency_level' => TaskUrgencyLevel::ALERT_1->value,
     ]);
@@ -104,8 +102,7 @@ it('does not fail when organization notification already exists for retesting', 
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
         'process_id' => $this->process->id,
-        'created_at' => Carbon::now()->subDays(10),
-        'due_date' => Carbon::now()->subDay()->toDateString(),
+        'due_date' => Carbon::now()->subDays(10)->toDateString(),
         'reminder_days' => 3,
         'last_notified_urgency_level' => null,
     ]);
@@ -131,7 +128,6 @@ it('does not fail when organization notification already exists for retesting', 
 it('does not send urgency alerts before due date', function (): void {
     Task::factory()->create([
         'organization_id' => $this->organization->id,
-        'created_at' => Carbon::now()->subDays(20),
         'due_date' => Carbon::now()->addDays(5)->toDateString(),
         'reminder_days' => 3,
     ]);
@@ -145,12 +141,12 @@ it('does not send urgency alerts before due date', function (): void {
 it('does not notify completed or trashed tasks', function (): void {
     $completed = Task::factory()->completed()->create([
         'organization_id' => $this->organization->id,
-        'created_at' => Carbon::now()->subDays(20),
+        'due_date' => Carbon::now()->subDays(20)->toDateString(),
     ]);
 
     $trashed = Task::factory()->create([
         'organization_id' => $this->organization->id,
-        'created_at' => Carbon::now()->subDays(20),
+        'due_date' => Carbon::now()->subDays(20)->toDateString(),
     ]);
     $trashed->delete();
 

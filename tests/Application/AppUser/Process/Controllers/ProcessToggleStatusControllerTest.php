@@ -157,3 +157,19 @@ it('keeps process active when setting is_active to true on an already active pro
 
     expect((bool) $pivot->pivot->is_active)->toBeTrue();
 });
+
+it('blocks toggling status while the process is suspended by agenda', function (): void {
+    $this->process->organizations()->updateExistingPivot($this->organization->id, [
+        'is_active' => true,
+        'status' => 'suspended',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->patchJson("/api/app-user/processes/{$this->process->id}/status", [
+            'is_active' => true,
+        ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['is_active']);
+    expect($response->json('errors.is_active.0'))->toBe(__('process.cannot_toggle_while_suspended'));
+});

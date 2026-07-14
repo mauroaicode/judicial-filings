@@ -43,7 +43,7 @@ class ProcessPendingTaskUrgencyAlertsService
                     $alert = new TaskUrgencyAlert(
                         task: $task,
                         urgencyLevel: $urgencyLevel,
-                        daysElapsed: TaskUrgencyHelper::daysElapsed($task->created_at),
+                        daysElapsed: TaskUrgencyHelper::daysOverdue($task->due_date),
                         taskUrl: TaskUrgencyHelper::buildTaskFrontendUrl($task->id),
                     );
 

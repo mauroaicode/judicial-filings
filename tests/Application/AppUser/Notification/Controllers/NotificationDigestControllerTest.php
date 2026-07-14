@@ -270,3 +270,63 @@ it('returns calculated alert_level on digest detail matching process list semant
     $response->assertOk();
     expect($response->json('data.0.data.0.alert_level'))->toBe('green');
 });
+
+it('hydrates plaintiff and defendant in digest detail when snapshot was empty and subjects were added later', function (): void {
+    $process = Process::factory()->create([
+        'process_number' => '76001310501820260012000',
+    ]);
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now(),
+        'lawyer_role' => 'defendant',
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now(),
+    ]);
+
+    \Src\Domain\Process\Models\ProcessSubject::factory()->forProcess($process)->create([
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'ANDREA ISABEL MARTINEZ BENAVIDES',
+    ]);
+    \Src\Domain\Process\Models\ProcessSubject::factory()->forProcess($process)->create([
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'BANCO AGRARIO DE COLOMBIA S.A',
+    ]);
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => [
+            [
+                'process_number' => $process->process_number,
+                'process_action_id' => $action->id,
+                'demandante' => '---',
+                'demandado' => '---',
+                'action_text' => 'Admite demanda',
+                'registration_date' => now()->format('Y-m-d'),
+            ],
+        ],
+    ]);
+
+    DB::table('organization_notifications')->insert([
+        'id' => fake()->uuid(),
+        'organization_id' => $this->organization->id,
+        'notification_digest_id' => $digest->id,
+        'notifiable_id' => $action->id,
+        'notifiable_type' => ProcessAction::class,
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => true,
+        'is_email_notified' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $response = getJson('/api/app-user/notification-digests/'.$digest->id);
+
+    $response->assertOk();
+    $item = $response->json('data.0.data.0');
+    expect($item['plaintiff'])->toBe('Andrea Isabel Martinez Benavides');
+    expect($item['defendant'])->toBe('Banco Agrario de Colombia S.A');
+});

@@ -27,30 +27,56 @@ final class TaskUrgencyHelper
     }
 
     /**
-     * Days elapsed since creation (start of day comparison).
+     * Days past the due date (0 = due today or not yet due, positive = overdue).
      */
-    public static function daysElapsed(CarbonInterface $createdAt): int
+    public static function daysOverdue(?CarbonInterface $dueDate): int
     {
-        return (int) $createdAt->copy()->startOfDay()->diffInDays(today()->startOfDay());
+        if (! $dueDate instanceof \Carbon\CarbonInterface) {
+            return 0;
+        }
+
+        $daysUntilDue = TaskDueDateReminderHelper::daysUntilDue($dueDate);
+
+        return max(0, -$daysUntilDue);
     }
 
     /**
-     * Resolve urgency level from creation date.
+     * Resolve urgency level from days past due date.
+     *
+     * Day 0 (due today) and overdue &lt; 10 → normal (green).
+     * ≥ 10 → alert_1, ≥ 15 → alert_2, ≥ 30 → critical.
      */
-    public static function fromCreatedAt(CarbonInterface $createdAt): TaskUrgencyLevel
+    public static function fromDaysOverdue(int $daysOverdue): TaskUrgencyLevel
     {
-        $days = self::daysElapsed($createdAt);
-
         return match (true) {
-            $days >= self::criticalThresholdDays() => TaskUrgencyLevel::CRITICAL,
-            $days >= self::alert2ThresholdDays() => TaskUrgencyLevel::ALERT_2,
-            $days >= self::alert1ThresholdDays() => TaskUrgencyLevel::ALERT_1,
+            $daysOverdue >= self::criticalThresholdDays() => TaskUrgencyLevel::CRITICAL,
+            $daysOverdue >= self::alert2ThresholdDays() => TaskUrgencyLevel::ALERT_2,
+            $daysOverdue >= self::alert1ThresholdDays() => TaskUrgencyLevel::ALERT_1,
             default => TaskUrgencyLevel::NORMAL,
         };
     }
 
     /**
+     * Resolve display urgency level for agenda cards (all pending tasks with a due date).
+     */
+    public static function resolveDisplayLevel(Task $task): ?TaskUrgencyLevel
+    {
+        if ($task->status !== TaskStatus::PENDING) {
+            return null;
+        }
+
+        if ($task->due_date === null) {
+            return null;
+        }
+
+        return self::fromDaysOverdue(self::daysOverdue($task->due_date));
+    }
+
+    /**
      * Returns the urgency level that should trigger a notification, or null if none.
+     *
+     * Pre-due and due day are handled by due-date reminders. Urgency alerts start
+     * at 10+ days past due.
      */
     public static function resolveNotifiableLevel(Task $task): ?TaskUrgencyLevel
     {
@@ -58,20 +84,16 @@ final class TaskUrgencyHelper
             return null;
         }
 
-        // After due date: overdue reminders stop; urgency alerts take over.
-        if ($task->due_date !== null && TaskDueDateReminderHelper::daysUntilDue($task->due_date) >= 0) {
+        if ($task->due_date === null) {
             return null;
         }
 
-        $current = self::fromCreatedAt($task->created_at);
-
-        $isOverdue = $task->due_date !== null
-            && TaskDueDateReminderHelper::daysUntilDue($task->due_date) < 0;
-
-        // Once past due date, notify at least at alert_1 even if creation age is still below 10 days.
-        if ($isOverdue && $current === TaskUrgencyLevel::NORMAL) {
-            $current = TaskUrgencyLevel::ALERT_1;
+        // Before / on due date: only due-date reminders apply.
+        if (TaskDueDateReminderHelper::daysUntilDue($task->due_date) >= 0) {
+            return null;
         }
+
+        $current = self::fromDaysOverdue(self::daysOverdue($task->due_date));
 
         if (! $current->isNotifiable()) {
             return null;

@@ -132,6 +132,7 @@ class PrivateProcessExcelImportService
                         $organizationId => [
                             'interest_date' => now()->toDateString(),
                             'is_active' => true,
+                            'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
                         ],
                     ]);
                     foreach ($rows as $rowToMerge) {

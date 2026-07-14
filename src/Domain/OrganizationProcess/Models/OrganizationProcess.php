@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Carbon;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 
@@ -16,6 +17,7 @@ use Src\Domain\Process\Models\Process;
  * @property-read string $process_id
  * @property-read Carbon $interest_date
  * @property-read bool $is_active
+ * @property-read OrganizationProcessStatus $status
  * @property-read ProcessLawyerRole|null $lawyer_role
  * @property-read string|null $inactivity_alert_level
  * @property-read Carbon $created_at
@@ -41,6 +43,7 @@ class OrganizationProcess extends Pivot
         'process_id',
         'interest_date',
         'is_active',
+        'status',
         'lawyer_role',
         'inactivity_alert_level',
     ];
@@ -55,6 +58,7 @@ class OrganizationProcess extends Pivot
         return [
             'interest_date' => 'date',
             'is_active' => 'boolean',
+            'status' => OrganizationProcessStatus::class,
             'lawyer_role' => ProcessLawyerRole::class,
         ];
     }

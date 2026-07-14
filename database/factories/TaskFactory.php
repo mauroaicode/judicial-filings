@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Task\Enums\TaskStatus;
+use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
 
 /**
@@ -27,7 +28,8 @@ class TaskFactory extends Factory
         return [
             'title' => $this->faker->sentence(),
             'description' => $this->faker->paragraph(),
-            'due_date' => now()->addDays(7)->toDateString(),
+            'type' => TaskType::GENERAL,
+            'due_date' => now()->addDays(7)->startOfDay(),
             'reminder_days' => $this->faker->numberBetween(0, 7),
             'status' => TaskStatus::PENDING,
             'is_admin' => false,
@@ -54,6 +56,13 @@ class TaskFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => TaskStatus::DRAFT,
+        ]);
+    }
+
+    public function suspension(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => TaskType::SUSPENSION,
         ]);
     }
 }

@@ -81,4 +81,5 @@ return [
     'subjects' => 'Sujetos procesales',
     'due_date' => 'Fecha de vencimiento',
     'reminder_days' => 'Días de recordatorio',
+    'type' => 'Tipo',
 ];

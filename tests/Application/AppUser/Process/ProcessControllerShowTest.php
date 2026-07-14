@@ -112,11 +112,18 @@ it('returns process detail with subjects', function (): void {
             'is_private',
             'has_multiple_instances',
             'last_api_update',
+            'status',
             'status_label',
+            'semaphore' => [
+                'paused',
+                'reason',
+                'message',
+            ],
             'created_at',
             'updated_at',
             'term_start_date',
             'term_end_date',
+            'tasks_count',
         ],
         'subjects' => [
             '*' => [
@@ -132,11 +139,74 @@ it('returns process detail with subjects', function (): void {
 
     expect($response->json('process.id'))->toBe($process->id);
     expect($response->json('process.process_number'))->toBe('76001333301320170009301');
+    expect($response->json('process.tasks_count'))->toBe(0);
     expect($response->json('subjects'))->toHaveCount(2);
 
     $subjectIds = collect($response->json('subjects'))->pluck('id')->toArray();
     expect($subjectIds)->toContain($subject1->id);
     expect($subjectIds)->toContain($subject2->id);
+});
+
+it('returns tasks_count scoped to the user organization', function (): void {
+    $process = Process::factory()->create();
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+    ]);
+
+    $otherOrganization = Organization::factory()->create();
+    $otherOrganization->processes()->attach($process->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+    ]);
+
+    \Src\Domain\Task\Models\Task::factory()->count(3)->create([
+        'organization_id' => $this->organization->id,
+        'process_id' => $process->id,
+        'is_admin' => false,
+    ]);
+
+    \Src\Domain\Task\Models\Task::factory()->create([
+        'organization_id' => $otherOrganization->id,
+        'process_id' => $process->id,
+        'is_admin' => false,
+    ]);
+
+    \Src\Domain\Task\Models\Task::factory()->admin()->create([
+        'organization_id' => $this->organization->id,
+        'process_id' => $process->id,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}");
+
+    $response->assertOk();
+    expect($response->json('process.tasks_count'))->toBe(3);
+});
+
+it('returns paused semaphore and no alert_level when process is suspended', function (): void {
+    $process = Process::factory()->create([
+        'last_activity_date' => now()->subDays(5),
+    ]);
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'suspended',
+        'lawyer_role' => 'plaintiff',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}");
+
+    $response->assertOk();
+    expect($response->json('process.status'))->toBe('suspended');
+    expect($response->json('process.status_label'))->toBe(__('enums.organization_process_status.suspended'));
+    expect($response->json('process.alert_level'))->toBeNull();
+    expect($response->json('process.semaphore.paused'))->toBeTrue();
+    expect($response->json('process.semaphore.reason'))->toBe('suspension_task');
+    expect($response->json('process.semaphore.message'))->toBe(__('process.semaphore_paused_by_suspension'));
 });
 
 it('returns 404 when process does not exist', function (): void {
@@ -310,13 +380,14 @@ it('returns correct status label for inactive process', function (): void {
     $process->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => false,
+        'status' => 'inactive',
     ]);
 
     $response = $this->actingAs($this->appUser)
         ->getJson("/api/app-user/processes/{$process->id}");
 
     $response->assertStatus(200);
-    expect($response->json('process.status_label'))->toBe(__('enums.process_status.inactive'));
+    expect($response->json('process.status_label'))->toBe(__('enums.organization_process_status.inactive'));
 });
 
 it('formats dates correctly', function (): void {

@@ -4,10 +4,17 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Task\Services;
 
+use Illuminate\Support\Facades\DB;
+use Src\Application\Shared\Process\Services\ActivateOrganizationProcessService;
+use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
 
 class DeleteTaskService
 {
+    public function __construct(
+        private readonly ActivateOrganizationProcessService $activateOrganizationProcessService,
+    ) {}
+
     /**
      * Move a task to the trash (soft delete).
      */
@@ -15,7 +22,10 @@ class DeleteTaskService
     {
         $task = $this->findTask($id, $organizationId);
 
-        $this->deleteTask($task);
+        DB::transaction(function () use ($task): void {
+            $this->reactivateProcessIfSuspension($task);
+            $task->delete();
+        });
     }
 
     private function findTask(string $id, ?string $organizationId = null): Task
@@ -25,8 +35,15 @@ class DeleteTaskService
             ->findOrFail($id);
     }
 
-    private function deleteTask(Task $task): void
+    private function reactivateProcessIfSuspension(Task $task): void
     {
-        $task->delete();
+        if ($task->type !== TaskType::SUSPENSION || ! $task->process_id) {
+            return;
+        }
+
+        $this->activateOrganizationProcessService->handle(
+            $task->organization_id,
+            $task->process_id,
+        );
     }
 }

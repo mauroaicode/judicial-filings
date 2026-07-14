@@ -25,20 +25,19 @@ class ProcessInstanceResource extends Resource
 
     public static function fromModel(Process $process, string $organizationId): self
     {
-        $isActive = false;
         $lawyerRole = null;
         $alertLevel = null;
+        $organization = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
             if ($organization && $organization->pivot) {
-                $isActive = (bool) $organization->pivot->is_active;
                 $lawyerRole = $organization->pivot->lawyer_role;
                 $alertLevel = $organization->pivot->inactivity_alert_level;
             }
         }
 
-        $status = OrganizationProcessStatus::fromBoolean($isActive);
+        $status = OrganizationProcessStatus::fromPivot($organization?->pivot);
 
         return new self(
             id: $process->id,

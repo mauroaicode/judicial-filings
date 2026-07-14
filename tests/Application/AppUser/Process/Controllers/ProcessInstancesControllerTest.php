@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 
@@ -247,10 +248,12 @@ it('returns correct status_label per instance', function (): void {
     $activeInstance->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
     ]);
     $inactiveInstance->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
     ]);
 
     $response = $this->actingAs($this->appUser)

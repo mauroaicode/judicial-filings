@@ -58,10 +58,10 @@ class NotificationDigestService
             $query->forProcessNumbers($limitToProcessNumbers);
         }
 
-        // If we have a prior successful digest, restrict to actuaciones registered on or
-        // after that date — prevents flooding clients with historical backlog.
+        // Prior digest cutoff: include actuaciones on/after that registration_date OR
+        // first discovered today (Rama may publish stale registration_date values).
         if ($lastNotifiedRegistrationDate !== null) {
-            $query->forProcessActionRegistrationDateOnOrAfter($lastNotifiedRegistrationDate);
+            $query->forActuacionVisibleByRegistrationOrDiscoveredToday($lastNotifiedRegistrationDate);
         }
 
         $notifications = $query->get();

@@ -9,6 +9,7 @@ use Spatie\LaravelData\Resource;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -36,6 +37,7 @@ class NotificationDigestResource extends Resource
         $digest->load([
             'notifications.notifiable.alertHighlights',
             'notifications.notifiable.process.organizations',
+            'notifications.notifiable.process.subjects',
         ]);
 
         $notifLookup = self::buildNotificationLookup($digest);
@@ -117,16 +119,36 @@ class NotificationDigestResource extends Resource
             ->values()
             ->all();
 
-        $processIdsByNumber = $processNumbers === []
-            ? []
-            : \Src\Domain\Process\Models\Process::query()
-                ->whereIn('process_number', $processNumbers)
-                ->pluck('id', 'process_number')
-                ->all();
+        $processIds = collect($pageItems)
+            ->pluck('process_id')
+            ->filter(static fn ($id): bool => is_string($id) && $id !== '')
+            ->unique()
+            ->values()
+            ->all();
 
-        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber, $organizationId): array {
+        $processesQuery = Process::query()->with('subjects');
+        if ($processIds !== [] || $processNumbers !== []) {
+            $processesQuery->where(function (\Illuminate\Contracts\Database\Query\Builder $q) use ($processIds, $processNumbers): void {
+                if ($processIds !== []) {
+                    $q->whereIn('id', $processIds);
+                }
+
+                if ($processNumbers !== []) {
+                    $method = $processIds !== [] ? 'orWhereIn' : 'whereIn';
+                    $q->{$method}('process_number', $processNumbers);
+                }
+            });
+        } else {
+            $processesQuery->whereRaw('1 = 0');
+        }
+
+        $processes = $processesQuery->get();
+        $processIdsByNumber = $processes->pluck('id', 'process_number')->all();
+        $processesById = $processes->keyBy('id');
+
+        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber, $organizationId, $processesById): array {
             $item = self::applyKeyMappings($item);
-            $item = self::enrichItemData($item, $notifLookup, $organizationId, $processIdsByNumber);
+            $item = self::enrichItemData($item, $notifLookup, $organizationId, $processIdsByNumber, $processesById);
             $item = self::applyTitleCaseFormatting($item);
 
             return self::applyFinalDateFormatting($item);
@@ -174,6 +196,7 @@ class NotificationDigestResource extends Resource
             ->whereIn('notifiable_id', $actionIds)
             ->with([
                 'notifiable.alertHighlights',
+                'notifiable.process.subjects',
                 'notifiable.process.organizations' => fn ($q) => $q->where('organizations.id', $organizationId),
             ])
             ->get()
@@ -329,15 +352,22 @@ class NotificationDigestResource extends Resource
         return $item;
     }
 
+    /**
+     * @param  array<string, OrganizationNotification>  $notifLookup
+     * @param  array<string, string>  $processIdsByNumber
+     * @param  \Illuminate\Support\Collection<string, Process>|array<string, Process>  $processesById
+     */
     private static function enrichItemData(
         array $item,
         array $notifLookup,
         string $organizationId,
         array $processIdsByNumber = [],
+        \Illuminate\Support\Collection|array $processesById = [],
     ): array {
         /** @var OrganizationNotification|null $matchedNotif */
         $matchedNotif = null;
         $actionId = $item['process_action_id'] ?? null;
+        $liveProcess = null;
 
         if (is_string($actionId) && $actionId !== '' && isset($notifLookup[$actionId])) {
             $matchedNotif = $notifLookup[$actionId];
@@ -365,6 +395,7 @@ class NotificationDigestResource extends Resource
             $actionModel = $matchedNotif->notifiable;
             if ($actionModel instanceof ProcessAction) {
                 $process = $actionModel->process;
+                $liveProcess = $process;
                 $item['process_id'] = $process->id;
                 $orgProc = $process->organizations->firstWhere('id', $matchedNotif->organization_id);
                 $role = self::parseLawyerRole($orgProc?->pivot->lawyer_role);
@@ -405,12 +436,19 @@ class NotificationDigestResource extends Resource
             }
 
             if (! empty($item['process_id']) && empty($item['alert_level'])) {
-                $process = Process::query()
-                    ->with(['organizations' => fn ($q) => $q->where('organizations.id', $organizationId)])
-                    ->find($item['process_id']);
+                $process = $processesById[$item['process_id']] ?? null;
+
+                if (! $process instanceof Process) {
+                    $process = Process::query()
+                        ->with(['organizations' => fn ($q) => $q->where('organizations.id', $organizationId)])
+                        ->find($item['process_id']);
+                }
 
                 if ($process instanceof Process) {
-                    $orgProc = $process->organizations->firstWhere('id', $organizationId);
+                    $liveProcess = $process;
+                    $orgProc = $process->relationLoaded('organizations')
+                        ? $process->organizations->firstWhere('id', $organizationId)
+                        : $process->organizations()->where('organizations.id', $organizationId)->first();
                     $role = self::parseLawyerRole($orgProc?->pivot->lawyer_role);
                     $item['alert_level'] = self::resolveAlertLevelForProcess($process, $organizationId, $orgProc?->pivot->inactivity_alert_level, $role);
                     $item['lawyer_role'] ??= $role instanceof ProcessLawyerRole ? $role->getLabel() : (string) ($orgProc?->pivot->lawyer_role ?? '');
@@ -418,13 +456,16 @@ class NotificationDigestResource extends Resource
             }
         }
 
+        // Refresh parties from live process when digest snapshot was empty (subjects added later by admin).
+        $item = self::hydrateSubjectsFromLiveProcess($item, $liveProcess, $processesById);
+
         // 3. Subjects (Title Case & Pluralization)
         $subjects = ['plaintiff' => 'plaintiffs', 'defendant' => 'defendants'];
         foreach ($subjects as $singular => $plural) {
             if (isset($item[$singular]) && is_string($item[$singular])) {
                 $list = array_values(array_filter(
                     array_map(trim(...), explode(',', $item[$singular])),
-                    static fn (string $name): bool => $name !== '',
+                    static fn (string $name): bool => $name !== '' && $name !== '---',
                 ));
                 if ($list !== []) {
                     $list = array_map(StrParseHelper::toTitleCase(...), $list);
@@ -434,13 +475,86 @@ class NotificationDigestResource extends Resource
                     $item[$singular] = $count > 1 ? "{$first} (+".($count - 1).')' : $first;
                 } else {
                     $item[$plural] = [];
+                    $item[$singular] = '---';
                 }
             } else {
                 $item[$plural] ??= [];
+                $item[$singular] ??= '---';
             }
         }
 
         return $item;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string, Process>|array<string, Process>  $processesById
+     */
+    private static function hydrateSubjectsFromLiveProcess(
+        array $item,
+        ?Process $liveProcess,
+        \Illuminate\Support\Collection|array $processesById = [],
+    ): array {
+        if (! self::needsSubjectHydration($item)) {
+            return $item;
+        }
+
+        $process = $liveProcess;
+
+        if (! $process instanceof Process && ! empty($item['process_id'])) {
+            $process = $processesById[$item['process_id']] ?? null;
+
+            if (! $process instanceof Process) {
+                $process = Process::query()->with('subjects')->find($item['process_id']);
+            }
+        }
+
+        if (! $process instanceof Process && ! empty($item['process_number'])) {
+            $process = Process::query()
+                ->with('subjects')
+                ->where('process_number', $item['process_number'])
+                ->first();
+        }
+
+        if (! $process instanceof Process) {
+            return $item;
+        }
+
+        if (! $process->relationLoaded('subjects')) {
+            $process->load('subjects');
+        }
+
+        $summary = ProcessSubjectSummaryHelper::summarize($process->subjects);
+
+        if ($summary['plaintiffs'] !== []) {
+            $item['plaintiff'] = implode(', ', $summary['plaintiffs']);
+        }
+
+        if ($summary['defendants'] !== []) {
+            $item['defendant'] = implode(', ', $summary['defendants']);
+        }
+
+        return $item;
+    }
+
+    private static function needsSubjectHydration(array $item): bool
+    {
+        // Keys are already mapped to plaintiff/defendant when this runs.
+        if (self::isBlankPartyValue($item['plaintiff'] ?? null)) {
+            return true;
+        }
+
+        return self::isBlankPartyValue($item['defendant'] ?? null);
+    }
+
+    private static function isBlankPartyValue(mixed $value): bool
+    {
+        if (! is_string($value)) {
+            return true;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed === '' || $trimmed === '---';
     }
 
     private static function applyTitleCaseFormatting(array $item): array

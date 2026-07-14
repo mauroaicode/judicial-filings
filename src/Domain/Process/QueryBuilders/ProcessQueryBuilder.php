@@ -410,10 +410,8 @@ class ProcessQueryBuilder extends Builder
             return;
         }
 
-        $isActive = $statusEnum === OrganizationProcessStatus::ACTIVE;
-
-        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($isActive): void {
-            $query->where('organization_processes.is_active', $isActive);
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($statusEnum): void {
+            $query->where('organization_processes.status', $statusEnum->value);
         });
     }
 

@@ -13,12 +13,14 @@ use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Traits\Uuid;
 use Src\Domain\Task\Enums\TaskStatus;
+use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\QueryBuilders\TaskQueryBuilder;
 
 /**
  * @property-read string $id
  * @property-read string $title
  * @property-read string $description
+ * @property-read TaskType $type
  * @property-read \Illuminate\Support\Carbon|null $due_date
  * @property-read int|null $reminder_days
  * @property-read TaskStatus $status
@@ -39,6 +41,7 @@ use Src\Domain\Task\QueryBuilders\TaskQueryBuilder;
  * @method TaskQueryBuilder whereAppUser()
  * @method TaskQueryBuilder whereProcess(string $processId)
  * @method TaskQueryBuilder whereStatus(TaskStatus|string $status)
+ * @method TaskQueryBuilder whereType(\Src\Domain\Task\Enums\TaskType|string $type)
  * @method TaskQueryBuilder excludingCompleted()
  * @method TaskQueryBuilder orderedByCreatedAt()
  */
@@ -60,6 +63,7 @@ class Task extends Model
     protected $fillable = [
         'title',
         'description',
+        'type',
         'due_date',
         'reminder_days',
         'status',
@@ -76,7 +80,8 @@ class Task extends Model
     protected function casts(): array
     {
         return [
-            'due_date' => 'date',
+            'type' => TaskType::class,
+            'due_date' => 'datetime',
             'reminder_days' => 'integer',
             'status' => TaskStatus::class,
             'last_due_reminder_sent_on' => 'date',

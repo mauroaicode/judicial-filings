@@ -116,6 +116,10 @@ return [
     'subject_cannot_delete_judicial' => 'A subject from the judicial branch cannot be deleted.',
     'relationship_not_found' => 'The association between the process and your organization was not found.',
     'not_found_in_organization' => 'The specified process does not belong to this organization.',
+    'suspension_requires_process' => 'A suspension task must be associated with a process.',
+    'already_has_suspension_task' => 'The process already has a related suspension task.',
+    'semaphore_paused_by_suspension' => 'Inactivity semaphore paused. Complete or delete the suspension task in the Agenda to reactivate it.',
+    'cannot_toggle_while_suspended' => 'You must complete or cancel the suspension task in the agenda to reactivate this process.',
     'initial_chat' => 'Initial Chat',
     'judicial_sync_command_failed' => 'Could not run judicial branch sync. Please try again or check the system logs.',
 

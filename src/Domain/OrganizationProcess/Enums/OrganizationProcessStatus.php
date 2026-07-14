@@ -8,6 +8,7 @@ enum OrganizationProcessStatus: string
 {
     case ACTIVE = 'active';
     case INACTIVE = 'inactive';
+    case SUSPENDED = 'suspended';
 
     /**
      * Get the label for the status.
@@ -33,5 +34,35 @@ enum OrganizationProcessStatus: string
     public static function fromBoolean(bool $isActive): self
     {
         return $isActive ? self::ACTIVE : self::INACTIVE;
+    }
+
+    /**
+     * Resolve status from the organization_processes pivot.
+     */
+    public static function fromPivot(mixed $pivot): self
+    {
+        if ($pivot === null) {
+            return self::INACTIVE;
+        }
+
+        $statusValue = $pivot->status ?? null;
+
+        if ($statusValue instanceof self) {
+            return $statusValue;
+        }
+
+        if (is_string($statusValue) && $statusValue !== '') {
+            return self::tryFrom($statusValue) ?? self::fromBoolean((bool) ($pivot->is_active ?? false));
+        }
+
+        return self::fromBoolean((bool) ($pivot->is_active ?? false));
+    }
+
+    /**
+     * Whether the organization still tracks the process (active or suspended).
+     */
+    public function toIsActive(): bool
+    {
+        return $this !== self::INACTIVE;
     }
 }

@@ -22,22 +22,33 @@
                 'label' => __('task.urgency_email_task_title'),
                 'value' => $alert->task->title,
             ],
-            [
-                'label' => __('task.urgency_email_process_number'),
-                'value' => ProcessNumberFormatHelper::display($alert->processNumber()),
-                'highlight' => true,
-                'monospace' => true,
-            ],
-            [
-                'label' => __('task.urgency_email_due_date'),
-                'value' => $alert->task->due_date
-                    ? DateFormatHelper::formatDateWithDayOfWeek($alert->task->due_date)
-                    : __('task.no_process_associated'),
-            ],
-            [
-                'label' => __('task.due_reminder_email_days_remaining'),
-                'value' => (string) $alert->daysRemaining,
-            ],
+        ];
+
+        if (filled($alert->task->description)) {
+            $detailRows[] = [
+                'label' => __('task.urgency_email_task_description'),
+                'value' => $alert->task->description,
+                'multiline' => true,
+            ];
+        }
+
+        $detailRows[] = [
+            'label' => __('task.urgency_email_process_number'),
+            'value' => ProcessNumberFormatHelper::display($alert->processNumber()),
+            'highlight' => true,
+            'monospace' => true,
+        ];
+
+        $detailRows[] = [
+            'label' => __('task.urgency_email_due_date'),
+            'value' => $alert->task->due_date
+                ? DateFormatHelper::formatDateWithDayOfWeek($alert->task->due_date)
+                : __('task.no_process_associated'),
+        ];
+
+        $detailRows[] = [
+            'label' => __('task.due_reminder_email_days_remaining'),
+            'value' => (string) $alert->daysRemaining,
         ];
     @endphp
 

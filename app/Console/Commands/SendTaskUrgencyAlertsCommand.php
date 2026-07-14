@@ -12,7 +12,7 @@ class SendTaskUrgencyAlertsCommand extends Command
     protected $signature = 'tasks:send-urgency-alerts
                             {--organization= : Optional organization ID to process only that organization}';
 
-    protected $description = 'Send urgency notifications for pending tasks based on days since creation';
+    protected $description = 'Send urgency notifications for pending tasks based on days past due date';
 
     public function __construct(
         private readonly ProcessPendingTaskUrgencyAlertsService $processPendingTaskUrgencyAlertsService,
