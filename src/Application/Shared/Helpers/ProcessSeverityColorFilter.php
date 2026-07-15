@@ -16,6 +16,12 @@ final class ProcessSeverityColorFilter
 {
     public static function apply(Builder $query, string $severityColor): void
     {
+        if ($severityColor === OrganizationProcessStatus::SUSPENDED->value) {
+            $query->where('organization_processes.status', OrganizationProcessStatus::SUSPENDED->value);
+
+            return;
+        }
+
         $query->where('organization_processes.status', OrganizationProcessStatus::ACTIVE->value);
 
         match ($severityColor) {

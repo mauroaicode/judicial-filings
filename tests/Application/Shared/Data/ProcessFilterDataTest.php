@@ -22,3 +22,19 @@ it('accepts privacy private and public', function (): void {
 it('rejects invalid privacy value on validateAndCreate', function (): void {
     ProcessFilterData::validateAndCreate(['privacy' => 'all']);
 })->throws(ValidationException::class);
+
+it('accepts status suspended', function (): void {
+    $data = ProcessFilterData::validateAndCreate(['status' => 'suspended']);
+
+    expect($data->status)->toBe('suspended');
+});
+
+it('accepts severity_color suspended', function (): void {
+    $data = ProcessFilterData::validateAndCreate(['severity_color' => 'suspended']);
+
+    expect($data->severity_color)->toBe('suspended');
+});
+
+it('rejects invalid status value on validateAndCreate', function (): void {
+    ProcessFilterData::validateAndCreate(['status' => 'archived']);
+})->throws(ValidationException::class);

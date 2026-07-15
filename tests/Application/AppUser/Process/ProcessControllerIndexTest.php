@@ -430,6 +430,37 @@ it('filters processes by status', function (): void {
     expect($response->json('data.0.status_label'))->toBe(__('enums.organization_process_status.active'));
 });
 
+it('filters processes by status suspended', function (): void {
+    $active = Process::factory()->create();
+    $suspended = Process::factory()->create();
+    $inactive = Process::factory()->create();
+
+    $active->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+    ]);
+    $suspended->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'suspended',
+    ]);
+    $inactive->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => false,
+        'status' => 'inactive',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?status=suspended');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($suspended->id);
+    expect($response->json('data.0.status'))->toBe('suspended');
+    expect($response->json('data.0.status_label'))->toBe(__('enums.organization_process_status.suspended'));
+});
+
 it('filters processes by has_multiple_instances', function (): void {
     $process1 = Process::factory()->create(['has_multiple_instances' => true]);
     $process2 = Process::factory()->create(['has_multiple_instances' => false]);
@@ -553,6 +584,42 @@ it('filters processes by severity_color none when role or last activity is missi
     expect($numbers)->toContain($withoutRole->process_number);
     expect($numbers)->toContain($withoutActivity->process_number);
     expect($numbers)->not->toContain($recentPlaintiff->process_number);
+});
+
+it('filters processes by severity_color suspended when inactivity semaphore is paused', function (): void {
+    $this->freezeTime();
+
+    $activeGreen = Process::factory()->create(['last_activity_date' => now()->subDays(5)]);
+    $suspended = Process::factory()->create(['last_activity_date' => now()->subDays(100)]);
+    $waitingNone = Process::factory()->create(['last_activity_date' => null]);
+
+    $activeGreen->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+        'lawyer_role' => 'plaintiff',
+    ]);
+    $suspended->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'suspended',
+        'lawyer_role' => 'plaintiff',
+    ]);
+    $waitingNone->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+        'lawyer_role' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?severity_color=suspended');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($suspended->id);
+    expect($response->json('data.0.semaphore.paused'))->toBeTrue();
+    expect($response->json('data.0.alert_level'))->toBeNull();
 });
 
 it('excludes inactive tracking processes from severity_color filters', function (): void {

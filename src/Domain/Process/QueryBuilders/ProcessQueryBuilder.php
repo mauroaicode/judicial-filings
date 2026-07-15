@@ -403,7 +403,7 @@ class ProcessQueryBuilder extends Builder
         if ($statusOnProcessTable) {
             if ($statusEnum === OrganizationProcessStatus::ACTIVE) {
                 $this->whereJudiciallyActive();
-            } else {
+            } elseif ($statusEnum === OrganizationProcessStatus::INACTIVE) {
                 $this->whereJudiciallyInactive();
             }
 

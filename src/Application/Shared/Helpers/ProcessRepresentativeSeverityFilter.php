@@ -60,6 +60,15 @@ final class ProcessRepresentativeSeverityFilter
      */
     public static function apply(Builder $query, string $organizationId, string $severityColor): void
     {
+        if ($severityColor === OrganizationProcessStatus::SUSPENDED->value) {
+            $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $orgQuery) use ($organizationId): void {
+                $orgQuery->where('organizations.id', $organizationId)
+                    ->where('organization_processes.status', OrganizationProcessStatus::SUSPENDED->value);
+            });
+
+            return;
+        }
+
         $numbers = self::matchingProcessNumbers($query, $organizationId, $severityColor);
 
         $query->whereIn('process_number', $numbers !== [] ? $numbers : ['']);
