@@ -17,13 +17,13 @@ readonly class AdminJudicialSyncHistoryController
     ) {}
 
     /**
-     * Paginated history of `judicial:sync-processes` runs.
+     * Paginated history of sync runs (Rama Judicial, SAMAI, and future sources).
      *
      * Ordered by `created_at` descending (newest first). Each item includes `moment_of_day` (`mañana` | `tarde` |
-     * `noche`) from `started_at` in {@see config('app.timezone')}, plus `status` (enum value) and `status_label`
-     * (translated via `enums.judicial_sync_run_status`).
+     * `noche`) from `started_at` in {@see config('app.timezone')}, plus `status` / `status_label`,
+     * and `data_source` / `data_source_label`.
      *
-     * Query: `status`, `started_at_from`, `started_at_to`, `per_page`.
+     * Query: `status`, `data_source`, `started_at_from`, `started_at_to`, `per_page`.
      */
     public function index(AdminJudicialSyncHistoryFilterData $filters): LengthAwarePaginator
     {

@@ -4,6 +4,8 @@ return [
     'already_registered' => 'Este número de radicado ya ha sido registrado para tu organización.',
     'not_found' => 'Proceso no encontrado.',
     'not_found_in_judicial_branch' => 'El número de radicado no está disponible para consulta en línea.',
+    'not_found_in_samai' => 'El número de radicado no fue encontrado en el sistema SAMAI del Consejo de Estado.',
+    'not_found_in_any_source' => 'El número de radicado no fue encontrado en Rama Judicial ni en SAMAI.',
     'registered_successfully' => 'Proceso registrado exitosamente.',
     'user_has_no_organization' => 'El usuario no pertenece a ninguna organización.',
     'is_private' => 'El número de radicado corresponde a un proceso privado y no es posible registrarlo.',
@@ -125,6 +127,8 @@ return [
     'invalid_none_combination' => 'No es posible filtrar por "Sin Rol" y "Sin Semáforo" al mismo tiempo.',
     'initial_chat' => 'Chat Inicial',
     'judicial_sync_command_failed' => 'No se pudo ejecutar la sincronización con la Rama Judicial. Intente de nuevo o revise los registros del sistema.',
+    'sync_command_failed' => 'No se pudo ejecutar la sincronización de :source. Intente de nuevo o revise los registros del sistema.',
+    'sync_source_not_implemented' => 'La sincronización de :source aún no está disponible.',
 
     'private_process_import_success' => 'Importación privada completada.',
     'private_process_import_invalid_data_source' => 'La fuente de datos indicada no es válida para importación manual.',
@@ -139,4 +143,16 @@ return [
     'private_process_import_process_type_default' => 'Proceso privado',
     'private_process_litigant_prefix_plaintiff' => 'Demandante: ',
     'private_process_litigant_prefix_defendant' => 'Demandado: ',
+
+    // Notificación: proceso pasó a privado en Rama Judicial
+    'process_class_label' => 'Clase de proceso',
+    'became_private_title' => 'Proceso marcado como privado',
+    'became_private_subject' => 'Admin: proceso :number — ahora es privado',
+    'became_private_description' => 'El radicado :number (:court) ha sido marcado como privado en Rama Judicial.',
+    'became_private_intro' => 'Alerta operativa: un proceso bajo seguimiento en la plataforma cambió su visibilidad en Consulta Unificada de Rama Judicial.',
+    'became_private_alert' => 'Este proceso ya no es visible en Consulta Unificada porque fue marcado como privado.',
+    'became_private_at' => 'Fecha del cambio',
+    'became_private_what_happens_title' => 'Qué hace el sistema ahora',
+    'became_private_what_happens_body' => 'El sistema intentará recuperar las actuaciones desde SAMAI (Consejo de Estado). Las organizaciones siguen el proceso con normalidad; las actuaciones nuevas entrarán en el consolidado diario.',
+    'process_details' => 'Detalles del proceso',
 ];

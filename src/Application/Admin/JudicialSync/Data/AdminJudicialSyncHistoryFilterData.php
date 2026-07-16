@@ -8,6 +8,7 @@ use Spatie\LaravelData\Attributes\Validation\Date;
 use Spatie\LaravelData\Attributes\Validation\In;
 use Spatie\LaravelData\Data;
 use Src\Application\Shared\Traits\TranslatableDataAttributesTrait;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 
 class AdminJudicialSyncHistoryFilterData extends Data
@@ -25,6 +26,12 @@ class AdminJudicialSyncHistoryFilterData extends Data
             JudicialSyncRunStatus::BatchCancelled->value,
         ])]
         public ?string $status = null,
+        #[In([
+            JudicialSyncDataSource::JudicialBranch->value,
+            JudicialSyncDataSource::Samai->value,
+            JudicialSyncDataSource::Tyba->value,
+        ])]
+        public ?string $data_source = null,
         #[Date]
         public ?string $started_at_from = null,
         #[Date]

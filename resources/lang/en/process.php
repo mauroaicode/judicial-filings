@@ -3,7 +3,9 @@
 return [
     'already_registered' => 'This filing number has already been registered for your organization.',
     'not_found' => 'Process not found.',
+    'not_found_in_samai' => 'The case number was not found in the SAMAI system of the Consejo de Estado.',
     'not_found_in_judicial_branch' => 'The case number is not available for online viewing.',
+    'not_found_in_any_source' => 'The case number was not found in Judicial Branch or SAMAI.',
     'registered_successfully' => 'Process registered successfully.',
     'user_has_no_organization' => 'The user does not belong to any organization.',
     'is_private' => 'The filing number corresponds to a private process and cannot be registered.',
@@ -122,6 +124,8 @@ return [
     'cannot_toggle_while_suspended' => 'You must complete or cancel the suspension task in the agenda to reactivate this process.',
     'initial_chat' => 'Initial Chat',
     'judicial_sync_command_failed' => 'Could not run judicial branch sync. Please try again or check the system logs.',
+    'sync_command_failed' => 'Could not run :source sync. Please try again or check the system logs.',
+    'sync_source_not_implemented' => ':source sync is not available yet.',
 
     'private_process_import_success' => 'Private import completed.',
     'private_process_import_invalid_data_source' => 'The requested data source is not valid for manual import.',
@@ -136,4 +140,16 @@ return [
     'private_process_import_process_type_default' => 'Private process',
     'private_process_litigant_prefix_plaintiff' => 'Plaintiff: ',
     'private_process_litigant_prefix_defendant' => 'Defendant: ',
+
+    // Notification: process became private in Rama Judicial
+    'process_class_label' => 'Process class',
+    'became_private_title' => 'Process marked as private',
+    'became_private_subject' => 'Admin: case :number — now private',
+    'became_private_description' => 'Case :number (:court) has been marked as private in Rama Judicial.',
+    'became_private_intro' => 'Operational alert: a monitored process changed its visibility in Consulta Unificada of Rama Judicial.',
+    'became_private_alert' => 'This process is no longer visible in Consulta Unificada because it was marked as private.',
+    'became_private_at' => 'Date of change',
+    'became_private_what_happens_title' => 'What the system does next',
+    'became_private_what_happens_body' => 'The system will attempt to retrieve actions from SAMAI (Consejo de Estado). Organizations continue monitoring as usual; new actions will appear in the daily digest.',
+    'process_details' => 'Process details',
 ];

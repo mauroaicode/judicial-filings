@@ -9,13 +9,18 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
+use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Notification\NotificationDigestService;
+use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Application\Shared\Traits\MapsJudicialActuacionTrait;
 use Src\Application\Shared\Traits\MapsJudicialSujetoTrait;
+use Src\Application\Shared\Traits\MapsSamaiActuacionTrait;
+use Src\Application\Shared\Traits\MapsSamaiSujetoTrait;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
@@ -29,9 +34,12 @@ class ProcessSyncService
 {
     use MapsJudicialActuacionTrait;
     use MapsJudicialSujetoTrait;
+    use MapsSamaiActuacionTrait;
+    use MapsSamaiSujetoTrait;
 
     public function __construct(
         private readonly JudicialBranchConsultService $judicialService,
+        private readonly SamaiConsultService $samaiService,
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
         private readonly NotificationDigestService $notificationDigestService,
     ) {}
@@ -41,7 +49,25 @@ class ProcessSyncService
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         $process->loadMissing('processDataSource');
-        if ($process->is_manual_sync || $process->process_id === null || $process->processDataSource?->slug !== ProcessDataSourceSlug::JudicialBranch->value) {
+        $sourceSlug = $process->processDataSource?->slug;
+
+        if ($process->is_manual_sync) {
+            Log::channel($logChannel)->info('ProcessSyncService::handle skipped: is_manual_sync=true', [
+                'process_uuid' => $process->id,
+            ]);
+
+            return;
+        }
+
+        // Rama SAMAI
+        if ($sourceSlug === ProcessDataSourceSlug::Samai->value) {
+            $this->handleSamaiProcess($process, $notify, $logChannel);
+
+            return;
+        }
+
+        // Rama Judicial (requiere process_id numérico)
+        if ($process->process_id === null || $sourceSlug !== ProcessDataSourceSlug::JudicialBranch->value) {
             Log::channel($logChannel)->info('ProcessSyncService::handle skipped: not a judicial branch candidate', [
                 'process_uuid' => $process->id,
             ]);
@@ -175,6 +201,192 @@ class ProcessSyncService
 
         $this->notificationDigestService->sendDigest($organization, $limitToProcessNumbers);
     }
+
+    // -------------------------------------------------------------------------
+    // SAMAI sync helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sincroniza un proceso SAMAI individual (llamado desde handle() cuando source=samai).
+     */
+    private function handleSamaiProcess(Process $process, bool $notify, string $logChannel): void
+    {
+        $corporacion = $process->samai_corporacion;
+
+        if ($corporacion === null || $corporacion === '') {
+            Log::channel($logChannel)->info('ProcessSyncService::handle SAMAI skipped: samai_corporacion is null', [
+                'process_uuid' => $process->id,
+            ]);
+
+            return;
+        }
+
+        $this->samaiService->withSeed((string) $process->process_number);
+
+        $result = $this->samaiService->obtenerActuaciones($corporacion, (string) $process->process_number);
+
+        if (! $result->isSuccessful) {
+            Log::channel($logChannel)->error('ProcessSyncService SAMAI: failed to fetch actuaciones', [
+                'process_id' => $process->id,
+            ]);
+
+            return;
+        }
+
+        $this->syncSamaiActuaciones($process, $result->data, $notify);
+
+        if (! $process->subjects()->exists()) {
+            $subjectsResult = $this->samaiService->obtenerSujetosProcesales($corporacion, (string) $process->process_number);
+
+            if ($subjectsResult->isSuccessful) {
+                $this->syncSamaiSujetos($process, $subjectsResult->data);
+            }
+        }
+    }
+
+    /**
+     * Sincroniza actuaciones SAMAI para todos los procesos activos de un radicado.
+     * Se llama desde el cron diario cuando el proceso tiene fuente SAMAI.
+     */
+    public function syncSamaiByProcessNumber(string $processNumber, bool $notify = true): void
+    {
+        $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+
+        $processes = Process::query()
+            ->where('process_number', $processNumber)
+            ->where('is_manual_sync', false)
+            ->whereNotNull('samai_corporacion')
+            ->whereHas('organizations', fn (Builder $q) => $q->where('organization_processes.is_active', true))
+            ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::Samai->value))
+            ->get();
+
+        if ($processes->isEmpty()) {
+            return;
+        }
+
+        $this->samaiService->withSeed($processNumber);
+
+        $lock = Cache::lock('samai-sync:radicado:'.$processNumber, 300);
+
+        $lock->block(120, function () use ($processNumber, $processes, $notify, $channel): void {
+            foreach ($processes as $process) {
+                $corporacion = $process->samai_corporacion;
+                if ($corporacion === null) {
+                    continue;
+                }
+
+                $result = $this->samaiService->obtenerActuaciones($corporacion, $processNumber);
+
+                if (! $result->isSuccessful) {
+                    Log::channel($channel)->error('ProcessSyncService SAMAI: failed actuaciones in daily sync', [
+                        'process_number' => $processNumber,
+                        'process_id' => $process->id,
+                    ]);
+
+                    continue;
+                }
+
+                $this->syncSamaiActuaciones($process, $result->data, $notify);
+
+                if (! $process->subjects()->exists()) {
+                    $subjectsResult = $this->samaiService->obtenerSujetosProcesales($corporacion, $processNumber);
+                    if ($subjectsResult->isSuccessful) {
+                        $this->syncSamaiSujetos($process, $subjectsResult->data);
+                    }
+                }
+
+                Log::channel($channel)->info('ProcessSyncService SAMAI: instance sync completed', [
+                    'process_number' => $processNumber,
+                    'process_id' => $process->id,
+                ]);
+            }
+        });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $apiActuaciones
+     */
+    private function syncSamaiActuaciones(Process $process, array $apiActuaciones, bool $notify = true): void
+    {
+        $hasNewActions = false;
+        $maxActionDate = null;
+
+        foreach ($apiActuaciones as $apiActuacion) {
+            $orden = $this->samaiActuacionOrden($apiActuacion);
+            if ($orden === 0) {
+                continue;
+            }
+
+            if (ProcessAction::query()->existsByActionRegistrationId($process->id, $orden)) {
+                continue;
+            }
+
+            $attributes = $this->mapSamaiActuacionToAttributes($apiActuacion);
+            $attributes['process_id'] = $process->id;
+
+            $action = ProcessAction::query()->create($attributes);
+            $hasNewActions = true;
+
+            $actionDateStr = $attributes['action_date'];
+            if ($maxActionDate === null || $actionDateStr > $maxActionDate) {
+                $maxActionDate = $actionDateStr;
+            }
+
+            if ($notify) {
+                $this->processActionAlertNotificationService->handle($action, $process);
+            }
+        }
+
+        $updateData = ['last_api_update' => now()];
+        if ($maxActionDate !== null) {
+            $current = $process->last_activity_date?->format('Y-m-d');
+            if ($current === null || $maxActionDate > $current) {
+                $updateData['last_activity_date'] = $maxActionDate;
+            }
+        }
+
+        $process->update($updateData);
+
+        if ($hasNewActions) {
+            \Src\Domain\OrganizationProcess\Models\OrganizationProcess::query()
+                ->where('process_id', $process->id)
+                ->update(['inactivity_alert_level' => null]);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $apiSujetos
+     */
+    private function syncSamaiSujetos(Process $process, array $apiSujetos): void
+    {
+        foreach ($apiSujetos as $apiSujeto) {
+            $attributes = $this->mapSamaiSujetoToAttributes($apiSujeto);
+
+            if ($attributes['name_or_business_name'] === '') {
+                continue;
+            }
+
+            $subject = ProcessSubjectIdentityHelper::findCanonicalForRadicado(
+                $process->process_number,
+                $attributes['subject_type'],
+                $attributes['name_or_business_name'],
+                $attributes['identification'],
+            );
+
+            if (! $subject instanceof ProcessSubject) {
+                $subject = ProcessSubject::query()->firstOrCreate(
+                    ['subject_registration_id' => null, 'name_or_business_name' => $attributes['name_or_business_name'], 'subject_type' => $attributes['subject_type']],
+                    $attributes
+                );
+            }
+
+            $process->subjects()->syncWithoutDetaching([$subject->id]);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // End SAMAI sync helpers
+    // -------------------------------------------------------------------------
 
     /**
      * @param  array<int, array<string, mixed>>  $apiActuaciones
@@ -539,6 +751,7 @@ class ProcessSyncService
 
         $apiProcesos = $result->data;
         $created = 0;
+        $privateFlipDetected = false;
 
         foreach ($apiProcesos as $apiProceso) {
             $apiProcessId = (int) ($apiProceso['idProceso'] ?? 0);
@@ -578,8 +791,26 @@ class ProcessSyncService
                     $updateData['department'] = $apiDepartment;
                 }
 
+                // Detectar transición a privado: Rama Judicial marcó el proceso como privado.
+                // Registrar la fecha del cambio y solicitar migración a SAMAI.
+                $isNowPrivate = (bool) ($apiProceso['esPrivado'] ?? false);
+                if ($isNowPrivate && ! $process->is_private) {
+                    $updateData['is_private'] = true;
+                    $updateData['became_private_at'] = now();
+                    $privateFlipDetected = true;
+                }
+
                 $process->update($updateData);
             }
+        }
+
+        // Disparar migración y notificaciones fuera del bucle para evitar duplicados
+        // si hay múltiples instancias del mismo radicado que se volvieron privadas.
+        if ($privateFlipDetected) {
+            dispatch(new \Src\Application\Shared\Jobs\MigratePrivateProcessSourceJob($processNumber))
+                ->delay(now()->addSeconds(30));
+
+            $this->notifyPrivacyTransition($processNumber);
         }
 
         $processesForRadicado = Process::query()->where('process_number', $processNumber)->get();
@@ -863,5 +1094,52 @@ class ProcessSyncService
                 dispatch(SendOrganizationNotificationJob::fromNotification($notification));
             }
         }
+    }
+
+    /**
+     * Avisa al administrador (correo) cuando un proceso de Rama Judicial pasa a privado.
+     *
+     * Las organizaciones NO reciben este aviso: continúan el seguimiento con normalidad
+     * (migración a SAMAI + actuaciones en el consolidado diario).
+     */
+    public function notifyPrivacyTransitionForAdmin(string $processNumber): void
+    {
+        $this->notifyPrivacyTransition($processNumber);
+    }
+
+    /**
+     * @see notifyPrivacyTransitionForAdmin()
+     */
+    private function notifyPrivacyTransition(string $processNumber): void
+    {
+        $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+        $adminEmail = trim((string) config('judicial-sync.admin_privacy_transition_email', ''));
+
+        if ($adminEmail === '') {
+            Log::channel($channel)->warning('ProcessSyncService: privacy transition — admin email not configured', [
+                'process_number' => $processNumber,
+            ]);
+
+            return;
+        }
+
+        $process = Process::query()
+            ->where('process_number', $processNumber)
+            ->where('is_private', true)
+            ->whereNotNull('became_private_at')
+            ->latest('became_private_at')
+            ->first();
+
+        if ($process === null) {
+            return;
+        }
+
+        Mail::to($adminEmail)->send(new ProcessBecamePrivateMailable($process));
+
+        Log::channel($channel)->info('ProcessSyncService: privacy transition admin email sent', [
+            'process_number' => $processNumber,
+            'admin_email' => $adminEmail,
+            'process_id' => $process->id,
+        ]);
     }
 }

@@ -42,10 +42,12 @@ it('can list tasks', function (): void {
 });
 
 it('can create a task', function (): void {
+    $dueDate = now()->addDays(7)->toDateString();
+
     $data = [
         'title' => 'Test Task',
         'description' => 'Test Description',
-        'due_date' => '2026-07-15',
+        'due_date' => $dueDate,
         'reminder_days' => 3,
         'is_admin' => false,
         'process_id' => $this->process->id,
@@ -59,14 +61,14 @@ it('can create a task', function (): void {
     $this->assertDatabaseHas('tasks', [
         'title' => 'Test Task',
         'type' => 'general',
-        'due_date' => '2026-07-15 00:00:00',
+        'due_date' => $dueDate.' 00:00:00',
         'reminder_days' => 3,
         'organization_id' => $this->organization->id,
     ]);
     $response->assertJsonPath('title', 'Test Task');
     $response->assertJsonPath('type', 'general');
     $response->assertJsonPath('type_label', __('enums.task_type.general'));
-    $response->assertJsonPath('due_date', DateFormatHelper::formatDateTimeWithDayOfWeek('2026-07-15 00:00:00'));
+    $response->assertJsonPath('due_date', DateFormatHelper::formatDateTimeWithDayOfWeek($dueDate.' 00:00:00'));
     $response->assertJsonPath('reminder_days', 3);
     $response->assertJsonPath('status', 'pending');
     $response->assertJsonPath('status_label', __('enums.task_status.pending'));

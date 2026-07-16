@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Jobs\DispatchOrganizationDigestsJob;
 use Src\Application\Shared\Jobs\SyncProcessJob;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Process\Models\Process;
 
@@ -41,10 +42,11 @@ class SyncJudicialProcessesCommand extends Command
         $filingOption = $this->option('radicado');
         $filingFilter = ($filingOption !== null && $filingOption !== '') ? $filingOption : null;
 
-        $run = JudicialSyncRun::startRun($filingFilter);
+        $run = JudicialSyncRun::startRun($filingFilter, JudicialSyncDataSource::JudicialBranch);
 
         Log::channel($channel)->info('SyncJudicialProcessesCommand started', [
             'run_id' => $run->id,
+            'data_source' => JudicialSyncDataSource::JudicialBranch->value,
             'radicado_filter' => $filingFilter,
         ]);
 

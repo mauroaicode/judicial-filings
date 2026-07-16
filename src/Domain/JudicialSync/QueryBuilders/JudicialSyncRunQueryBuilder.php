@@ -46,6 +46,14 @@ class JudicialSyncRunQueryBuilder extends Builder
     /**
      * @return $this
      */
+    public function whereDataSourceValue(string $dataSource): self
+    {
+        return $this->where('judicial_sync_runs.data_source', $dataSource);
+    }
+
+    /**
+     * @return $this
+     */
     public function whereStartedAtBetween(?string $from, ?string $to): self
     {
         if ($from !== null && $from !== '') {

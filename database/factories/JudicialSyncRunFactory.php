@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 
@@ -25,6 +26,7 @@ class JudicialSyncRunFactory extends Factory
             'command_finished_at' => now()->subMinutes(5),
             'batch_finished_at' => now()->subMinute(),
             'radicado_filter' => null,
+            'data_source' => JudicialSyncDataSource::JudicialBranch,
             'processes_queued' => 3,
             'laravel_batch_id' => null,
             'status' => JudicialSyncRunStatus::BatchCompleted,

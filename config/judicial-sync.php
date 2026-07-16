@@ -30,6 +30,19 @@ return [
             'timeout' => (int) env('JUDICIAL_SYNC_TIMEOUT', 120),
             'connection' => env('JUDICIAL_SYNC_CONNECTION'),
         ],
+        'sync_samai_process' => [
+            'queue' => env('SAMAI_SYNC_QUEUE', 'samai-sync'),
+            'tries' => (int) env('SAMAI_SYNC_TRIES', 3),
+            'backoff' => (int) env('SAMAI_SYNC_BACKOFF', 60),
+            'timeout' => (int) env('SAMAI_SYNC_TIMEOUT', 120),
+            'connection' => env('SAMAI_SYNC_CONNECTION'),
+        ],
+        'migrate_private_source' => [
+            'queue' => env('MIGRATE_PRIVATE_SOURCE_QUEUE', 'judicial-sync'),
+            'tries' => (int) env('MIGRATE_PRIVATE_SOURCE_TRIES', 2),
+            'timeout' => (int) env('MIGRATE_PRIVATE_SOURCE_TIMEOUT', 120),
+            'connection' => env('MIGRATE_PRIVATE_SOURCE_CONNECTION'),
+        ],
         'send_notification_dispatcher' => [
             'queue' => env('JUDICIAL_NOTIFICATION_QUEUE', 'notifications'),
             'tries' => (int) env('JUDICIAL_NOTIFICATION_TRIES', 3),
@@ -122,4 +135,39 @@ return [
     'skip_phantom_instance_actuaciones' => (bool) env('JUDICIAL_SYNC_SKIP_PHANTOM_INSTANCES', true),
 
     'dedupe_actions_by_content' => (bool) env('JUDICIAL_SYNC_DEDUPE_ACTIONS_BY_CONTENT', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reintentos de migración: procesos privados en JB sin migrar a SAMAI
+    |--------------------------------------------------------------------------
+    |
+    | Cuando un proceso pasa a privado en Rama Judicial, se intenta migrarlo a SAMAI
+    | de inmediato. Si falla (SAMAI aún no lo tiene), este mecanismo de backoff por
+    | niveles permite reintentar progresivamente sin sobrecargar la API.
+    |
+    | Nivel 1: 1-3 días después del flip  → primer reintento
+    | Nivel 2: 3-7 días                   → segundo reintento
+    | Nivel 3: 7-14 días                  → tercer reintento (último)
+    | Give-up: >14 días                   → alerta al operador, no se reintenta más
+    |
+    | Recomendación: correr judicial:retry-private-migrations UNA VEZ AL DÍA.
+    |
+    */
+    'private_migration_retry_level1_days' => (int) env('PRIVATE_MIGRATION_RETRY_LEVEL1_DAYS', 1),
+    'private_migration_retry_level2_days' => (int) env('PRIVATE_MIGRATION_RETRY_LEVEL2_DAYS', 3),
+    'private_migration_retry_level3_days' => (int) env('PRIVATE_MIGRATION_RETRY_LEVEL3_DAYS', 7),
+    /*
+    |--------------------------------------------------------------------------
+    | Admin alert: proceso pasó a privado
+    |--------------------------------------------------------------------------
+    |
+    | Correo interno para el administrador cuando un proceso de Rama Judicial
+    | se marca como privado. Las organizaciones NO reciben este aviso: siguen
+    | el proceso normalmente (migración a SAMAI + consolidado de actuaciones).
+    |
+    */
+    'admin_privacy_transition_email' => env(
+        'ADMIN_PRIVACY_TRANSITION_EMAIL',
+        env('ADMIN_PROCESS_IMPORT_REPORT_EMAIL')
+    ),
 ];

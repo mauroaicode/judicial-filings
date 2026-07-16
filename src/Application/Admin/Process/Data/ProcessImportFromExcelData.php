@@ -6,12 +6,14 @@ namespace Src\Application\Admin\Process\Data;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Validator;
+use Spatie\LaravelData\Attributes\Validation\Enum;
 use Spatie\LaravelData\Attributes\Validation\Exists;
 use Spatie\LaravelData\Attributes\Validation\File;
 use Spatie\LaravelData\Attributes\Validation\Mimes;
 use Spatie\LaravelData\Attributes\Validation\Required;
 use Spatie\LaravelData\Data;
 use Src\Application\Shared\Traits\TranslatableDataAttributesTrait;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 
 class ProcessImportFromExcelData extends Data
 {
@@ -22,6 +24,9 @@ class ProcessImportFromExcelData extends Data
         public readonly string $organization_id,
         #[Required, File, Mimes('xlsx', 'xls')]
         public readonly UploadedFile $file,
+        /** Fuente de los procesos. Por defecto rama judicial. Enviar "samai" para importar desde SAMAI. */
+        #[Enum(ProcessDataSourceSlug::class)]
+        public readonly ProcessDataSourceSlug $source = ProcessDataSourceSlug::JudicialBranch,
     ) {}
 
     public static function withValidator(Validator $validator): void

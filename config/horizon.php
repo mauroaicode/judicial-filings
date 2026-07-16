@@ -36,6 +36,7 @@ return [
     'waits' => [
         'redis:default' => 60,
         'redis:judicial-sync' => 300,
+        'redis:samai-sync' => 300,
         'redis:process-import' => 120,
         'redis:notifications' => 60,
     ],
@@ -81,6 +82,21 @@ return [
             'autoScalingStrategy' => 'time',
             'minProcesses' => 2,
             'maxProcesses' => 8,
+            'maxTime' => 0,
+            'maxJobs' => 500,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 120,
+            'nice' => 0,
+        ],
+
+        'supervisor-samai-sync' => [
+            'connection' => 'redis',
+            'queue' => ['samai-sync'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 4,
             'maxTime' => 0,
             'maxJobs' => 500,
             'memory' => 256,
@@ -143,6 +159,12 @@ return [
                 'balanceMaxShift' => 2,
                 'balanceCooldown' => 5,
             ],
+            'supervisor-samai-sync' => [
+                'minProcesses' => 2,
+                'maxProcesses' => 4,
+                'balanceMaxShift' => 1,
+                'balanceCooldown' => 5,
+            ],
             'supervisor-process-import' => [
                 'minProcesses' => 2,
                 'maxProcesses' => 5,
@@ -165,6 +187,10 @@ return [
 
         'local' => [
             'supervisor-judicial-sync' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 2,
+            ],
+            'supervisor-samai-sync' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 2,
             ],

@@ -12,6 +12,8 @@ return [
     'radicado' => 'Radicado',
     'slug' => 'Slug',
     'data_source_slug' => 'Fuente de datos',
+    'data_source' => 'Fuente de sincronización',
+    'source' => 'Fuente',
     'court' => 'Despacho',
     'process_class' => 'Clase de Proceso',
     'plaintiff' => 'Demandante',

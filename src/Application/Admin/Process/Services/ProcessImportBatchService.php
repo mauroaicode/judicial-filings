@@ -11,6 +11,7 @@ use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Shared\DTOs\ProcessImportReport;
 use Src\Application\Shared\Jobs\FinalizeProcessImportBatchJob;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
+use Src\Application\Shared\Jobs\ImportRadicadoSamaiJob;
 use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Domain\Process\Models\ProcessImportBatch;
@@ -34,7 +35,7 @@ readonly class ProcessImportBatchService
     public function dispatch(ProcessImportDataResult $data): array
     {
         $batch = $this->createBatchRecord($data);
-        $jobs = $this->buildJobs($data->toEnqueue, $data->organizationId, $batch->id);
+        $jobs = $this->buildJobs($data->toEnqueue, $data->organizationId, $batch->id, $data->source);
         $queueName = config('process-import.jobs.import_radicado.queue');
 
         $laravelBatch = Bus::batch($jobs)
@@ -163,25 +164,30 @@ readonly class ProcessImportBatchService
     }
 
     /**
-     * Builds the ImportRadicadoJob array with staggered delays per index.
+     * Builds the job array with staggered delays per index.
+     * Uses ImportRadicadoSamaiJob when source is 'samai', ImportRadicadoJob otherwise.
      *
      * @param  array<int, string>  $toEnqueue  Process numbers to enqueue
      * @param  string  $organizationId  Organization identifier
      * @param  string  $batchId  Import batch DB identifier
-     * @return array<int, ImportRadicadoJob>
+     * @param  string  $source  Process data source slug
+     * @return array<int, ImportRadicadoJob|ImportRadicadoSamaiJob>
      */
-    private function buildJobs(array $toEnqueue, string $organizationId, string $batchId): array
+    private function buildJobs(array $toEnqueue, string $organizationId, string $batchId, string $source = 'judicial_branch'): array
     {
         $queue = config('process-import.jobs.import_radicado.queue');
         $jobs = [];
         $accumulatedDelay = 0;
+        $isSamai = $source === 'samai';
 
         foreach ($toEnqueue as $processNumber) {
             $accumulatedDelay += $this->resolveRandomDelaySeconds();
 
-            $jobs[] = (new ImportRadicadoJob($batchId, $processNumber, $organizationId))
-                ->onQueue($queue)
-                ->delay(now()->addSeconds($accumulatedDelay));
+            $job = $isSamai
+                ? new ImportRadicadoSamaiJob($batchId, $processNumber, $organizationId)
+                : new ImportRadicadoJob($batchId, $processNumber, $organizationId);
+
+            $jobs[] = $job->onQueue($queue)->delay(now()->addSeconds($accumulatedDelay));
         }
 
         return $jobs;

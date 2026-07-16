@@ -21,12 +21,14 @@ readonly class ProcessImportDataService
      * @param  UploadedFile  $file  Uploaded Excel file
      * @param  string  $fileName  Original file name for the batch record
      * @param  mixed  $requestedById  User ID who requested the import
+     * @param  string  $source  Process data source slug ('judicial_branch' or 'samai')
      */
     public function handle(
         string $organizationId,
         UploadedFile $file,
         string $fileName,
         mixed $requestedById,
+        string $source = 'judicial_branch',
     ): ProcessImportDataResult {
         $parsed = $this->parseExcel($file);
 
@@ -70,6 +72,7 @@ readonly class ProcessImportDataService
             fileName: $fileName,
             skippedAlreadyRegistered: $skippedAlreadyRegistered,
             requestedById: $requestedById,
+            source: $source,
         );
     }
 

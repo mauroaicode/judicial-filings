@@ -12,10 +12,12 @@ use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\AppUser\Process\Resources\ProcessResource;
 use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
 use Src\Application\AppUser\Process\Services\DispatchProcessRegistrationService;
+use Src\Application\AppUser\Process\Services\DispatchSamaiProcessRegistrationService;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
-use Src\Application\AppUser\Process\Services\ProcessRegistrationSyncModeResolverService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
+use Src\Application\AppUser\Process\Services\RegisterSamaiProcessService;
+use Src\Application\AppUser\Process\Services\SmartProcessRegistrationResolverService;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
@@ -23,6 +25,7 @@ use Src\Application\Shared\Process\Data\ToggleProcessStatusData;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
 use Src\Application\Shared\Process\Services\ToggleProcessStatusService;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
 use Throwable;
@@ -33,9 +36,11 @@ readonly class ProcessController
         private ProcessFinderService $processFinderService,
         private ProcessDetailService $processDetailService,
         private ToggleProcessStatusService $toggleProcessStatusService,
+        private SmartProcessRegistrationResolverService $smartProcessRegistrationResolverService,
         private DispatchProcessRegistrationService $dispatchProcessRegistrationService,
-        private ProcessRegistrationSyncModeResolverService $processRegistrationSyncModeResolverService,
         private RegisterProcessService $registerProcessService,
+        private DispatchSamaiProcessRegistrationService $dispatchSamaiProcessRegistrationService,
+        private RegisterSamaiProcessService $registerSamaiProcessService,
     ) {}
 
     /**
@@ -113,7 +118,14 @@ readonly class ProcessController
     }
 
     /**
-     * Register a new process: inline when actuaciones pages are few; otherwise queued (SyncJudicialBranchJob).
+     * Registra un nuevo proceso para la organización del usuario.
+     *
+     * La fuente de datos (Rama Judicial o SAMAI) se detecta automáticamente:
+     * el sistema consulta primero la Rama Judicial y, si el proceso es privado
+     * o no existe allí, intenta con SAMAI.
+     *
+     * En ambos casos el alta es inline si el historial es corto, o asíncrona
+     * (cola) si el historial es largo.
      *
      * @throws Throwable
      */
@@ -128,22 +140,38 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $routing = $this->processRegistrationSyncModeResolverService->handle($data->process_number, $organization->id);
+        $routing = $this->smartProcessRegistrationResolverService->handle($data->process_number, $organization->id);
 
+        // Alta asíncrona (historial largo → encolar).
         if ($routing->deferToQueue) {
-            $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);
+            if ($routing->source === ProcessDataSourceSlug::Samai) {
+                $this->dispatchSamaiProcessRegistrationService->handle($data, $organization, $appUser);
+            } else {
+                $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);
+            }
 
             return response()->json(['message' => __('process.registration_dispatched')], 201);
         }
 
-        $result = $this->registerProcessService->handle(
-            $data->process_number,
-            $organization->id,
-            $data->lawyer_role,
-            '',
-            $appUser->id,
-            $routing->prefetchedApiProcesses,
-        );
+        // Alta inline.
+        if ($routing->source === ProcessDataSourceSlug::Samai) {
+            $result = $this->registerSamaiProcessService->handle(
+                $data->process_number,
+                $organization->id,
+                $data->lawyer_role,
+                '',
+                $appUser->id,
+            );
+        } else {
+            $result = $this->registerProcessService->handle(
+                $data->process_number,
+                $organization->id,
+                $data->lawyer_role,
+                '',
+                $appUser->id,
+                $routing->prefetchedJbProcesses,
+            );
+        }
 
         return response()->json([
             'message' => $this->buildRegistrationMessage($result),

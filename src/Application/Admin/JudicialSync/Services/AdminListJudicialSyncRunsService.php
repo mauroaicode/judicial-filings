@@ -18,6 +18,7 @@ readonly class AdminListJudicialSyncRunsService
     {
         $query = $this->buildBaseQuery();
         $this->applyStatusFilter($query, $filters->status);
+        $this->applyDataSourceFilter($query, $filters->data_source);
         $this->applyStartedAtRangeFilter($query, $filters->started_at_from, $filters->started_at_to);
 
         return $query->paginate($filters->per_page);
@@ -37,6 +38,15 @@ readonly class AdminListJudicialSyncRunsService
         }
 
         $query->whereStatusValue($status);
+    }
+
+    private function applyDataSourceFilter(JudicialSyncRunQueryBuilder $query, ?string $dataSource): void
+    {
+        if ($dataSource === null || $dataSource === '') {
+            return;
+        }
+
+        $query->whereDataSourceValue($dataSource);
     }
 
     private function applyStartedAtRangeFilter(JudicialSyncRunQueryBuilder $query, ?string $from, ?string $to): void

@@ -87,6 +87,72 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Procesos de Rama Judicial que quedaron "atrapados" como privados
+     * sin haber sido migrados a SAMAI todavía.
+     *
+     * Condiciones:
+     *  - Fuente = Rama Judicial
+     *  - is_private = true
+     *  - became_private_at NOT NULL  (se registró la transición)
+     *  - Todavía NO existe un registro equivalente en SAMAI (mismo process_number con samai_corporacion)
+     *  - Al menos una organización activa (vale la pena el reintento)
+     *
+     * Se usa con backoff por niveles:
+     *  Nivel 1: became_private_at entre 1 y 3 días
+     *  Nivel 2: became_private_at entre 3 y 7 días
+     *  Nivel 3: became_private_at > 7 días (reintento final antes de rendirse)
+     *
+     * @return $this
+     */
+    public function forPendingPrivateMigration(): self
+    {
+        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
+            ->where('organization_processes.is_active', true);
+
+        $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
+            ->where('process_data_sources.slug', ProcessDataSourceSlug::JudicialBranch->value)
+            ->where('processes.is_private', true)
+            ->whereNotNull('processes.became_private_at');
+
+        // Excluir radicados que ya tienen al menos una instancia migrada a SAMAI.
+        $this->whereNotExists(function ($sub): void {
+            $sub->from('processes as p2')
+                ->join('process_data_sources as pds2', 'p2.process_data_source_id', '=', 'pds2.id')
+                ->where('pds2.slug', ProcessDataSourceSlug::Samai->value)
+                ->whereNotNull('p2.samai_corporacion')
+                ->whereColumn('p2.process_number', 'processes.process_number');
+        });
+
+        $this->distinct()->select('processes.process_number', 'processes.became_private_at');
+
+        return $this;
+    }
+
+    /**
+     * Radicados SAMAI con al menos un organization_process activo (cron diario SAMAI).
+     *
+     * @return $this
+     */
+    public function forSamaiDailySync(?string $radicadoFilter = null): self
+    {
+        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
+            ->where('organization_processes.is_active', true);
+
+        $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
+            ->where('process_data_sources.slug', ProcessDataSourceSlug::Samai->value)
+            ->whereNotNull('processes.samai_corporacion')
+            ->where('processes.is_manual_sync', false);
+
+        if ($radicadoFilter !== null && $radicadoFilter !== '') {
+            $this->where('processes.process_number', $radicadoFilter);
+        }
+
+        $this->distinct()->select('processes.process_number');
+
+        return $this;
+    }
+
+    /**
      * Filter processes by process number (LIKE search).
      *
      * @return $this

@@ -13,6 +13,7 @@ use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
+use Src\Application\Shared\Services\Process\ProcessSourceFallbackService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
@@ -29,7 +30,8 @@ readonly class RegisterProcessService
 
     public function __construct(
         private JudicialBranchConsultService $judicialBranchConsultService,
-        private ProcessSyncService $processSyncService
+        private ProcessSyncService $processSyncService,
+        private ProcessSourceFallbackService $processSourceFallbackService,
     ) {}
 
     /**
@@ -71,8 +73,11 @@ readonly class RegisterProcessService
     }
 
     /**
-     * Attaches all existing DB instances of a radicado to the organization, then syncs
-     * with the Rama Judicial (first page) and queues recent-actuación alerts for this org only.
+     * Attaches all existing DB instances of a radicado to the organization.
+     *
+     * If the radicado still lives on Rama Judicial but is now private in the Portal,
+     * migrates it to SAMAI first (global). The registering org sees data in the UI and
+     * does not get a consolidado; sibling orgs get pending actuación rows for the next digest.
      *
      * @param  Collection<int, Process>  $processes  All DB instances of the radicado
      * @param  string  $organizationId  Organization UUID
@@ -81,13 +86,24 @@ readonly class RegisterProcessService
      */
     private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId, bool $deferRegistrationDigest = false): RegisterProcessResult
     {
+        $processNumber = (string) $processes->first()->process_number;
+
+        $migratedToSamai = $this->detectPrivacyFlipAndMigrateToSamai($processNumber, $organizationId);
+
+        // Recargar por si la fuente cambió a SAMAI.
+        $processes = Process::query()->whereProcessNumber($processNumber)->get();
+
         $result = DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId): RegisterProcessResult {
             /** @var Collection<int, Process> $attached */
             $attached = collect();
             $privateCount = 0;
 
             foreach ($processes as $process) {
-                if ($process->is_private) {
+                $process->loadMissing('processDataSource');
+
+                // Tras migración exitosa la fuente es SAMAI e is_private=false.
+                // Si sigue privado en JB (SAMAI no lo tenía), no se puede adjuntar.
+                if ($process->is_private && $process->processDataSource?->slug === ProcessDataSourceSlug::JudicialBranch->value) {
                     $privateCount++;
 
                     continue;
@@ -110,12 +126,15 @@ readonly class RegisterProcessService
             );
         });
 
-        $processNumber = (string) $processes->first()->process_number;
-        $this->processSyncService->syncForRegistration(
-            $processNumber,
-            $organizationId,
-            dispatchDigest: ! $deferRegistrationDigest,
-        );
+        // Si ya migró a SAMAI, los datos vienen del backfill: la org registrante no recibe consolidado.
+        // Si sigue en JB público, sync de registro como antes (digest opcional).
+        if (! $migratedToSamai) {
+            $this->processSyncService->syncForRegistration(
+                $processNumber,
+                $organizationId,
+                dispatchDigest: ! $deferRegistrationDigest,
+            );
+        }
 
         foreach ($result->processes as $process) {
             $process->refresh();
@@ -123,6 +142,77 @@ readonly class RegisterProcessService
         }
 
         return $result;
+    }
+
+    /**
+     * Consulta Rama Judicial; si detecta público→privado (o ya privado pendiente),
+     * marca el flip, avisa al admin y migra a SAMAI excluyendo notificaciones de digest
+     * para la org que está registrando.
+     */
+    private function detectPrivacyFlipAndMigrateToSamai(string $processNumber, string $registeringOrganizationId): bool
+    {
+        $jbProcesses = Process::query()
+            ->whereProcessNumber($processNumber)
+            ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value))
+            ->get();
+
+        if ($jbProcesses->isEmpty()) {
+            return false;
+        }
+
+        $privateFlipDetected = false;
+
+        try {
+            $this->judicialBranchConsultService->withSeed($processNumber);
+            $result = $this->judicialBranchConsultService->fetchProcesses($processNumber);
+        } catch (ApiEmptyProcessesException|ApiForbiddenOrRateLimitException) {
+            $result = null;
+        }
+
+        if ($result !== null && $result->isSuccessful && $result->data !== []) {
+            foreach ($result->data as $apiProceso) {
+                $apiProcessId = (int) ($apiProceso['idProceso'] ?? 0);
+                if ($apiProcessId === 0) {
+                    continue;
+                }
+
+                $process = $jbProcesses->firstWhere('process_id', $apiProcessId);
+                if ($process === null) {
+                    continue;
+                }
+
+                $isNowPrivate = (bool) ($apiProceso['esPrivado'] ?? false);
+                if ($isNowPrivate && ! $process->is_private) {
+                    $process->update([
+                        'is_private' => true,
+                        'became_private_at' => now(),
+                    ]);
+                    $privateFlipDetected = true;
+                }
+            }
+        }
+
+        // También reintentar si ya estaba marcado privado pero aún no migrado a SAMAI.
+        $pendingPrivate = Process::query()
+            ->whereProcessNumber($processNumber)
+            ->where('is_private', true)
+            ->whereNotNull('became_private_at')
+            ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value))
+            ->exists();
+
+        if (! $privateFlipDetected && ! $pendingPrivate) {
+            return false;
+        }
+
+        if ($privateFlipDetected) {
+            // Correo solo al admin (no a organizaciones).
+            $this->processSyncService->notifyPrivacyTransitionForAdmin($processNumber);
+        }
+
+        return $this->processSourceFallbackService->tryMigratePrivateJudicialToSamai(
+            $processNumber,
+            $registeringOrganizationId,
+        );
     }
 
     /**

@@ -19,17 +19,19 @@ readonly class ProcessImportService
      *
      * @param  string  $organizationId  Organization identifier
      * @param  UploadedFile  $file  Uploaded import file
+     * @param  string  $source  Process data source slug ('judicial_branch' or 'samai')
      * @return array{status: int, body: array<string, mixed>}
      *
      * @throws Throwable
      */
-    public function handle(string $organizationId, UploadedFile $file): array
+    public function handle(string $organizationId, UploadedFile $file, string $source = 'judicial_branch'): array
     {
         $dataResult = $this->dataService->handle(
             organizationId: $organizationId,
             file: $file,
             fileName: $file->getClientOriginalName(),
             requestedById: auth()->id(),
+            source: $source,
         );
 
         if (! $dataResult->isReadyToEnqueue()) {

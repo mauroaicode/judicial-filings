@@ -12,6 +12,8 @@ return [
     'radicado' => 'Filing number',
     'slug' => 'Slug',
     'data_source_slug' => 'Data source',
+    'data_source' => 'Sync data source',
+    'source' => 'Source',
     'court' => 'Court',
     'process_class' => 'Process Class',
     'plaintiff' => 'Plaintiff',

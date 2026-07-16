@@ -61,4 +61,9 @@ return [
         'batch_completed_with_failures' => 'Completed with failures',
         'batch_cancelled' => 'Cancelled',
     ],
+    'judicial_sync_data_source' => [
+        'judicial_branch' => 'Judicial Branch',
+        'samai' => 'SAMAI',
+        'tyba' => 'TYBA',
+    ],
 ];

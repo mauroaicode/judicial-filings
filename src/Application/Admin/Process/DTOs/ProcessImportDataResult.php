@@ -14,6 +14,7 @@ readonly class ProcessImportDataResult
      * @param  string|null  $fileName  Nombre del archivo.
      * @param  int  $skippedAlreadyRegistered  Cuántos ya estaban registrados.
      * @param  string|int|null  $requestedById  User id que solicitó la importación.
+     * @param  string  $source  Fuente de los procesos: 'judicial_branch' | 'samai'.
      */
     public function __construct(
         public int $status,
@@ -23,6 +24,7 @@ readonly class ProcessImportDataResult
         public ?string $fileName = null,
         public int $skippedAlreadyRegistered = 0,
         public mixed $requestedById = null,
+        public string $source = 'judicial_branch',
     ) {}
 
     public function isReadyToEnqueue(): bool

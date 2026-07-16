@@ -95,11 +95,16 @@ it('rejects process registration when user has no organization', function (): vo
     ]);
 });
 
-it('rejects process registration when radicado does not exist in judicial branch', function (): void {
+it('rejects process registration when radicado does not exist in judicial branch or samai', function (): void {
     Http::fake([
-        '*' => Http::response([
+        '*NumeroRadicacion*' => Http::response([
             'procesos' => [],
         ], 200),
+        '*BuscarProcesoTodoSamai*' => Http::response([], 200),
+        '*ObtenerDatosProcesoGet*' => Http::response([
+            'auditoria' => [],
+        ], 200),
+        '*' => Http::response([], 200),
     ]);
 
     // Use a number never created by any test so the fast-path (DB lookup) is never triggered
@@ -111,7 +116,7 @@ it('rejects process registration when radicado does not exist in judicial branch
 
     $response->assertStatus(404);
     $response->assertJson([
-        'messages' => [__('process.not_found_in_judicial_branch')],
+        'messages' => [__('process.not_found_in_any_source')],
     ]);
 });
 
@@ -137,7 +142,7 @@ it('rejects process registration when radicado is already registered for organiz
     ]);
 });
 
-it('rejects process registration when all instances are private', function (): void {
+it('rejects process registration when all judicial branch instances are private and samai has no match', function (): void {
     $processId1 = random_int(2000000000, 2999999999);
     $processId2 = random_int(3000000000, 3999999999);
     $processNumber = '12345678901234567890123'; // Unique 23-digit number
@@ -158,6 +163,11 @@ it('rejects process registration when all instances are private', function (): v
                 'cantidadPaginas' => 1,
             ],
         ], 200),
+        '*BuscarProcesoTodoSamai*' => Http::response([], 200),
+        '*ObtenerDatosProcesoGet*' => Http::response([
+            'auditoria' => [],
+        ], 200),
+        '*' => Http::response([], 200),
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -166,9 +176,10 @@ it('rejects process registration when all instances are private', function (): v
             'lawyer_role' => 'plaintiff',
         ]);
 
-    $response->assertStatus(422);
+    // JB privado → se intenta SAMAI → sin resultado → no encontrado en ninguna fuente
+    $response->assertStatus(404);
     $response->assertJson([
-        'messages' => [__('process.all_instances_are_private')],
+        'messages' => [__('process.not_found_in_any_source')],
     ]);
 
     // Verify no processes were created
@@ -233,7 +244,7 @@ it('rejects process registration when existing global process is private', funct
     expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
 });
 
-it('rejects process registration when single instance is private', function (): void {
+it('rejects process registration when single judicial branch instance is private and samai has no match', function (): void {
     $processId = random_int(4000000000, 4999999999);
     $processNumber = '11111111111111111111111'; // Unique 23-digit number
 
@@ -249,6 +260,11 @@ it('rejects process registration when single instance is private', function (): 
                 'cantidadPaginas' => 1,
             ],
         ], 200),
+        '*BuscarProcesoTodoSamai*' => Http::response([], 200),
+        '*ObtenerDatosProcesoGet*' => Http::response([
+            'auditoria' => [],
+        ], 200),
+        '*' => Http::response([], 200),
     ]);
 
     $response = $this->actingAs($this->appUser)
@@ -257,9 +273,10 @@ it('rejects process registration when single instance is private', function (): 
             'lawyer_role' => 'plaintiff',
         ]);
 
-    $response->assertStatus(422);
+    // JB privado → se intenta SAMAI → sin resultado → no encontrado en ninguna fuente
+    $response->assertStatus(404);
     $response->assertJson([
-        'messages' => [__('process.is_private')],
+        'messages' => [__('process.not_found_in_any_source')],
     ]);
 
     // Verify no process was created

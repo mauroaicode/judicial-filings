@@ -15,6 +15,13 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('horizon:snapshot')->everyFiveMinutes();
+
+        // Reintenta migrar a SAMAI los procesos que quedaron privados en Rama Judicial.
+        // Se corre una vez al día (madrugada, fuera de horario pico de la API).
+        $schedule->command('judicial:retry-private-migrations')
+            ->dailyAt('02:00')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

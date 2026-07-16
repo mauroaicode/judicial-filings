@@ -35,10 +35,12 @@ use Src\Domain\Task\Models\Task;
  * @property-read string|null $location
  * @property-read string|null $filing_content
  * @property-read bool $is_private
+ * @property-read Carbon|null $became_private_at
  * @property-read bool $has_multiple_instances
  * @property-read Carbon|null $last_api_update
  * @property-read bool $is_manual_sync
  * @property-read string|null $process_data_source_id
+ * @property-read string|null $samai_corporacion
  * @property-read ProcessDataSource|null $processDataSource
  * @property-read string|null $status
  * @property-read Carbon $created_at
@@ -59,6 +61,7 @@ use Src\Domain\Task\Models\Task;
  * @method ProcessQueryBuilder whereJudiciallyActive()
  * @method ProcessQueryBuilder whereJudiciallyInactive()
  * @method ProcessQueryBuilder forJudicialDailySync(?string $radicadoFilter = null)
+ * @method ProcessQueryBuilder forSamaiDailySync(?string $radicadoFilter = null)
  */
 class Process extends Model
 {
@@ -91,10 +94,12 @@ class Process extends Model
         'location',
         'filing_content',
         'is_private',
+        'became_private_at',
         'has_multiple_instances',
         'last_api_update',
         'is_manual_sync',
         'process_data_source_id',
+        'samai_corporacion',
         'status',
         'ai_summary',
     ];
@@ -111,6 +116,7 @@ class Process extends Model
             'process_date' => 'date',
             'last_activity_date' => 'date',
             'is_private' => 'boolean',
+            'became_private_at' => 'datetime',
             'has_multiple_instances' => 'boolean',
             'last_api_update' => 'datetime',
             'is_manual_sync' => 'boolean',

@@ -23,6 +23,7 @@ readonly class ProcessImportController
         $result = $this->processImportService->handle(
             organizationId: $data->organization_id,
             file: $data->file,
+            source: $data->source->value,
         );
 
         return response()->json($result['body'], $result['status']);

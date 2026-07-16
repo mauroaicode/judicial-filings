@@ -7,6 +7,7 @@ namespace Tests\Application\AppUser\Process\Services;
 use Mockery;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
+use Src\Application\Shared\Services\Process\ProcessSourceFallbackService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
@@ -30,10 +31,22 @@ class RegisterProcessServiceAiChatTest extends TestCase
         $this->appUser->organizations()->attach($this->organization->id);
 
         $consultMock = Mockery::mock(JudicialBranchConsultService::class);
+        $consultMock->shouldReceive('withSeed')->byDefault()->andReturnSelf();
+        $consultMock->shouldReceive('fetchProcesses')->byDefault()->andReturn((object) [
+            'isSuccessful' => true,
+            'data' => [],
+        ]);
+
         $syncMock = Mockery::mock(ProcessSyncService::class);
         $syncMock->shouldReceive('syncForRegistration')->byDefault();
+        $syncMock->shouldReceive('notifyPrivacyTransitionForAdmin')->byDefault();
 
-        $this->service = new RegisterProcessService($consultMock, $syncMock);
+        // Real fallback (readonly — no Mockery). With empty JB list above, migrate is not invoked.
+        $this->service = new RegisterProcessService(
+            $consultMock,
+            $syncMock,
+            app(ProcessSourceFallbackService::class),
+        );
     }
 
     public function test_it_creates_an_initial_ai_chat_when_attaching_existing_process(): void

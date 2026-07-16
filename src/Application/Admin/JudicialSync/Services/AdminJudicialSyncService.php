@@ -7,6 +7,7 @@ namespace Src\Application\Admin\JudicialSync\Services;
 use Illuminate\Support\Facades\Artisan;
 use Src\Application\Admin\JudicialSync\Data\AdminJudicialSyncData;
 use Src\Application\Admin\JudicialSync\Resources\AdminJudicialSyncResource;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Symfony\Component\Console\Command\Command as ConsoleCommand;
@@ -15,40 +16,51 @@ readonly class AdminJudicialSyncService
 {
     public function handle(AdminJudicialSyncData $data): AdminJudicialSyncResource
     {
-        return $this->executeJudicialSync($data);
+        $dataSource = $data->dataSource();
+
+        abort_unless(
+            $dataSource->isExecutable(),
+            422,
+            __('process.sync_source_not_implemented', ['source' => $dataSource->getLabel()])
+        );
+
+        return $this->executeSync($data, $dataSource);
     }
 
-    /**
-     * Runs the Artisan command judicial:sync-processes (same options as the scheduled cron).
-     */
-    private function executeJudicialSync(AdminJudicialSyncData $data): AdminJudicialSyncResource
+    private function executeSync(AdminJudicialSyncData $data, JudicialSyncDataSource $dataSource): AdminJudicialSyncResource
     {
         $params = [];
         if ($data->radicado !== null && $data->radicado !== '') {
             $params['--radicado'] = $data->radicado;
         }
 
-        $exitCode = Artisan::call('judicial:sync-processes', $params);
+        $exitCode = Artisan::call($dataSource->artisanCommand(), $params);
 
         abort_unless(
             $exitCode === ConsoleCommand::SUCCESS,
             500,
-            __('process.judicial_sync_command_failed')
+            __('process.sync_command_failed', ['source' => $dataSource->getLabel()])
         );
 
-        $jobsCount = $this->countEligibleRadicadosForSync($data->radicado);
+        $jobsCount = $this->countEligibleRadicadosForSync($dataSource, $data->radicado);
 
         if ($jobsCount === 0) {
-            return AdminJudicialSyncResource::noJobs($data->radicado);
+            return AdminJudicialSyncResource::noJobs($data->radicado, $dataSource);
         }
 
-        return AdminJudicialSyncResource::fromDispatch($jobsCount, $data->radicado);
+        return AdminJudicialSyncResource::fromDispatch($jobsCount, $data->radicado, $dataSource);
     }
 
-    /**
-     * Same filters as {@see ProcessQueryBuilder::forJudicialDailySync()} but uses a query-level count (not collection).
-     */
-    private function countEligibleRadicadosForSync(?string $radicadoFilter): int
+    private function countEligibleRadicadosForSync(JudicialSyncDataSource $dataSource, ?string $radicadoFilter): int
+    {
+        return match ($dataSource) {
+            JudicialSyncDataSource::JudicialBranch => $this->countJudicialBranchRadicados($radicadoFilter),
+            JudicialSyncDataSource::Samai => $this->countSamaiRadicados($radicadoFilter),
+            JudicialSyncDataSource::Tyba => 0,
+        };
+    }
+
+    private function countJudicialBranchRadicados(?string $radicadoFilter): int
     {
         $query = Process::query()
             ->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
@@ -63,5 +75,12 @@ readonly class AdminJudicialSyncService
         }
 
         return (int) $query->distinct()->count('processes.process_number');
+    }
+
+    private function countSamaiRadicados(?string $radicadoFilter): int
+    {
+        return (int) Process::query()
+            ->forSamaiDailySync($radicadoFilter)
+            ->count();
     }
 }

@@ -175,3 +175,62 @@ it('ignores processes that only have inactive organization links for full sync',
 
     Bus::assertNothingBatched();
 });
+
+it('defaults data_source to judicial_branch and returns it in the response', function (): void {
+    Bus::fake();
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/admin/judicial-sync', []);
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('data_source', 'judicial_branch');
+    $response->assertJsonPath('data_source_label', __('enums.judicial_sync_data_source.judicial_branch'));
+});
+
+it('validates data_source values', function (): void {
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/admin/judicial-sync', [
+            'data_source' => 'tyba',
+        ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['data_source']);
+});
+
+it('dispatches a samai batch when data_source is samai', function (): void {
+    Bus::fake();
+
+    $process = Process::factory()->create([
+        'process_data_source_id' => \Src\Domain\Process\Models\ProcessDataSource::uuidForSlug(
+            \Src\Domain\Process\Enums\ProcessDataSourceSlug::Samai
+        ),
+        'samai_corporacion' => '7600133',
+        'is_manual_sync' => false,
+        'process_id' => null,
+    ]);
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/admin/judicial-sync', [
+            'data_source' => 'samai',
+        ]);
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('jobs_dispatched', 1);
+    $response->assertJsonPath('batch_dispatched', true);
+    $response->assertJsonPath('data_source', 'samai');
+    $response->assertJsonPath('data_source_label', __('enums.judicial_sync_data_source.samai'));
+
+    Bus::assertBatched(function ($batch) use ($process): bool {
+        return $batch->name === 'Sync SAMAI Processes Batch'
+            && count($batch->jobs) === 1
+            && $batch->jobs[0] instanceof \Src\Application\Shared\Jobs\SyncSamaiProcessJob
+            && $batch->jobs[0]->processNumber === $process->process_number;
+    });
+
+    expect(\Src\Domain\JudicialSync\Models\JudicialSyncRun::query()->latest('created_at')->first())
+        ->data_source->value->toBe('samai');
+});

@@ -118,3 +118,33 @@ it('filters by status', function (): void {
         __('enums.judicial_sync_run_status.'.JudicialSyncRunStatus::BatchCompleted->value)
     );
 });
+
+it('exposes data_source and data_source_label on each run', function (): void {
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchCompleted,
+        'data_source' => \Src\Domain\JudicialSync\Enums\JudicialSyncDataSource::Samai,
+    ]);
+
+    $response = $this->actingAs($this->user)->getJson('/api/admin/judicial-sync/runs');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('data.0.data_source', 'samai');
+    $response->assertJsonPath('data.0.data_source_label', __('enums.judicial_sync_data_source.samai'));
+});
+
+it('filters by data_source', function (): void {
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchCompleted,
+        'data_source' => \Src\Domain\JudicialSync\Enums\JudicialSyncDataSource::JudicialBranch,
+    ]);
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchCompleted,
+        'data_source' => \Src\Domain\JudicialSync\Enums\JudicialSyncDataSource::Samai,
+    ]);
+
+    $response = $this->actingAs($this->user)->getJson('/api/admin/judicial-sync/runs?data_source=samai');
+
+    $response->assertStatus(200);
+    $response->assertJsonCount(1, 'data');
+    $response->assertJsonPath('data.0.data_source', 'samai');
+});

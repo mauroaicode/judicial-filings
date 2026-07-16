@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Services\Notification\Channels\JudicialSyncDiscordNotificationService;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\QueryBuilders\JudicialSyncRunQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
@@ -22,6 +23,7 @@ use Symfony\Component\Console\Command\Command as ConsoleCommand;
  * @property-read Carbon|null $command_finished_at
  * @property-read Carbon|null $batch_finished_at
  * @property-read string|null $radicado_filter
+ * @property-read JudicialSyncDataSource $data_source
  * @property-read int $processes_queued
  * @property-read string|null $laravel_batch_id
  * @property-read JudicialSyncRunStatus $status
@@ -53,6 +55,7 @@ class JudicialSyncRun extends Model
         'command_finished_at',
         'batch_finished_at',
         'radicado_filter',
+        'data_source',
         'processes_queued',
         'laravel_batch_id',
         'status',
@@ -71,6 +74,7 @@ class JudicialSyncRun extends Model
             'command_finished_at' => 'datetime',
             'batch_finished_at' => 'datetime',
             'radicado_filter' => 'string',
+            'data_source' => JudicialSyncDataSource::class,
             'processes_queued' => 'integer',
             'status' => JudicialSyncRunStatus::class,
             'command_exit_code' => 'integer',
@@ -88,11 +92,14 @@ class JudicialSyncRun extends Model
         return new JudicialSyncRunQueryBuilder($query);
     }
 
-    public static function startRun(?string $radicadoFilter): self
-    {
+    public static function startRun(
+        ?string $radicadoFilter,
+        JudicialSyncDataSource $dataSource = JudicialSyncDataSource::JudicialBranch,
+    ): self {
         return self::query()->create([
             'started_at' => now(),
             'radicado_filter' => $radicadoFilter,
+            'data_source' => $dataSource,
             'status' => JudicialSyncRunStatus::Started,
         ]);
     }

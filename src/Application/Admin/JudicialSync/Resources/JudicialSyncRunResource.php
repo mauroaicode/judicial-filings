@@ -19,6 +19,10 @@ class JudicialSyncRunResource extends Resource
         public ?string $command_finished_at,
         public ?string $batch_finished_at,
         public ?string $radicado_filter,
+        /** Machine value: judicial_branch | samai | tyba */
+        public string $data_source,
+        /** Localized label from `enums.judicial_sync_data_source.*`. */
+        public string $data_source_label,
         public int $processes_queued,
         public ?string $laravel_batch_id,
         /** Machine value for filters and logic (see {@see \Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus}). */
@@ -45,6 +49,8 @@ class JudicialSyncRunResource extends Resource
             command_finished_at: self::formattedOrNull($run->command_finished_at),
             batch_finished_at: self::formattedOrNull($run->batch_finished_at),
             radicado_filter: $run->radicado_filter,
+            data_source: $run->data_source->value,
+            data_source_label: $run->data_source->getLabel(),
             processes_queued: $run->processes_queued,
             laravel_batch_id: $run->laravel_batch_id,
             status: $run->status->value,
