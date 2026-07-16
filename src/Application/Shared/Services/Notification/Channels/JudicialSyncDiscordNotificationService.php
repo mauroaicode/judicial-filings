@@ -6,6 +6,7 @@ namespace Src\Application\Shared\Services\Notification\Channels;
 
 use Carbon\CarbonInterface;
 use Illuminate\Bus\Batch;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 
 /**
@@ -27,7 +28,7 @@ readonly class JudicialSyncDiscordNotificationService
 
         $this->discordChannel->send(
             DiscordNotificationChannelService::CHANNEL_LOG_SYNC_DAILY,
-            '**Sincronización Rama Judicial** — ciclo finalizado sin trabajo pendiente.',
+            '**'.$this->syncTitle($run).'** — ciclo finalizado sin trabajo pendiente.',
             [$embed]
         );
     }
@@ -43,7 +44,7 @@ readonly class JudicialSyncDiscordNotificationService
 
         $this->discordChannel->send(
             DiscordNotificationChannelService::CHANNEL_LOG_SYNC_DAILY,
-            '**Sincronización Rama Judicial** — **error crítico** al despachar el batch.',
+            '**'.$this->syncTitle($run).'** — **error crítico** al despachar el batch.',
             [$embed]
         );
     }
@@ -76,6 +77,7 @@ readonly class JudicialSyncDiscordNotificationService
             'description' => $summaryLine."\n\n".'_Informe enviado al cerrar la cola; las cifras son el resultado final._',
             'color' => $color,
             'fields' => [
+                $this->field('Fuente', $this->dataSourceLabel($run), true),
                 $this->field(
                     'Cronología',
                     $this->timelineBlockForBatchRun($run),
@@ -97,13 +99,13 @@ readonly class JudicialSyncDiscordNotificationService
                 ),
             ],
             'footer' => [
-                'text' => 'Run '.$run->id.' · '.$run->status->value,
+                'text' => 'Run '.$run->id.' · '.$run->status->value.' · '.$this->dataSourceSlug($run),
             ],
         ];
 
         $this->discordChannel->send(
             DiscordNotificationChannelService::CHANNEL_LOG_SYNC_DAILY,
-            $this->batchCompletionHeadline($title),
+            '**'.$this->syncTitle($run).'** — '.$title,
             [$embed]
         );
     }
@@ -183,6 +185,7 @@ readonly class JudicialSyncDiscordNotificationService
     private function baseEmbed(JudicialSyncRun $run, string $title, string $description, string $colorHex): array
     {
         $lines = [
+            '**Fuente** '.$this->dataSourceLabel($run),
             '**Inicio** '.$run->started_at->timezone((string) config('app.timezone'))->format('Y-m-d H:i:s T'),
         ];
 
@@ -229,8 +232,31 @@ readonly class JudicialSyncDiscordNotificationService
         ];
     }
 
-    private function batchCompletionHeadline(string $title): string
+    private function syncTitle(JudicialSyncRun $run): string
     {
-        return '**Sincronización Rama Judicial** — '.$title;
+        return match ($this->resolveDataSource($run)) {
+            JudicialSyncDataSource::Samai => 'Sincronización SAMAI',
+            JudicialSyncDataSource::Tyba => 'Sincronización TYBA',
+            default => 'Sincronización Rama Judicial',
+        };
+    }
+
+    private function dataSourceLabel(JudicialSyncRun $run): string
+    {
+        return $this->resolveDataSource($run)->getLabel();
+    }
+
+    private function dataSourceSlug(JudicialSyncRun $run): string
+    {
+        return $this->resolveDataSource($run)->value;
+    }
+
+    private function resolveDataSource(JudicialSyncRun $run): JudicialSyncDataSource
+    {
+        if ($run->data_source instanceof JudicialSyncDataSource) {
+            return $run->data_source;
+        }
+
+        return JudicialSyncDataSource::JudicialBranch;
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Queue;
 use Spatie\DiscordAlerts\Jobs\SendToDiscordChannelJob;
 use Src\Application\Shared\Services\Notification\Channels\JudicialSyncDiscordNotificationService;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 
@@ -40,6 +41,7 @@ function fakeFinishedBatch(int $totalJobs, int $failedJobs): Batch
 it('queues discord alert for no-processes run', function (): void {
     $run = JudicialSyncRun::factory()->create([
         'status' => JudicialSyncRunStatus::NoProcesses,
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
         'processes_queued' => 0,
         'command_finished_at' => now(),
     ]);
@@ -49,6 +51,23 @@ it('queues discord alert for no-processes run', function (): void {
     Queue::assertPushed(SendToDiscordChannelJob::class, function (SendToDiscordChannelJob $job): bool {
         return str_contains($job->text, 'Sincronización Rama Judicial')
             && str_contains($job->text, 'sin trabajo pendiente');
+    });
+});
+
+it('queues discord alert for samai no-processes run with samai title', function (): void {
+    $run = JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::NoProcesses,
+        'data_source' => JudicialSyncDataSource::Samai,
+        'processes_queued' => 0,
+        'command_finished_at' => now(),
+    ]);
+
+    app(JudicialSyncDiscordNotificationService::class)->notifyNoProcesses($run);
+
+    Queue::assertPushed(SendToDiscordChannelJob::class, function (SendToDiscordChannelJob $job): bool {
+        return str_contains($job->text, 'Sincronización SAMAI')
+            && str_contains($job->embeds[0]['description'] ?? '', 'Fuente')
+            && str_contains($job->embeds[0]['description'] ?? '', 'SAMAI');
     });
 });
 
