@@ -29,6 +29,26 @@ class ProcessImportFromExcelData extends Data
         public readonly ProcessDataSourceSlug $source = ProcessDataSourceSlug::JudicialBranch,
     ) {}
 
+    /**
+     * El admin UI envía `data_source_slug` (mismo nombre que private-import).
+     * También aceptamos `source` para clientes/API que ya usan ese campo.
+     *
+     * @param  array<string, mixed>  $properties
+     * @return array<string, mixed>
+     */
+    public static function prepareForPipeline(array $properties): array
+    {
+        $sourceMissing = ! array_key_exists('source', $properties)
+            || $properties['source'] === null
+            || $properties['source'] === '';
+
+        if ($sourceMissing && isset($properties['data_source_slug'])) {
+            $properties['source'] = $properties['data_source_slug'];
+        }
+
+        return $properties;
+    }
+
     public static function withValidator(Validator $validator): void
     {
         $validator->setCustomMessages([
