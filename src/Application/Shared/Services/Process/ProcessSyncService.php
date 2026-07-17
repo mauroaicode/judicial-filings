@@ -290,9 +290,18 @@ class ProcessSyncService
                     Log::channel($channel)->error('ProcessSyncService SAMAI: failed actuaciones in daily sync', [
                         'process_number' => $processNumber,
                         'process_id' => $process->id,
+                        'corporacion' => $corporacion,
                     ]);
 
                     continue;
+                }
+
+                if ($result->data === []) {
+                    Log::channel($channel)->warning('ProcessSyncService SAMAI: actuaciones vacías en daily sync', [
+                        'process_number' => $processNumber,
+                        'process_id' => $process->id,
+                        'corporacion' => $corporacion,
+                    ]);
                 }
 
                 $this->syncSamaiActuaciones($process, $result->data, $notify);
@@ -300,6 +309,14 @@ class ProcessSyncService
                 if (! $process->subjects()->exists()) {
                     $subjectsResult = $this->samaiService->obtenerSujetosProcesales($corporacion, $processNumber);
                     if ($subjectsResult->isSuccessful) {
+                        if ($subjectsResult->data === []) {
+                            Log::channel($channel)->warning('ProcessSyncService SAMAI: sujetos vacíos en daily sync', [
+                                'process_number' => $processNumber,
+                                'process_id' => $process->id,
+                                'corporacion' => $corporacion,
+                            ]);
+                        }
+
                         $this->syncSamaiSujetos($process, $subjectsResult->data);
                     }
                 }
@@ -307,6 +324,9 @@ class ProcessSyncService
                 Log::channel($channel)->info('ProcessSyncService SAMAI: instance sync completed', [
                     'process_number' => $processNumber,
                     'process_id' => $process->id,
+                    'corporacion' => $corporacion,
+                    'actuaciones_fetched' => count($result->data),
+                    'subjects_count' => $process->subjects()->count(),
                 ]);
             }
         });

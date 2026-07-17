@@ -198,10 +198,25 @@ class SamaiConsultService
 
             if ($response->successful()) {
                 $data = $response->json();
+                $list = is_array($data) && array_is_list($data) ? $data : [];
+
+                // API Key inválida/parcial a veces responde 200 con lista vacía.
+                // En ese caso caemos al portal público para no marcar el sync como OK vacío.
+                if ($list === [] && (bool) config('samai.public_portal.enabled', true)) {
+                    $this->logInfo('obtenerActuaciones API vacía, usando portal público', [
+                        'corporacion' => $corporacion,
+                        'process_number' => $processNumber,
+                    ]);
+
+                    return (object) [
+                        'isSuccessful' => true,
+                        'data' => $this->publicPortalData($corporacion, $processNumber)['actuaciones'],
+                    ];
+                }
 
                 return (object) [
                     'isSuccessful' => true,
-                    'data' => is_array($data) && array_is_list($data) ? $data : [],
+                    'data' => $list,
                 ];
             }
 
@@ -249,10 +264,23 @@ class SamaiConsultService
 
             if ($response->successful()) {
                 $data = $response->json();
+                $list = is_array($data) && array_is_list($data) ? $data : [];
+
+                if ($list === [] && (bool) config('samai.public_portal.enabled', true)) {
+                    $this->logInfo('obtenerSujetosProcesales API vacía, usando portal público', [
+                        'corporacion' => $corporacion,
+                        'process_number' => $processNumber,
+                    ]);
+
+                    return (object) [
+                        'isSuccessful' => true,
+                        'data' => $this->publicPortalData($corporacion, $processNumber)['sujetos'],
+                    ];
+                }
 
                 return (object) [
                     'isSuccessful' => true,
-                    'data' => is_array($data) && array_is_list($data) ? $data : [],
+                    'data' => $list,
                 ];
             }
 

@@ -78,6 +78,13 @@ class SamaiPublicPortalService
             throw new SamaiPublicPortalException('SAMAI no mostró el historial público del proceso.');
         }
 
+        // Las actuaciones viven en la página del proceso. Tras el postback de
+        // sujetos esa grilla puede desaparecer; no depende de ella.
+        $actuaciones = $this->parseActuaciones($processDocument);
+        if ($actuaciones === []) {
+            throw new SamaiPublicPortalException('SAMAI devolvió el historial público sin actuaciones.');
+        }
+
         $subjectPayload = $this->hiddenFields($processDocument);
         $subjectPayload['__EVENTTARGET'] = 'ctl00$MainContent$LbtSujetos';
         $subjectPayload['__EVENTARGUMENT'] = '';
@@ -89,9 +96,14 @@ class SamaiPublicPortalService
             throw new SamaiPublicPortalException('SAMAI no mostró los sujetos públicos del proceso.');
         }
 
+        $sujetos = $this->parseSujetos($subjectsDocument);
+        if ($sujetos === []) {
+            throw new SamaiPublicPortalException('SAMAI devolvió la tabla de sujetos sin filas.');
+        }
+
         return [
-            'actuaciones' => $this->parseActuaciones($subjectsDocument),
-            'sujetos' => $this->parseSujetos($subjectsDocument),
+            'actuaciones' => $actuaciones,
+            'sujetos' => $sujetos,
         ];
     }
 

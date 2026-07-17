@@ -75,8 +75,8 @@ trait MapsSamaiActuacionTrait
             return null;
         }
 
-        // Formato DD/MM/YYYY
-        if (preg_match('#^(\d{2})/(\d{2})/(\d{4})$#', $str, $m)) {
+        // Formato DD/MM/YYYY o DD/MM/YYYY HH:MM[:SS]
+        if (preg_match('#^(\d{2})/(\d{2})/(\d{4})(?:\s+\d{2}:\d{2}(?::\d{2})?)?$#', $str, $m)) {
             return "{$m[3]}-{$m[2]}-{$m[1]}";
         }
 

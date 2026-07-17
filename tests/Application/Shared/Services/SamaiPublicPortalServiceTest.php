@@ -36,10 +36,6 @@ it('extracts actuaciones and subjects from the public SAMAI portal', function ()
                     <tr><th>Reg</th><th>Tipo de sujeto</th><th>Nombre</th><th>Acceso Web</th></tr>
                     <tr><td>1</td><td>Demandante/accionante</td><td>Manuel Millán</td><td>NO</td></tr>
                 </table>
-                <table id="MainContent_GridViewHistoricoActuaciones">
-                    <tr><th>Ver</th><th>Fecha registro</th><th>Fecha actuación</th><th>Actuación</th><th>Anotación</th><th>Estado</th><th>Anexos</th><th>Índice</th></tr>
-                    <tr><td></td><td>11/01/2024 17:01:42</td><td>12/01/2024</td><td>Fijacion estado</td><td>CVC-</td><td>REGISTRADA</td><td>0</td><td>00011</td></tr>
-                </table>
             </body></html>
             HTML);
 
@@ -82,6 +78,39 @@ it('reuses one public portal session for actuaciones and subjects', function ():
         ->with('76111333300220180006700', '7611133')
         ->andReturn([
             'actuaciones' => [['Orden' => 11]],
+            'sujetos' => [['NombreRazonSocial' => 'Manuel Millán']],
+        ]);
+
+    $service = new SamaiConsultService($portal);
+
+    $actuaciones = $service->obtenerActuaciones('7611133', '76111333300220180006700');
+    $sujetos = $service->obtenerSujetosProcesales('7611133', '76111333300220180006700');
+
+    expect($actuaciones->isSuccessful)->toBeTrue()
+        ->and($actuaciones->data)->toHaveCount(1)
+        ->and($sujetos->isSuccessful)->toBeTrue()
+        ->and($sujetos->data)->toHaveCount(1);
+});
+
+it('falls back to the public portal when the REST API returns an empty list', function (): void {
+    config()->set('samai.api_key', 'fake-key');
+    config()->set('samai.api_url', 'https://samai-api.test/api');
+    config()->set('samai.modo', '2');
+    config()->set('samai.public_portal.enabled', true);
+    config()->set('samai.call_delay_min_ms', 0);
+    config()->set('samai.call_delay_max_ms', 0);
+
+    Http::fake([
+        'https://samai-api.test/api/Procesos/HistorialActuaciones/*' => Http::response([], 200),
+        'https://samai-api.test/api/Procesos/SujetosProcesales/*' => Http::response([], 200),
+    ]);
+
+    $portal = Mockery::mock(SamaiPublicPortalService::class);
+    $portal->shouldReceive('fetch')
+        ->once()
+        ->with('76111333300220180006700', '7611133')
+        ->andReturn([
+            'actuaciones' => [['Orden' => 11, 'NombreActuacion' => 'Fijacion estado']],
             'sujetos' => [['NombreRazonSocial' => 'Manuel Millán']],
         ]);
 
