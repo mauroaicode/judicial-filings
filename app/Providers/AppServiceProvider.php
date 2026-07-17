@@ -11,6 +11,8 @@ use Opcodes\LogViewer\Facades\LogViewer;
 use Opcodes\LogViewer\Http\Middleware\ForwardRequestToHostMiddleware;
 use Opcodes\LogViewer\LogFile;
 use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
+use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
+use Src\Application\Shared\Process\Timeline\Services\RecordProcessTimelineEventService;
 use Src\Application\Shared\Services\Alert\OllamaAnnotationAlertDetectionProvider;
 use Src\Application\Shared\Services\Alert\OpenAIAnnotationAlertDetectionProvider;
 
@@ -25,6 +27,8 @@ class AppServiceProvider extends ServiceProvider
             ForwardRequestToHostMiddleware::class,
             ForwardRequestToHostOnlyWhenRemote::class
         );
+
+        $this->app->bind(ProcessTimelineRecorder::class, RecordProcessTimelineEventService::class);
 
         $this->app->bind(AnnotationAlertDetectionInterface::class, function (): AnnotationAlertDetectionInterface {
             $provider = config('alert-ai.provider', 'openai');

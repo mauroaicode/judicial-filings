@@ -197,4 +197,12 @@ class Process extends Model
     {
         return $this->hasMany(Task::class, 'process_id');
     }
+
+    /**
+     * @return HasMany<ProcessTimelineEvent, $this>
+     */
+    public function timelineEvents(): HasMany
+    {
+        return $this->hasMany(ProcessTimelineEvent::class, 'process_id');
+    }
 }

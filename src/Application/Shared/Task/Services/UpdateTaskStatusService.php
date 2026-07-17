@@ -6,6 +6,7 @@ namespace Src\Application\Shared\Task\Services;
 
 use Illuminate\Support\Facades\DB;
 use Src\Application\Shared\Process\Services\ActivateOrganizationProcessService;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Task\Enums\TaskStatus;
 use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
@@ -14,6 +15,7 @@ class UpdateTaskStatusService
 {
     public function __construct(
         private readonly ActivateOrganizationProcessService $activateOrganizationProcessService,
+        private readonly RecordTaskTimelineEventService $recordTaskTimelineEventService,
     ) {}
 
     /**
@@ -24,13 +26,22 @@ class UpdateTaskStatusService
         $task = $this->findTask($id, $organizationId);
 
         return DB::transaction(function () use ($task, $status): Task {
+            $previousStatus = $task->status;
+
             if ($task->status !== $status) {
                 $task->update(['status' => $status]);
             }
 
-            $this->reactivateProcessIfSuspensionCompleted($task->fresh(), $status);
+            $updatedTask = $task->fresh()->load('process');
 
-            return $task->fresh()->load('process');
+            $this->recordTaskTimelineEventService->handle(
+                $updatedTask,
+                ProcessTimelineEventType::TASK_STATUS_CHANGED,
+                ['from' => $previousStatus, 'to' => $status],
+            );
+            $this->reactivateProcessIfSuspensionCompleted($updatedTask, $status);
+
+            return $updatedTask;
         });
     }
 
@@ -54,6 +65,8 @@ class UpdateTaskStatusService
         $this->activateOrganizationProcessService->handle(
             $task->organization_id,
             $task->process_id,
+            $task,
+            'suspension_task_completed',
         );
     }
 }

@@ -6,7 +6,9 @@ use Illuminate\Support\Facades\Hash;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessTimelineEvent;
 use Src\Domain\Role\Models\Role;
 use Src\Domain\Task\Models\Task;
 use Src\Domain\User\Models\User;
@@ -75,6 +77,11 @@ it('can create a task', function (): void {
     $response->assertJsonPath('urgency_level', 'normal');
     $response->assertJsonPath('days_overdue', 0);
     $response->assertJsonPath('process_number', $this->process->process_number);
+
+    expect(ProcessTimelineEvent::query()
+        ->where('process_id', $this->process->id)
+        ->where('event_type', ProcessTimelineEventType::TASK_CREATED->value)
+        ->exists())->toBeTrue();
 });
 
 it('can create a suspension task with due date time', function (): void {
@@ -108,6 +115,12 @@ it('can create a suspension task with due date time', function (): void {
     $response->assertJsonPath('type', 'suspension');
     $response->assertJsonPath('type_label', __('enums.task_type.suspension'));
     $response->assertJsonPath('due_date', DateFormatHelper::formatDateTimeWithDayOfWeek('2028-07-15 14:30:00'));
+
+    expect(ProcessTimelineEvent::query()
+        ->where('process_id', $this->process->id)
+        ->where('organization_id', $this->organization->id)
+        ->where('event_type', ProcessTimelineEventType::PROCESS_SUSPENDED->value)
+        ->exists())->toBeTrue();
 });
 
 it('fails to create a suspension task without process_id', function (): void {
@@ -350,6 +363,11 @@ it('reactivates the process when a suspension task is completed', function (): v
         'status' => 'active',
         'is_active' => true,
     ]);
+
+    expect(ProcessTimelineEvent::query()
+        ->where('process_id', $this->process->id)
+        ->where('event_type', ProcessTimelineEventType::PROCESS_RESUMED->value)
+        ->exists())->toBeTrue();
 });
 
 it('reactivates the process when a suspension task is moved to trash', function (): void {

@@ -253,10 +253,6 @@ readonly class JudicialSyncDiscordNotificationService
 
     private function resolveDataSource(JudicialSyncRun $run): JudicialSyncDataSource
     {
-        if ($run->data_source instanceof JudicialSyncDataSource) {
-            return $run->data_source;
-        }
-
-        return JudicialSyncDataSource::JudicialBranch;
+        return $run->data_source;
     }
 }

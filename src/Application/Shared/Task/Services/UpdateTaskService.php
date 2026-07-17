@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Application\Shared\Process\Services\SuspendOrganizationProcessService;
+use Src\Application\Shared\Task\Support\TaskTimelineState;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Task\Data\TaskData;
 use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
@@ -18,6 +20,7 @@ class UpdateTaskService
     public function __construct(
         private readonly SuspendOrganizationProcessService $suspendOrganizationProcessService,
         private readonly EnsureProcessHasNoActiveSuspensionTaskService $ensureProcessHasNoActiveSuspensionTaskService,
+        private readonly RecordTaskTimelineEventService $recordTaskTimelineEventService,
     ) {}
 
     /**
@@ -30,11 +33,18 @@ class UpdateTaskService
         $this->validateRelations($data, $task);
 
         return DB::transaction(function () use ($task, $data): Task {
+            $before = TaskTimelineState::capture($task);
             $this->updateTask($task, $data);
+            $updatedTask = $task->fresh()->load('process');
 
-            $this->applySuspensionIfNeeded($data);
+            $this->recordTaskTimelineEventService->handle(
+                $updatedTask,
+                ProcessTimelineEventType::TASK_UPDATED,
+                ['before' => $before],
+            );
+            $this->applySuspensionIfNeeded($data, $updatedTask);
 
-            return $task->fresh()->load('process');
+            return $updatedTask;
         });
     }
 
@@ -114,7 +124,7 @@ class UpdateTaskService
         return Date::parse($newDueDate)->gt($task->due_date);
     }
 
-    private function applySuspensionIfNeeded(TaskData $data): void
+    private function applySuspensionIfNeeded(TaskData $data, Task $task): void
     {
         $type = TaskType::from($data->type ?? TaskType::GENERAL->value);
 
@@ -125,6 +135,7 @@ class UpdateTaskService
         $this->suspendOrganizationProcessService->handle(
             $data->organization_id,
             $data->process_id,
+            $task,
         );
     }
 }

@@ -8,12 +8,17 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
+use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
+use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
+use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Notification\NotificationDigestService;
 use Src\Application\Shared\Services\SamaiConsultService;
@@ -25,6 +30,8 @@ use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
+use Src\Domain\Process\Enums\ProcessTimelineEventSource;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessDataSource;
@@ -42,6 +49,8 @@ class ProcessSyncService
         private readonly SamaiConsultService $samaiService,
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
         private readonly NotificationDigestService $notificationDigestService,
+        private readonly ProcessTimelineRecorder $timelineRecorder,
+        private readonly RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
     ) {}
 
     public function handle(Process $process, bool $notify = true): void
@@ -309,6 +318,7 @@ class ProcessSyncService
     private function syncSamaiActuaciones(Process $process, array $apiActuaciones, bool $notify = true): void
     {
         $hasNewActions = false;
+        $latestNewAction = null;
         $maxActionDate = null;
 
         foreach ($apiActuaciones as $apiActuacion) {
@@ -326,6 +336,7 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
             $hasNewActions = true;
+            $latestNewAction = $action;
 
             $actionDateStr = $attributes['action_date'];
             if ($maxActionDate === null || $actionDateStr > $maxActionDate) {
@@ -347,10 +358,12 @@ class ProcessSyncService
 
         $process->update($updateData);
 
-        if ($hasNewActions) {
-            \Src\Domain\OrganizationProcess\Models\OrganizationProcess::query()
-                ->where('process_id', $process->id)
-                ->update(['inactivity_alert_level' => null]);
+        if ($hasNewActions && $latestNewAction instanceof ProcessAction) {
+            $this->resetSemaphoreAfterNewAction(
+                $process,
+                $latestNewAction,
+                ProcessTimelineEventSource::SAMAI,
+            );
         }
     }
 
@@ -405,6 +418,7 @@ class ProcessSyncService
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
         $hasNewActions = false;
+        $latestNewAction = null;
         $maxActionDate = null;
 
         foreach ($apiActuaciones as $apiActuacion) {
@@ -436,6 +450,7 @@ class ProcessSyncService
 
             $action = ProcessAction::query()->create($attributes);
             $hasNewActions = true;
+            $latestNewAction = $action;
 
             $actionDate = Date::parse($attributes['action_date']);
             if (! $maxActionDate instanceof Carbon || $actionDate->greaterThan($maxActionDate)) {
@@ -477,11 +492,53 @@ class ProcessSyncService
 
         $process->update($updateData);
 
-        if ($hasNewActions) {
-            OrganizationProcess::query()
-                ->where('process_id', $process->id)
-                ->update(['inactivity_alert_level' => null]);
+        if ($hasNewActions && $latestNewAction instanceof ProcessAction) {
+            $this->resetSemaphoreAfterNewAction(
+                $process,
+                $latestNewAction,
+                ProcessTimelineEventSource::JUDICIAL_BRANCH,
+            );
         }
+    }
+
+    private function resetSemaphoreAfterNewAction(
+        Process $process,
+        ProcessAction $action,
+        ProcessTimelineEventSource $source,
+    ): void {
+        DB::transaction(function () use ($process, $action, $source): void {
+            $organizationProcesses = OrganizationProcess::query()
+                ->where('process_id', $process->id)
+                ->whereNotNull('inactivity_alert_level')
+                ->get();
+
+            foreach ($organizationProcesses as $organizationProcess) {
+                $previousLevel = $organizationProcess->inactivity_alert_level;
+                $effectiveLevel = ProcessAlertLevelHelper::resolve(
+                    null,
+                    $process->last_activity_date,
+                    $organizationProcess->lawyer_role,
+                );
+
+                OrganizationProcess::query()
+                    ->where('organization_id', $organizationProcess->organization_id)
+                    ->where('process_id', $organizationProcess->process_id)
+                    ->update(['inactivity_alert_level' => null]);
+
+                $this->recordSemaphoreTimelineEventService->handle(
+                    process: $process,
+                    organizationId: $organizationProcess->organization_id,
+                    from: $previousLevel,
+                    to: $effectiveLevel,
+                    reason: 'new_judicial_action',
+                    lawyerRole: $organizationProcess->lawyer_role?->value,
+                    source: $source,
+                    subjectType: 'process_action',
+                    subjectId: $action->id,
+                    occurredAt: $action->action_date,
+                );
+            }
+        });
     }
 
     /**
@@ -794,13 +851,37 @@ class ProcessSyncService
                 // Detectar transición a privado: Rama Judicial marcó el proceso como privado.
                 // Registrar la fecha del cambio y solicitar migración a SAMAI.
                 $isNowPrivate = (bool) ($apiProceso['esPrivado'] ?? false);
+                $privacyOccurredAt = null;
+
                 if ($isNowPrivate && ! $process->is_private) {
+                    $privacyOccurredAt = now();
                     $updateData['is_private'] = true;
-                    $updateData['became_private_at'] = now();
+                    $updateData['became_private_at'] = $privacyOccurredAt;
                     $privateFlipDetected = true;
                 }
 
-                $process->update($updateData);
+                DB::transaction(function () use ($process, $updateData, $privacyOccurredAt): void {
+                    $process->update($updateData);
+
+                    if ($privacyOccurredAt === null) {
+                        return;
+                    }
+
+                    $this->timelineRecorder->handle($process, new RecordProcessTimelineEventData(
+                        eventType: ProcessTimelineEventType::PROCESS_BECAME_PRIVATE,
+                        source: ProcessTimelineEventSource::JUDICIAL_BRANCH,
+                        idempotencyKey: "privacy:{$process->id}:{$privacyOccurredAt->format('U.u')}",
+                        payload: [
+                            'from' => ['is_private' => false],
+                            'to' => ['is_private' => true],
+                            'reason' => 'judicial_branch_api_reported_private',
+                        ],
+                        subjectType: 'process',
+                        subjectId: $process->id,
+                        actorType: 'job',
+                        occurredAt: $privacyOccurredAt,
+                    ));
+                });
             }
         }
 

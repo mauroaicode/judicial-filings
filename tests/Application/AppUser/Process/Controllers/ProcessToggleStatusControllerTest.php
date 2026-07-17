@@ -6,7 +6,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessTimelineEvent;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create([
@@ -116,6 +118,14 @@ it('deactivates an active process successfully', function (): void {
         ->first();
 
     expect((bool) $pivot->pivot->is_active)->toBeFalse();
+
+    $event = ProcessTimelineEvent::query()
+        ->where('process_id', $this->process->id)
+        ->where('event_type', ProcessTimelineEventType::TRACKING_DEACTIVATED->value)
+        ->first();
+
+    expect($event?->organization_id)->toBe($this->organization->id);
+    expect($event?->actor_id)->toBe($this->appUser->id);
 });
 
 it('activates an inactive process successfully', function (): void {

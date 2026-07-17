@@ -12,6 +12,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
@@ -23,7 +24,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService): void
     {
         $yellowThreshold = ProcessAlertLevelHelper::yellowThresholdDays();
         $redThreshold = ProcessAlertLevelHelper::redThresholdDays();
@@ -35,6 +36,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             null,
             'red',
             'inactividad_roja',
+            $recordSemaphoreTimelineEventService,
         );
         $this->evaluateByLastActivityDate(
             ProcessLawyerRole::PLAINTIFF->value,
@@ -42,6 +44,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             $redThreshold,
             'yellow',
             'inactividad_amarilla',
+            $recordSemaphoreTimelineEventService,
         );
 
         // Demandado: actividad reciente es mala; inactividad prolongada es favorable.
@@ -50,6 +53,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             $yellowThreshold,
             'red',
             'actividad_roja',
+            $recordSemaphoreTimelineEventService,
         );
         $this->evaluateByLastActivityDate(
             ProcessLawyerRole::DEFENDANT->value,
@@ -57,6 +61,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             $redThreshold,
             'yellow',
             'actividad_amarilla',
+            $recordSemaphoreTimelineEventService,
         );
         $this->evaluateByLastActivityDate(
             ProcessLawyerRole::DEFENDANT->value,
@@ -64,6 +69,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             null,
             'green',
             'inactividad_verde',
+            $recordSemaphoreTimelineEventService,
         );
     }
 
@@ -76,6 +82,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
         ?int $maxDays,
         string $targetAlertLevel,
         string $notificationType,
+        RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
     ): void {
         $query = Process::query()
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
@@ -93,7 +100,13 @@ class CheckInactiveProcessesJob implements ShouldQueue
             $query->where('last_activity_date', '>', \Illuminate\Support\Facades\Date::now()->subDays($maxDays));
         }
 
-        $this->persistAlertsForProcesses($query->get(), $role, $targetAlertLevel, $notificationType);
+        $this->persistAlertsForProcesses(
+            $query->get(),
+            $role,
+            $targetAlertLevel,
+            $notificationType,
+            $recordSemaphoreTimelineEventService,
+        );
     }
 
     /**
@@ -104,6 +117,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
         int $withinDays,
         string $targetAlertLevel,
         string $notificationType,
+        RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
     ): void {
         $query = Process::query()
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
@@ -117,7 +131,13 @@ class CheckInactiveProcessesJob implements ShouldQueue
             })
             ->where('last_activity_date', '>', \Illuminate\Support\Facades\Date::now()->subDays($withinDays));
 
-        $this->persistAlertsForProcesses($query->get(), $role, $targetAlertLevel, $notificationType);
+        $this->persistAlertsForProcesses(
+            $query->get(),
+            $role,
+            $targetAlertLevel,
+            $notificationType,
+            $recordSemaphoreTimelineEventService,
+        );
     }
 
     /**
@@ -128,9 +148,10 @@ class CheckInactiveProcessesJob implements ShouldQueue
         string $role,
         string $targetAlertLevel,
         string $notificationType,
+        RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
     ): void {
         foreach ($processes as $process) {
-            DB::transaction(function () use ($process, $role, $targetAlertLevel, $notificationType): void {
+            DB::transaction(function () use ($process, $role, $targetAlertLevel, $notificationType, $recordSemaphoreTimelineEventService): void {
                 $organizationsToAlert = $process->organizations()
                     ->wherePivot('is_active', true)
                     ->wherePivot('status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
@@ -146,6 +167,8 @@ class CheckInactiveProcessesJob implements ShouldQueue
                 }
 
                 foreach ($organizationsToAlert as $organization) {
+                    $previousAlertLevel = $organization->pivot->inactivity_alert_level;
+
                     if (
                         $targetAlertLevel === 'yellow'
                         && $role === ProcessLawyerRole::PLAINTIFF->value
@@ -157,6 +180,15 @@ class CheckInactiveProcessesJob implements ShouldQueue
                     $process->organizations()->updateExistingPivot($organization->id, [
                         'inactivity_alert_level' => $targetAlertLevel,
                     ]);
+
+                    $recordSemaphoreTimelineEventService->handle(
+                        process: $process,
+                        organizationId: $organization->id,
+                        from: $previousAlertLevel,
+                        to: $targetAlertLevel,
+                        reason: $notificationType,
+                        lawyerRole: $role,
+                    );
 
                     OrganizationNotification::query()->firstOrCreate(
                         [

@@ -9,6 +9,7 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
+use Src\Application\Shared\Exceptions\SamaiPublicPortalException;
 use Throwable;
 
 /**
@@ -60,6 +61,20 @@ class SamaiConsultService
 
     private string $seed = '';
 
+    /**
+     * Evita resolver dos captchas para actuaciones y sujetos del mismo proceso.
+     *
+     * @var array<string, array{
+     *     actuaciones: list<array<string, mixed>>,
+     *     sujetos: list<array<string, mixed>>
+     * }>
+     */
+    private array $publicPortalCache = [];
+
+    public function __construct(
+        private readonly SamaiPublicPortalService $publicPortalService,
+    ) {}
+
     // -------------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------------
@@ -69,6 +84,10 @@ class SamaiConsultService
      */
     public function withSeed(string $seed): static
     {
+        if ($this->seed !== $seed) {
+            $this->publicPortalCache = [];
+        }
+
         $this->seed = $seed;
 
         return $this;
@@ -161,6 +180,13 @@ class SamaiConsultService
      */
     public function obtenerActuaciones(string $corporacion, string $processNumber): object
     {
+        if ($this->shouldUsePublicPortal()) {
+            return (object) [
+                'isSuccessful' => true,
+                'data' => $this->publicPortalData($corporacion, $processNumber)['actuaciones'],
+            ];
+        }
+
         $this->applyJitter();
 
         $url = $this->url("Procesos/HistorialActuaciones/{$corporacion}/{$processNumber}/{$this->modo()}");
@@ -169,13 +195,28 @@ class SamaiConsultService
 
         try {
             $response = $this->performRequest('get', $url);
-            $data = $response->json();
 
-            if (! is_array($data)) {
-                $data = [];
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return (object) [
+                    'isSuccessful' => true,
+                    'data' => is_array($data) && array_is_list($data) ? $data : [],
+                ];
             }
 
-            return (object) ['isSuccessful' => true, 'data' => $data];
+            if (in_array($response->status(), [401, 403], true)) {
+                return (object) [
+                    'isSuccessful' => true,
+                    'data' => $this->publicPortalData($corporacion, $processNumber)['actuaciones'],
+                ];
+            }
+
+            return (object) ['isSuccessful' => false, 'data' => []];
+        } catch (SamaiPublicPortalException $exception) {
+            $this->logError('obtenerActuaciones public portal failed', $exception);
+
+            throw $exception;
         } catch (Throwable $th) {
             $this->logError('obtenerActuaciones failed', $th);
 
@@ -190,6 +231,13 @@ class SamaiConsultService
      */
     public function obtenerSujetosProcesales(string $corporacion, string $processNumber): object
     {
+        if ($this->shouldUsePublicPortal()) {
+            return (object) [
+                'isSuccessful' => true,
+                'data' => $this->publicPortalData($corporacion, $processNumber)['sujetos'],
+            ];
+        }
+
         $this->applyJitter();
 
         $url = $this->url("Procesos/SujetosProcesales/{$corporacion}/{$processNumber}/{$this->modo()}");
@@ -198,13 +246,28 @@ class SamaiConsultService
 
         try {
             $response = $this->performRequest('get', $url);
-            $data = $response->json();
 
-            if (! is_array($data)) {
-                $data = [];
+            if ($response->successful()) {
+                $data = $response->json();
+
+                return (object) [
+                    'isSuccessful' => true,
+                    'data' => is_array($data) && array_is_list($data) ? $data : [],
+                ];
             }
 
-            return (object) ['isSuccessful' => true, 'data' => $data];
+            if (in_array($response->status(), [401, 403], true)) {
+                return (object) [
+                    'isSuccessful' => true,
+                    'data' => $this->publicPortalData($corporacion, $processNumber)['sujetos'],
+                ];
+            }
+
+            return (object) ['isSuccessful' => false, 'data' => []];
+        } catch (SamaiPublicPortalException $exception) {
+            $this->logError('obtenerSujetosProcesales public portal failed', $exception);
+
+            throw $exception;
         } catch (Throwable $th) {
             $this->logError('obtenerSujetosProcesales failed', $th);
 
@@ -221,6 +284,30 @@ class SamaiConsultService
         $result = $this->obtenerActuaciones($corporacion, $processNumber);
 
         return $result->isSuccessful ? count($result->data) : 0;
+    }
+
+    private function shouldUsePublicPortal(): bool
+    {
+        return (string) config('samai.api_key', '') === ''
+            && (bool) config('samai.public_portal.enabled', true);
+    }
+
+    /**
+     * @return array{
+     *     actuaciones: list<array<string, mixed>>,
+     *     sujetos: list<array<string, mixed>>
+     * }
+     */
+    private function publicPortalData(string $corporacion, string $processNumber): array
+    {
+        if (! (bool) config('samai.public_portal.enabled', true)) {
+            throw new SamaiPublicPortalException('El fallback al portal público de SAMAI está deshabilitado.');
+        }
+
+        $key = $processNumber.'|'.$corporacion;
+
+        return $this->publicPortalCache[$key]
+            ??= $this->publicPortalService->fetch($processNumber, $corporacion);
     }
 
     /**

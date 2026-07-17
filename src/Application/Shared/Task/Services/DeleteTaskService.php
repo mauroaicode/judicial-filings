@@ -6,6 +6,7 @@ namespace Src\Application\Shared\Task\Services;
 
 use Illuminate\Support\Facades\DB;
 use Src\Application\Shared\Process\Services\ActivateOrganizationProcessService;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
 
@@ -13,6 +14,7 @@ class DeleteTaskService
 {
     public function __construct(
         private readonly ActivateOrganizationProcessService $activateOrganizationProcessService,
+        private readonly RecordTaskTimelineEventService $recordTaskTimelineEventService,
     ) {}
 
     /**
@@ -20,11 +22,12 @@ class DeleteTaskService
      */
     public function handle(string $id, ?string $organizationId = null): void
     {
-        $task = $this->findTask($id, $organizationId);
+        $task = $this->findTask($id, $organizationId)->load('process');
 
         DB::transaction(function () use ($task): void {
             $this->reactivateProcessIfSuspension($task);
             $task->delete();
+            $this->recordTaskTimelineEventService->handle($task, ProcessTimelineEventType::TASK_DELETED);
         });
     }
 
@@ -44,6 +47,8 @@ class DeleteTaskService
         $this->activateOrganizationProcessService->handle(
             $task->organization_id,
             $task->process_id,
+            $task,
+            'suspension_task_deleted',
         );
     }
 }

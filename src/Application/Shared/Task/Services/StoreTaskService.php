@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Application\Shared\Process\Services\SuspendOrganizationProcessService;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Task\Data\TaskData;
 use Src\Domain\Task\Enums\TaskStatus;
 use Src\Domain\Task\Enums\TaskType;
@@ -18,6 +19,7 @@ class StoreTaskService
     public function __construct(
         private readonly SuspendOrganizationProcessService $suspendOrganizationProcessService,
         private readonly EnsureProcessHasNoActiveSuspensionTaskService $ensureProcessHasNoActiveSuspensionTaskService,
+        private readonly RecordTaskTimelineEventService $recordTaskTimelineEventService,
     ) {}
 
     public function handle(TaskData $data): Task
@@ -27,7 +29,8 @@ class StoreTaskService
         return DB::transaction(function () use ($data): Task {
             $task = $this->createTask($data);
 
-            $this->applySuspensionIfNeeded($data);
+            $this->recordTaskTimelineEventService->handle($task, ProcessTimelineEventType::TASK_CREATED);
+            $this->applySuspensionIfNeeded($data, $task);
 
             return $task->load('process');
         });
@@ -86,7 +89,7 @@ class StoreTaskService
         ]);
     }
 
-    private function applySuspensionIfNeeded(TaskData $data): void
+    private function applySuspensionIfNeeded(TaskData $data, Task $task): void
     {
         $type = TaskType::from($data->type ?? TaskType::GENERAL->value);
 
@@ -97,6 +100,7 @@ class StoreTaskService
         $this->suspendOrganizationProcessService->handle(
             $data->organization_id,
             $data->process_id,
+            $task,
         );
     }
 }

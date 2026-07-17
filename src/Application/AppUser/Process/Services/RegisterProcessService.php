@@ -12,6 +12,8 @@ use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
+use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Process\ProcessSourceFallbackService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
@@ -20,6 +22,8 @@ use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
+use Src\Domain\Process\Enums\ProcessTimelineEventSource;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessDataSource;
 use Throwable;
@@ -32,6 +36,7 @@ readonly class RegisterProcessService
         private JudicialBranchConsultService $judicialBranchConsultService,
         private ProcessSyncService $processSyncService,
         private ProcessSourceFallbackService $processSourceFallbackService,
+        private ProcessTimelineRecorder $timelineRecorder,
     ) {}
 
     /**
@@ -183,10 +188,30 @@ readonly class RegisterProcessService
 
                 $isNowPrivate = (bool) ($apiProceso['esPrivado'] ?? false);
                 if ($isNowPrivate && ! $process->is_private) {
-                    $process->update([
-                        'is_private' => true,
-                        'became_private_at' => now(),
-                    ]);
+                    $occurredAt = now();
+
+                    DB::transaction(function () use ($process, $occurredAt): void {
+                        $process->update([
+                            'is_private' => true,
+                            'became_private_at' => $occurredAt,
+                        ]);
+
+                        $this->timelineRecorder->handle($process, new RecordProcessTimelineEventData(
+                            eventType: ProcessTimelineEventType::PROCESS_BECAME_PRIVATE,
+                            source: ProcessTimelineEventSource::JUDICIAL_BRANCH,
+                            idempotencyKey: "privacy:{$process->id}:{$occurredAt->format('U.u')}",
+                            payload: [
+                                'from' => ['is_private' => false],
+                                'to' => ['is_private' => true],
+                                'reason' => 'judicial_branch_api_reported_private',
+                            ],
+                            subjectType: 'process',
+                            subjectId: $process->id,
+                            actorType: 'system',
+                            occurredAt: $occurredAt,
+                        ));
+                    });
+
                     $privateFlipDetected = true;
                 }
             }

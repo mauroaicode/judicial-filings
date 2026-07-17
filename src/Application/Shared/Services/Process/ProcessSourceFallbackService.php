@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Process;
 
 use Illuminate\Contracts\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
+use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
+use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Application\Shared\Traits\MapsSamaiActuacionTrait;
 use Src\Application\Shared\Traits\MapsSamaiSujetoTrait;
@@ -13,6 +18,8 @@ use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
+use Src\Domain\Process\Enums\ProcessTimelineEventSource;
+use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessDataSource;
@@ -42,6 +49,8 @@ readonly class ProcessSourceFallbackService
     public function __construct(
         private SamaiConsultService $samaiService,
         private ProcessActionAlertNotificationService $alertNotificationService,
+        private ProcessTimelineRecorder $timelineRecorder,
+        private RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
     ) {}
 
     /**
@@ -177,7 +186,34 @@ readonly class ProcessSourceFallbackService
             $updateData['speaker'] = $this->buildSamaiSpeaker($data);
         }
 
-        $process->update($updateData);
+        $occurredAt = now();
+
+        DB::transaction(function () use ($process, $updateData, $corporacion, $occurredAt): void {
+            $previousExternalProcessId = $process->process_id;
+
+            $process->update($updateData);
+
+            $this->timelineRecorder->handle($process, new RecordProcessTimelineEventData(
+                eventType: ProcessTimelineEventType::PROCESS_SOURCE_CHANGED,
+                source: ProcessTimelineEventSource::SYSTEM,
+                idempotencyKey: "source:{$process->id}:samai:{$corporacion}",
+                payload: [
+                    'from' => [
+                        'data_source' => ProcessDataSourceSlug::JudicialBranch->value,
+                        'external_process_id' => $previousExternalProcessId,
+                    ],
+                    'to' => [
+                        'data_source' => ProcessDataSourceSlug::Samai->value,
+                        'samai_corporacion' => $corporacion,
+                    ],
+                    'migration' => 'in_place',
+                ],
+                subjectType: 'process',
+                subjectId: $process->id,
+                actorType: 'job',
+                occurredAt: $occurredAt,
+            ));
+        });
 
         Log::channel($channel)->info('ProcessSourceFallbackService: JB process migrated to SAMAI in-place', [
             'process_uuid' => $process->id,
@@ -267,6 +303,7 @@ readonly class ProcessSourceFallbackService
 
         $maxActionDate = null;
         $hasNewActions = false;
+        $latestNewAction = null;
 
         foreach ($result->data as $apiActuacion) {
             $orden = $this->samaiActuacionOrden($apiActuacion);
@@ -283,6 +320,7 @@ readonly class ProcessSourceFallbackService
 
             $action = ProcessAction::query()->create($attributes);
             $hasNewActions = true;
+            $latestNewAction = $action;
 
             // Orgs existentes: filas pendientes para el próximo consolidado (no se despacha digest aquí).
             // La org que acaba de registrar se excluye: ve los datos en la UI al momento.
@@ -308,10 +346,40 @@ readonly class ProcessSourceFallbackService
 
         $process->update($updateData);
 
-        if ($hasNewActions) {
-            OrganizationProcess::query()
-                ->where('process_id', $process->id)
-                ->update(['inactivity_alert_level' => null]);
+        if ($hasNewActions && $latestNewAction instanceof ProcessAction) {
+            DB::transaction(function () use ($process, $latestNewAction): void {
+                $organizationProcesses = OrganizationProcess::query()
+                    ->where('process_id', $process->id)
+                    ->whereNotNull('inactivity_alert_level')
+                    ->get();
+
+                foreach ($organizationProcesses as $organizationProcess) {
+                    $previousLevel = $organizationProcess->inactivity_alert_level;
+                    $effectiveLevel = ProcessAlertLevelHelper::resolve(
+                        null,
+                        $process->last_activity_date,
+                        $organizationProcess->lawyer_role,
+                    );
+
+                    OrganizationProcess::query()
+                        ->where('organization_id', $organizationProcess->organization_id)
+                        ->where('process_id', $organizationProcess->process_id)
+                        ->update(['inactivity_alert_level' => null]);
+
+                    $this->recordSemaphoreTimelineEventService->handle(
+                        process: $process,
+                        organizationId: $organizationProcess->organization_id,
+                        from: $previousLevel,
+                        to: $effectiveLevel,
+                        reason: 'new_judicial_action',
+                        lawyerRole: $organizationProcess->lawyer_role?->value,
+                        source: ProcessTimelineEventSource::SAMAI,
+                        subjectType: 'process_action',
+                        subjectId: $latestNewAction->id,
+                        occurredAt: $latestNewAction->action_date,
+                    );
+                }
+            });
         }
     }
 

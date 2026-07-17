@@ -7,8 +7,8 @@ return [
     | API REST del Consejo de Estado (SAMAI)
     |--------------------------------------------------------------------------
     |
-    | URL base de la API pública de SAMAI. El modo /2 es consulta pública,
-    | sin autenticación. No requiere cookies ni sesión.
+    | URL base de la API REST de SAMAI. El modo /2 representa la consulta
+    | pública, pero algunos endpoints requieren ApiKey.
     |
     */
     'api_url' => env('SAMAI_API_URL', 'https://samaicore.consejodeestado.gov.co/api'),
@@ -22,11 +22,35 @@ return [
     |
     | La API de SAMAI requiere un header "ApiKey" desde mediados de 2026.
     | Solicitarlo al equipo de sistemas del Consejo de Estado.
-    | Sin esta key los endpoints de búsqueda y actuaciones no funcionan.
-    | El endpoint ObtenerDatosProcesoGet sí funciona sin key.
+    | Sin esta key los endpoints de búsqueda, actuaciones y sujetos responden
+    | 401. ObtenerDatosProcesoGet sigue siendo público. Para actuaciones y
+    | sujetos se usa el portal HTML público configurado abajo.
     |
     */
     'api_key' => env('SAMAI_API_KEY', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Portal público HTML (fallback sin ApiKey)
+    |--------------------------------------------------------------------------
+    |
+    | Consulta list_procesos.aspx manteniendo cookies y ViewState. El captcha
+    | es textual y está expuesto en tres spans por la propia página; no requiere
+    | OCR ni un proveedor externo. Se resuelve una sola sesión por instancia y
+    | se reutiliza el resultado para actuaciones y sujetos.
+    |
+    */
+    'public_portal' => [
+        'enabled' => (bool) env('SAMAI_PUBLIC_PORTAL_ENABLED', true),
+        'url' => env('SAMAI_PUBLIC_PORTAL_URL', 'https://samai.consejodeestado.gov.co'),
+        'timeout' => (int) env('SAMAI_PUBLIC_PORTAL_TIMEOUT', 60),
+        'connect_timeout' => (int) env('SAMAI_PUBLIC_PORTAL_CONNECT_TIMEOUT', 15),
+        'max_attempts' => (int) env('SAMAI_PUBLIC_PORTAL_MAX_ATTEMPTS', 3),
+        'user_agent' => env(
+            'SAMAI_PUBLIC_PORTAL_USER_AGENT',
+            'Mozilla/5.0 (compatible; NotiJudicial/1.0)'
+        ),
+    ],
 
     /*
     |--------------------------------------------------------------------------
