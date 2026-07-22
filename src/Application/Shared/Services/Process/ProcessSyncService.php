@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Src\Application\Shared\Exceptions\SamaiPublicPortalException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
@@ -269,9 +270,9 @@ class ProcessSyncService
     public function backfillSamaiProcess(Process $process, bool $notify = false): array
     {
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
-        $corporacion = $process->samai_corporacion;
+        $corporacion = trim((string) ($process->samai_corporacion ?? ''));
 
-        if ($corporacion === null || $corporacion === '') {
+        if ($corporacion === '') {
             throw new \InvalidArgumentException(
                 "Process {$process->id} no tiene samai_corporacion; no se puede backfill SAMAI."
             );
@@ -279,13 +280,38 @@ class ProcessSyncService
 
         $this->samaiService->withSeed((string) $process->process_number);
 
-        $metadataUpdated = $this->backfillSamaiMetadata($process, $corporacion);
-
         $actionsBefore = $process->actions()->count();
         $actuacionesFetched = 0;
         $subjectsAdded = 0;
+        $processNumber = (string) $process->process_number;
+        $originCorp = substr($processNumber, 0, 7);
+        $looksLikeWrongInstanceCorp = ! str_ends_with($processNumber, '00')
+            && $corporacion === $originCorp;
 
-        $result = $this->samaiService->obtenerActuaciones($corporacion, (string) $process->process_number);
+        try {
+            $result = $this->samaiService->obtenerActuaciones($corporacion, $processNumber);
+        } catch (SamaiPublicPortalException $exception) {
+            Log::channel($logChannel)->warning('ProcessSyncService SAMAI backfill: portal failed, rediscovering corporacion', [
+                'process_id' => $process->id,
+                'process_number' => $processNumber,
+                'corporacion' => $corporacion,
+                'message' => $exception->getMessage(),
+            ]);
+            $result = (object) ['isSuccessful' => false, 'data' => []];
+        }
+
+        // Segunda instancia: el juzgado de origen suele devolver 0 filas / HTML vacío.
+        if ($looksLikeWrongInstanceCorp || ! $result->isSuccessful || $result->data === []) {
+            $discovered = $this->samaiService->encontrarCorporacion($processNumber, [$corporacion]);
+            if (! in_array($discovered, [null, '', $corporacion], true)) {
+                $process->update(['samai_corporacion' => $discovered]);
+                $process->refresh();
+                $corporacion = $discovered;
+                $result = $this->samaiService->obtenerActuaciones($corporacion, $processNumber);
+            }
+        }
+
+        $metadataUpdated = $this->backfillSamaiMetadata($process, $corporacion, force: true);
 
         if (! $result->isSuccessful) {
             Log::channel($logChannel)->error('ProcessSyncService SAMAI backfill: failed actuaciones', [
@@ -305,7 +331,7 @@ class ProcessSyncService
             $subjectsBefore = 0;
             $subjectsResult = $this->samaiService->obtenerSujetosProcesales(
                 $corporacion,
-                (string) $process->process_number
+                $processNumber
             );
 
             if ($subjectsResult->isSuccessful) {
@@ -336,10 +362,13 @@ class ProcessSyncService
 
     /**
      * Completa court/process_class/etc. cuando vienen vacíos tras un import parcial.
+     * Con $force=true también corrige despacho/clase ya guardados (p. ej. juzgado
+     * vs tribunal tras rediscubrir corporación).
      */
-    private function backfillSamaiMetadata(Process $process, string $corporacion): bool
+    private function backfillSamaiMetadata(Process $process, string $corporacion, bool $force = false): bool
     {
-        $needsMeta = trim((string) $process->court) === ''
+        $needsMeta = $force
+            || trim((string) $process->court) === ''
             || trim((string) $process->process_class) === '';
 
         if (! $needsMeta) {
@@ -357,35 +386,33 @@ class ProcessSyncService
 
         $update = [];
 
-        if (trim((string) $process->court) === '') {
-            $court = $this->buildSamaiCourtName($processData);
-            if ($court !== '') {
-                $update['court'] = $court;
-            }
+        $court = $this->buildSamaiCourtName($processData);
+        if ($court !== '' && ($force || trim((string) $process->court) === '')) {
+            $update['court'] = $court;
         }
 
-        if (trim((string) ($process->speaker ?? '')) === '') {
+        if ($force || trim((string) ($process->speaker ?? '')) === '') {
             $speaker = $this->buildSamaiSpeakerName($processData);
             if ($speaker !== null && $speaker !== '') {
                 $update['speaker'] = $speaker;
+            } elseif ($force && $this->buildSamaiSpeakerName($processData) === null) {
+                $update['speaker'] = null;
             }
         }
 
-        if (trim((string) $process->process_class) === '') {
-            $clase = trim((string) ($processData['claseProceso'] ?? ''));
-            if ($clase !== '') {
-                $update['process_class'] = $clase;
-            }
+        $processClass = trim((string) ($processData['claseProceso'] ?? $processData['ClaseProceso'] ?? ''));
+        if ($processClass !== '' && ($force || trim((string) $process->process_class) === '')) {
+            $update['process_class'] = $processClass;
         }
 
-        if (trim((string) ($process->process_type ?? '')) === '') {
+        if ($force || trim((string) ($process->process_type ?? '')) === '') {
             $tipo = trim((string) ($processData['tipoProceso'] ?? ''));
             if ($tipo !== '') {
                 $update['process_type'] = $tipo;
             }
         }
 
-        if (trim((string) ($process->department ?? '')) === '') {
+        if ($force || trim((string) ($process->department ?? '')) === '') {
             $city = trim((string) ($processData['cityName'] ?? ''));
             if ($city !== '') {
                 $update['department'] = $city;
@@ -393,7 +420,7 @@ class ProcessSyncService
             }
         }
 
-        if (trim((string) ($process->litigants ?? '')) === '') {
+        if ($force || trim((string) ($process->litigants ?? '')) === '') {
             $litigants = $this->buildSamaiLitigantsString($processData);
             if ($litigants !== null) {
                 $update['litigants'] = $litigants;
@@ -425,7 +452,16 @@ class ProcessSyncService
         $seccion = trim((string) ($processData['NombreSalaDecision'] ?? $processData['Seccion'] ?? ''));
         $city = trim((string) ($processData['cityName'] ?? ''));
 
-        return $city !== '' ? "{$seccion} - {$city}" : $seccion;
+        if ($seccion === '') {
+            return '';
+        }
+
+        // Evita "Tribunal ... del Valle ... - VALLE"
+        if ($city !== '' && ! str_contains(mb_strtolower($seccion), mb_strtolower($city))) {
+            return "{$seccion} - {$city}";
+        }
+
+        return $seccion;
     }
 
     /**

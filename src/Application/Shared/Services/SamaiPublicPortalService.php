@@ -86,12 +86,14 @@ class SamaiPublicPortalService
 
         $meta = $this->parseMeta($processDocument);
         $processDocument = $this->expandActuacionesHistorial($client, $url, $processDocument);
+        $processDocument = $this->expandCompleteAnnotations($client, $url, $processDocument);
 
         $actuaciones = $this->parseActuaciones($processDocument);
         if ($actuaciones === []) {
             throw new SamaiPublicPortalException('SAMAI devolvió el historial público sin actuaciones.');
         }
 
+        // Fallback: si aún quedan previews con "...", intenta el detalle "Ver" (ojito).
         $actuaciones = $this->expandTruncatedAnnotations($client, $url, $processDocument, $actuaciones);
 
         $subjectPayload = $this->hiddenFields($processDocument);
@@ -151,6 +153,40 @@ class SamaiPublicPortalService
 
         if (! $this->hasElement($expandedDocument, 'MainContent_GridViewHistoricoActuaciones')) {
             throw new SamaiPublicPortalException('SAMAI no expandió el historial completo de actuaciones.');
+        }
+
+        return $expandedDocument;
+    }
+
+    /**
+     * Activa "Ver anotación completa" para que el grid muestre el texto largo
+     * sin truncar con "...". Evita depender del ojito (EventValidation solo
+     * permite ~14 detalles "Ver" por ViewState).
+     */
+    private function expandCompleteAnnotations(
+        PendingRequest $client,
+        string $url,
+        DOMDocument $processDocument,
+    ): DOMDocument {
+        if (! $this->hasElement($processDocument, 'MainContent_ChkVerAnotacionCompleta')) {
+            return $processDocument;
+        }
+
+        $payload = $this->hiddenFields($processDocument);
+
+        if ($this->hasElement($processDocument, 'MainContent_ChkVerTodasActuaciones')) {
+            $payload['ctl00$MainContent$ChkVerTodasActuaciones'] = 'on';
+        }
+
+        $payload['ctl00$MainContent$ChkVerAnotacionCompleta'] = 'on';
+        $payload['__EVENTTARGET'] = 'ctl00$MainContent$ChkVerAnotacionCompleta';
+        $payload['__EVENTARGUMENT'] = '';
+
+        $response = $client->asForm()->post($url, $payload)->throw();
+        $expandedDocument = $this->parseDocument($response->body());
+
+        if (! $this->hasElement($expandedDocument, 'MainContent_GridViewHistoricoActuaciones')) {
+            return $processDocument;
         }
 
         return $expandedDocument;
@@ -349,9 +385,9 @@ class SamaiPublicPortalService
     }
 
     /**
-     * El grid público trunca anotaciones (~55 chars + "..."). El texto completo
-     * vive en el detalle "Ver" (MainContent_Txtanotactu). Reutiliza el ViewState
-     * de la grilla expandida para no perder la sesión entre detalles.
+     * El grid público trunca anotaciones (~55 chars + "..."). Preferimos el
+     * checkbox "Ver anotación completa"; este método es fallback por ojito.
+     * Reutiliza el ViewState de la grilla (solo funciona ~14 veces por sesión).
      *
      * @param  list<array<string, mixed>>  $actuaciones
      * @return list<array<string, mixed>>
@@ -377,8 +413,10 @@ class SamaiPublicPortalService
         foreach ($actuaciones as $index => $actuacion) {
             $anotacion = trim((string) ($actuacion['Anotacion'] ?? ''));
             $target = (string) ($actuacion['_ver_event_target'] ?? '');
-
-            if ($target === '' || ! str_ends_with($anotacion, '...')) {
+            if ($target === '') {
+                continue;
+            }
+            if (! str_ends_with($anotacion, '...')) {
                 continue;
             }
 
@@ -414,7 +452,7 @@ class SamaiPublicPortalService
      */
     private function stripInternalActuacionKeys(array $actuaciones): array
     {
-        foreach ($actuaciones as $index => $actuacion) {
+        foreach (array_keys($actuaciones) as $index) {
             unset($actuaciones[$index]['_ver_event_target']);
         }
 

@@ -35,6 +35,7 @@ it('extracts actuaciones, subjects and metadata from the public SAMAI portal', f
                 <span id="MainContent_lblpagini">2</span>
                 <span id="MainContent_Lblpagfin">2</span>
                 <input type="checkbox" name="ctl00$MainContent$ChkVerTodasActuaciones" id="MainContent_ChkVerTodasActuaciones">
+                <input type="checkbox" name="ctl00$MainContent$ChkVerAnotacionCompleta" id="MainContent_ChkVerAnotacionCompleta">
                 <table id="MainContent_GridViewHistoricoActuaciones">
                     <tr><th>Ver</th><th>Fecha registro</th><th>Fecha actuación</th><th>Actuación</th><th>Anotación</th><th>Estado</th><th>Anexos</th><th>Índice</th></tr>
                     <tr><td></td><td>11/01/2024 17:01:42</td><td>12/01/2024</td><td>Fijacion estado</td><td>CVC-</td><td>REGISTRADA</td><td>0</td><td>00002</td></tr>
@@ -45,10 +46,23 @@ it('extracts actuaciones, subjects and metadata from the public SAMAI portal', f
             <html><body><form>
                 <input type="hidden" name="__VIEWSTATE" value="all-state">
                 <input type="hidden" name="__EVENTVALIDATION" value="all-validation">
+                <input type="checkbox" name="ctl00$MainContent$ChkVerTodasActuaciones" id="MainContent_ChkVerTodasActuaciones">
+                <input type="checkbox" name="ctl00$MainContent$ChkVerAnotacionCompleta" id="MainContent_ChkVerAnotacionCompleta">
                 <table id="MainContent_GridViewHistoricoActuaciones">
                     <tr><th>Ver</th><th>Fecha registro</th><th>Fecha actuación</th><th>Actuación</th><th>Anotación</th><th>Estado</th><th>Anexos</th><th>Índice</th></tr>
                     <tr><td></td><td>10/01/2024 10:00:00</td><td>10/01/2024</td><td>Radicacion</td><td></td><td>REGISTRADA</td><td>0</td><td>00001</td></tr>
                     <tr><td></td><td>11/01/2024 17:01:42</td><td>12/01/2024</td><td>Fijacion estado</td><td>CVC-</td><td>REGISTRADA</td><td>0</td><td>00002</td></tr>
+                </table>
+            </form></body></html>
+            HTML)
+        ->push(<<<'HTML'
+            <html><body><form>
+                <input type="hidden" name="__VIEWSTATE" value="completa-state">
+                <input type="hidden" name="__EVENTVALIDATION" value="completa-validation">
+                <table id="MainContent_GridViewHistoricoActuaciones">
+                    <tr><th>Ver</th><th>Fecha registro</th><th>Fecha actuación</th><th>Actuación</th><th>Anotación</th><th>Estado</th><th>Anexos</th><th>Índice</th></tr>
+                    <tr><td></td><td>10/01/2024 10:00:00</td><td>10/01/2024</td><td>Radicacion</td><td></td><td>REGISTRADA</td><td>0</td><td>00001</td></tr>
+                    <tr><td></td><td>11/01/2024 17:01:42</td><td>12/01/2024</td><td>Fijacion estado</td><td>CVC texto completo sin puntos</td><td>REGISTRADA</td><td>0</td><td>00002</td></tr>
                 </table>
             </form></body></html>
             HTML)
@@ -67,6 +81,7 @@ it('extracts actuaciones, subjects and metadata from the public SAMAI portal', f
     expect($result['actuaciones'])->toHaveCount(2)
         ->and($result['actuaciones'][0]['Orden'])->toBe(1)
         ->and($result['actuaciones'][1]['Orden'])->toBe(2)
+        ->and($result['actuaciones'][1]['Anotacion'])->toBe('CVC texto completo sin puntos')
         ->and($result['sujetos'])->toHaveCount(1)
         ->and($result['meta'])->toMatchArray([
             'Ponente' => 'JUZGADO 14 ADMINISTRATIVO DE CALI',
@@ -75,11 +90,15 @@ it('extracts actuaciones, subjects and metadata from the public SAMAI portal', f
             'Vigente' => 'SI',
         ]);
 
-    Http::assertSentCount(4);
+    Http::assertSentCount(5);
     Http::assertSent(fn ($request): bool => str_contains($request->body(), '6336TQ'));
     Http::assertSent(fn ($request): bool => str_contains(
         urldecode($request->body()),
         'ChkVerTodasActuaciones=on'
+    ));
+    Http::assertSent(fn ($request): bool => str_contains(
+        urldecode($request->body()),
+        'ChkVerAnotacionCompleta=on'
     ));
     Http::assertSent(fn ($request): bool => str_contains(
         urldecode($request->body()),
@@ -153,7 +172,7 @@ it('expands truncated annotations from the Ver detail panel', function (): void 
 
     Http::assertSent(fn ($request): bool => str_contains(
         urldecode($request->body()),
-        "__EVENTTARGET=ctl00\$MainContent\$GridViewHistoricoActuaciones\$ctl02\$LinkButton1"
+        '__EVENTTARGET=ctl00$MainContent$GridViewHistoricoActuaciones$ctl02$LinkButton1'
     ));
 });
 

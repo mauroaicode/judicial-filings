@@ -279,7 +279,15 @@ readonly class RegisterSamaiProcessService
         $seccion = trim((string) ($processData['NombreSalaDecision'] ?? $processData['Seccion'] ?? ''));
         $city = trim((string) ($processData['cityName'] ?? ''));
 
-        return $city !== '' ? "{$seccion} - {$city}" : $seccion;
+        if ($seccion === '') {
+            return '';
+        }
+
+        if ($city !== '' && ! str_contains(mb_strtolower($seccion), mb_strtolower($city))) {
+            return "{$seccion} - {$city}";
+        }
+
+        return $seccion;
     }
 
     /**
