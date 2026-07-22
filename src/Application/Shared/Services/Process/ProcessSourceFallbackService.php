@@ -469,7 +469,7 @@ readonly class ProcessSourceFallbackService
     {
         $ponente = trim((string) ($data['Ponente'] ?? ''));
 
-        if (str_starts_with($ponente, 'Juzgado') || str_starts_with($ponente, 'Tribunal')) {
+        if ($this->samaiPonenteIsCourtName($ponente)) {
             return rtrim($ponente, 'I');
         }
 
@@ -490,11 +490,19 @@ readonly class ProcessSourceFallbackService
             return null;
         }
 
-        if (str_starts_with($ponente, 'Juzgado') || str_starts_with($ponente, 'Tribunal')) {
+        if ($this->samaiPonenteIsCourtName($ponente)) {
             return null;
         }
 
         return $ponente;
+    }
+
+    private function samaiPonenteIsCourtName(string $ponente): bool
+    {
+        $normalized = mb_strtolower($ponente);
+
+        return str_starts_with($normalized, 'juzgado')
+            || str_starts_with($normalized, 'tribunal');
     }
 
     /**

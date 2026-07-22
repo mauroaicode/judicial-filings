@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Admin\Process\Services\ProcessImportBatchService;
 use Src\Application\AppUser\Process\Services\RegisterSamaiProcessService;
+use Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
@@ -119,19 +120,23 @@ class ImportRadicadoSamaiJob implements ShouldQueue
 
     private function handleException(Throwable $e): void
     {
-        $maxAttempts = $e instanceof NotFoundHttpException
-            ? (int) config('process-import.retry_max_attempts_for_not_found', 3)
-            : (int) config('process-import.retry_max_attempts', 2);
-
-        $releaseSeconds = $e instanceof NotFoundHttpException
-            ? (int) config('process-import.retry_release_seconds_for_not_found', 120)
-            : (int) config('process-import.retry_release_seconds', 60);
+        if ($e instanceof SamaiDiscoveryTimeoutException) {
+            $maxAttempts = (int) config('process-import.retry_max_attempts_for_samai_discovery_timeout', 5);
+            $releaseSeconds = (int) config('process-import.retry_release_seconds_for_samai_discovery_timeout', 180);
+        } elseif ($e instanceof NotFoundHttpException) {
+            $maxAttempts = (int) config('process-import.retry_max_attempts_for_not_found', 3);
+            $releaseSeconds = (int) config('process-import.retry_release_seconds_for_not_found', 120);
+        } else {
+            $maxAttempts = (int) config('process-import.retry_max_attempts', 2);
+            $releaseSeconds = (int) config('process-import.retry_release_seconds', 60);
+        }
 
         if ($this->attempts() <= $maxAttempts) {
             $this->log('warning', 'ImportRadicadoSamaiJob failed, will retry', [
                 'reason' => $e->getMessage(),
                 'attempt' => $this->attempts(),
                 'release_seconds' => $releaseSeconds,
+                'exception' => $e::class,
             ]);
             $this->release($releaseSeconds);
 
@@ -141,6 +146,7 @@ class ImportRadicadoSamaiJob implements ShouldQueue
         $this->log('error', 'ImportRadicadoSamaiJob failed (final)', [
             'reason' => $e->getMessage(),
             'attempt' => $this->attempts(),
+            'exception' => $e::class,
         ]);
         $this->appendBatchError($e->getMessage());
     }

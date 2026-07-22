@@ -100,19 +100,29 @@ class NotificationDigestService
         //    This prevents double-sending if a channel later fails and we retry.
         $this->markAsNotified($notifications, $digest->id);
 
-        // 5. Send the consolidated email only when the email channel is active.
-        $emailChannel = $organization->notificationChannels()
+        // 5. Send the consolidated email to every active email channel (priority order).
+        $emailChannels = $organization->notificationChannels()
             ->where('channel_type', 'email')
             ->where('is_active', true)
-            ->first();
+            ->orderBy('priority')
+            ->get();
 
-        if ($emailChannel && ! empty($emailChannel->channel_value)) {
-            $this->sendEmailChannel($digest, $digestData, $emailChannel->channel_value, $organization->id, $organization->name);
-        } else {
+        $emailRecipients = $emailChannels
+            ->pluck('channel_value')
+            ->filter(static fn (mixed $value): bool => is_string($value) && trim($value) !== '')
+            ->map(static fn (string $value): string => trim($value))
+            ->unique()
+            ->values();
+
+        if ($emailRecipients->isEmpty()) {
             Log::channel($logChannel)->info('NotificationDigestService: Skipping email channel (inactive or missing)', [
                 'organization_id' => $organization->id,
                 'digest_id' => $digest->id,
             ]);
+        } else {
+            foreach ($emailRecipients as $recipientEmail) {
+                $this->sendEmailChannel($digest, $digestData, $recipientEmail, $organization->id, $organization->name);
+            }
         }
 
         // 6. Send internal notification (Bell/Websocket) only when the internal channel is active.

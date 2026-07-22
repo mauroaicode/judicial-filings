@@ -53,6 +53,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retry para timeout de discovery SAMAI
+    |--------------------------------------------------------------------------
+    |
+    | Sin ApiKey, buscarProceso cae a ObtenerDatosProcesoGet con 3 candidatos.
+    | En juzgados departamentales esa API puede tardar >25s. El job reintenta
+    | con más margen; el cliente también cae al portal HTML como refuerzo.
+    |
+    */
+    'retry_max_attempts_for_samai_discovery_timeout' => (int) env('PROCESS_IMPORT_RETRY_MAX_ATTEMPTS_SAMAI_DISCOVERY_TIMEOUT', 5),
+    'retry_release_seconds_for_samai_discovery_timeout' => (int) env('PROCESS_IMPORT_RETRY_RELEASE_SECONDS_SAMAI_DISCOVERY_TIMEOUT', 180),
+
+    /*
+    |--------------------------------------------------------------------------
     | Retry para respuesta vacía (200 pero sin procesos)
     |--------------------------------------------------------------------------
     |

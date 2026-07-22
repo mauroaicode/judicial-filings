@@ -205,6 +205,84 @@ it('NotificationDigestService includes actions discovered today below registrati
     expect($pending->notification_digest_id)->not->toBeNull();
 });
 
+it('sends consolidated digest email to all active email channels', function (): void {
+    $organization = Organization::factory()->create();
+    $organization->notificationChannels()->createMany([
+        [
+            'channel_type' => 'email',
+            'channel_value' => 'coordinadorajuridica@cooplaermita.com',
+            'is_active' => true,
+            'priority' => 1,
+        ],
+        [
+            'channel_type' => 'email',
+            'channel_value' => 'jhonwmanrique@hotmail.com',
+            'is_active' => true,
+            'priority' => 2,
+        ],
+        [
+            'channel_type' => 'email',
+            'channel_value' => 'inactive@example.com',
+            'is_active' => false,
+            'priority' => 3,
+        ],
+        [
+            'channel_type' => 'internal',
+            'channel_value' => 'internal',
+            'is_active' => true,
+            'priority' => 1,
+        ],
+    ]);
+
+    $process = Process::factory()->create();
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now(),
+        'action_date' => now(),
+    ]);
+
+    \Src\Domain\Notification\Models\OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $organization->id,
+        'notifiable_id' => $action->id,
+        'notifiable_type' => $action->getMorphClass(),
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'is_email_notified' => false,
+    ]);
+
+    Illuminate\Support\Facades\Mail::fake();
+
+    app(\Src\Application\Shared\Services\Notification\NotificationDigestService::class)
+        ->sendDigest($organization);
+
+    Illuminate\Support\Facades\Mail::assertSent(
+        \Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable::class,
+        2,
+    );
+
+    Illuminate\Support\Facades\Mail::assertSent(
+        \Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable::class,
+        fn ($mail) => $mail->hasTo('coordinadorajuridica@cooplaermita.com'),
+    );
+
+    Illuminate\Support\Facades\Mail::assertSent(
+        \Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable::class,
+        fn ($mail) => $mail->hasTo('jhonwmanrique@hotmail.com'),
+    );
+
+    Illuminate\Support\Facades\Mail::assertNotSent(
+        \Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable::class,
+        fn ($mail) => $mail->hasTo('inactive@example.com'),
+    );
+});
+
 afterEach(function (): void {
     Carbon::setTestNow();
 });

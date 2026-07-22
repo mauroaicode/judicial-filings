@@ -64,7 +64,8 @@ return [
     |
     */
     'timeout' => (int) env('SAMAI_TIMEOUT', 15),
-    'discovery_timeout' => (int) env('SAMAI_DISCOVERY_TIMEOUT', 25),
+    // Juzgados departamentales pueden tardar 40-60s en ObtenerDatosProcesoGet.
+    'discovery_timeout' => (int) env('SAMAI_DISCOVERY_TIMEOUT', 60),
 
     'log_channel' => env('SAMAI_LOG_CHANNEL', 'process_import'),
 

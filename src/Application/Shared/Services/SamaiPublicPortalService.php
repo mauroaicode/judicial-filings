@@ -14,18 +14,23 @@ use Src\Application\Shared\Exceptions\SamaiPublicPortalException;
 use Throwable;
 
 /**
- * Consulta actuaciones y sujetos desde la vista pública HTML de SAMAI.
+ * Consulta actuaciones, sujetos y metadatos desde la vista pública HTML de SAMAI.
  *
  * Este cliente es el fallback para instalaciones sin ApiKey. Mantiene una
  * sesión ASP.NET, resuelve el captcha textual expuesto por la propia página y
  * conserva ViewState/EventValidation entre los postbacks.
+ *
+ * El historial de actuaciones está paginado. Por defecto SAMAI muestra la
+ * última página; se activa "Ver todas las actuaciones" para obtener el
+ * historial completo en una sola grilla.
  */
 class SamaiPublicPortalService
 {
     /**
      * @return array{
      *     actuaciones: list<array<string, mixed>>,
-     *     sujetos: list<array<string, mixed>>
+     *     sujetos: list<array<string, mixed>>,
+     *     meta: array<string, mixed>
      * }
      */
     public function fetch(string $processNumber, string $corporacion): array
@@ -51,7 +56,8 @@ class SamaiPublicPortalService
     /**
      * @return array{
      *     actuaciones: list<array<string, mixed>>,
-     *     sujetos: list<array<string, mixed>>
+     *     sujetos: list<array<string, mixed>>,
+     *     meta: array<string, mixed>
      * }
      */
     private function fetchAttempt(string $processNumber, string $corporacion): array
@@ -78,8 +84,9 @@ class SamaiPublicPortalService
             throw new SamaiPublicPortalException('SAMAI no mostró el historial público del proceso.');
         }
 
-        // Las actuaciones viven en la página del proceso. Tras el postback de
-        // sujetos esa grilla puede desaparecer; no depende de ella.
+        $meta = $this->parseMeta($processDocument);
+        $processDocument = $this->expandActuacionesHistorial($client, $url, $processDocument);
+
         $actuaciones = $this->parseActuaciones($processDocument);
         if ($actuaciones === []) {
             throw new SamaiPublicPortalException('SAMAI devolvió el historial público sin actuaciones.');
@@ -104,7 +111,47 @@ class SamaiPublicPortalService
         return [
             'actuaciones' => $actuaciones,
             'sujetos' => $sujetos,
+            'meta' => $meta,
         ];
+    }
+
+    /**
+     * Activa "Ver todas las actuaciones" cuando el historial está paginado.
+     * Sin esto SAMAI suele devolver solo la última página.
+     */
+    private function expandActuacionesHistorial(
+        PendingRequest $client,
+        string $url,
+        DOMDocument $processDocument,
+    ): DOMDocument {
+        if (! $this->hasElement($processDocument, 'MainContent_ChkVerTodasActuaciones')) {
+            return $processDocument;
+        }
+
+        $totalPages = (int) $this->elementText($processDocument, 'MainContent_Lblpagfin');
+        $totalRegistros = $this->parseTotalRegistros($processDocument);
+        $currentCount = count($this->parseActuaciones($processDocument));
+
+        $needsExpansion = $totalPages > 1
+            || ($totalRegistros > 0 && $currentCount > 0 && $currentCount < $totalRegistros);
+
+        if (! $needsExpansion) {
+            return $processDocument;
+        }
+
+        $payload = $this->hiddenFields($processDocument);
+        $payload['ctl00$MainContent$ChkVerTodasActuaciones'] = 'on';
+        $payload['__EVENTTARGET'] = 'ctl00$MainContent$ChkVerTodasActuaciones';
+        $payload['__EVENTARGUMENT'] = '';
+
+        $response = $client->asForm()->post($url, $payload)->throw();
+        $expandedDocument = $this->parseDocument($response->body());
+
+        if (! $this->hasElement($expandedDocument, 'MainContent_GridViewHistoricoActuaciones')) {
+            throw new SamaiPublicPortalException('SAMAI no expandió el historial completo de actuaciones.');
+        }
+
+        return $expandedDocument;
     }
 
     private function client(CookieJar $cookieJar): PendingRequest
@@ -202,6 +249,58 @@ class SamaiPublicPortalService
         $nodes = (new DOMXPath($document))->query("//*[@id='{$id}']");
 
         return $nodes !== false && $nodes->length === 1;
+    }
+
+    private function elementText(DOMDocument $document, string $id): string
+    {
+        $nodes = (new DOMXPath($document))->query("//*[@id='{$id}']");
+        $node = $nodes !== false ? $nodes->item(0) : null;
+
+        if (! $node instanceof \DOMNode) {
+            return '';
+        }
+
+        return trim((string) preg_replace('/\s+/u', ' ', $node->textContent));
+    }
+
+    private function parseTotalRegistros(DOMDocument $document): int
+    {
+        $text = $this->elementText($document, 'MainContent_LblTotalRegistros');
+        if (preg_match('/(\d+)/', $text, $matches) !== 1) {
+            return 0;
+        }
+
+        return (int) $matches[1];
+    }
+
+    /**
+     * Metadatos públicos alineados a los nombres de ObtenerDatosProcesoGet.
+     *
+     * @return array<string, mixed>
+     */
+    private function parseMeta(DOMDocument $document): array
+    {
+        $ponente = $this->elementText($document, 'MainContent_LblPonente');
+        $clase = $this->elementText($document, 'MainContent_lblclase1');
+        $nombreCorporacion = rtrim($this->elementText($document, 'MainContent_LblNombreCorporacion'), '- ');
+        $origen = $this->elementText($document, 'MainContent_LblorigenNombre');
+        $vigente = $this->elementText($document, 'MainContent_LblEVigente');
+        $fechaRad = $this->elementText($document, 'MainContent_Lblfecharad');
+
+        $cityName = '';
+        if (preg_match('/\(([^)]+)\)\s*$/', $origen, $matches) === 1) {
+            $cityName = trim($matches[1]);
+        }
+
+        return array_filter([
+            'Ponente' => $ponente,
+            'claseProceso' => $clase,
+            'NombreSalaDecision' => $nombreCorporacion !== '' ? $nombreCorporacion : null,
+            'cityName' => $cityName !== '' ? $cityName : null,
+            'Vigente' => $vigente !== '' ? $vigente : null,
+            'FECHAPROC' => $fechaRad !== '' ? $fechaRad : null,
+            'EntidadRadicadora' => $origen !== '' ? $origen : null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
 
     /**

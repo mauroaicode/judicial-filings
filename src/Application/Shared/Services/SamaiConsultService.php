@@ -66,7 +66,8 @@ class SamaiConsultService
      *
      * @var array<string, array{
      *     actuaciones: list<array<string, mixed>>,
-     *     sujetos: list<array<string, mixed>>
+     *     sujetos: list<array<string, mixed>>,
+     *     meta: array<string, mixed>
      * }>
      */
     private array $publicPortalCache = [];
@@ -150,11 +151,20 @@ class SamaiConsultService
         $this->applyJitter();
 
         $url = $this->url("ObtenerDatosProcesoGet/{$corporacion}/{$processNumber}/{$this->modo()}");
+        // Mismo endpoint usado en discovery: en juzgados departamentales puede
+        // tardar >15s. Usamos discovery_timeout para no perder procesos válidos.
+        $httpTimeout = (int) config('samai.discovery_timeout', 25);
 
-        $this->logInfo('obtenerDatosProceso', ['corporacion' => $corporacion, 'url' => $url]);
+        $this->logInfo('obtenerDatosProceso', [
+            'corporacion' => $corporacion,
+            'url' => $url,
+            'timeout' => $httpTimeout,
+        ]);
 
         try {
-            $response = $this->performRequest('get', $url);
+            $response = Http::timeout($httpTimeout)
+                ->withHeaders($this->defaultHeaders())
+                ->get($url);
             $data = $response->json();
 
             if (! is_array($data)) {
@@ -164,9 +174,34 @@ class SamaiConsultService
             // Desenvolver la clave "proceso" que envuelve los datos reales.
             $proceso = $data['proceso'] ?? null;
 
-            return is_array($proceso) && $proceso !== [] ? $proceso : [];
+            if (is_array($proceso) && $proceso !== []) {
+                return $proceso;
+            }
+
+            // Sin datos REST (o respuesta vacía): usar metadatos del portal público
+            // para no crear procesos sin Despacho/Clase.
+            if ((bool) config('samai.public_portal.enabled', true)) {
+                $this->logInfo('obtenerDatosProceso vacío, usando metadatos del portal público', [
+                    'corporacion' => $corporacion,
+                    'process_number' => $processNumber,
+                ]);
+
+                return $this->publicPortalData($corporacion, $processNumber)['meta'];
+            }
+
+            return [];
+        } catch (SamaiPublicPortalException $exception) {
+            $this->logError('obtenerDatosProceso public portal failed', $exception);
+
+            throw $exception;
         } catch (Throwable $th) {
             $this->logError('obtenerDatosProceso failed', $th);
+
+            // Timeout/conexión: no devolver [] (crearía procesos sin Despacho/Clase).
+            // Propagar para que import/sync reintenten.
+            if ($this->isTimeoutException($th)) {
+                throw new \Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException($processNumber);
+            }
 
             return [];
         }
@@ -323,7 +358,8 @@ class SamaiConsultService
     /**
      * @return array{
      *     actuaciones: list<array<string, mixed>>,
-     *     sujetos: list<array<string, mixed>>
+     *     sujetos: list<array<string, mixed>>,
+     *     meta: array<string, mixed>
      * }
      */
     private function publicPortalData(string $corporacion, string $processNumber): array
@@ -474,7 +510,7 @@ class SamaiConsultService
         ])));
 
         $timedOut = false;
-        $httpTimeout = (int) config('samai.discovery_timeout', 22);
+        $httpTimeout = (int) config('samai.discovery_timeout', 25);
 
         foreach ($candidates as $corp) {
             try {
@@ -508,13 +544,30 @@ class SamaiConsultService
                 ]);
 
                 return [['Corporacion' => $actualCorp, 'llaveProceso' => $processNumber]];
-            } catch (Throwable) {
-                // Distinguir timeout de otros errores: si ConnectException o el mensaje
-                // incluye "timed out", marcarlo como timeout transient.
-                $timedOut = true;
+            } catch (Throwable $exception) {
+                if ($this->isTimeoutException($exception)) {
+                    $timedOut = true;
+                    $this->logInfo('buscarProcesoConDatos: timeout REST, probando portal', [
+                        'process_number' => $processNumber,
+                        'corporacion' => $corp,
+                        'timeout' => $httpTimeout,
+                    ]);
+
+                    $portalHit = $this->discoverViaPublicPortal($processNumber, [$corp]);
+                    if ($portalHit !== []) {
+                        return $portalHit;
+                    }
+                }
 
                 continue;
             }
+        }
+
+        // REST no resolvió (timeout o vacío). El portal suele ser más rápido
+        // y estable para juzgados departamentales lentos.
+        $portalHit = $this->discoverViaPublicPortal($processNumber, $candidates);
+        if ($portalHit !== []) {
+            return $portalHit;
         }
 
         if ($timedOut) {
@@ -529,6 +582,57 @@ class SamaiConsultService
         ]);
 
         return [];
+    }
+
+    /**
+     * Descubre la corporación vía portal HTML y cachea actuaciones/sujetos.
+     *
+     * @param  list<string>  $candidates
+     * @return array<int, array<string, mixed>>
+     */
+    private function discoverViaPublicPortal(string $processNumber, array $candidates): array
+    {
+        if (! (bool) config('samai.public_portal.enabled', true)) {
+            return [];
+        }
+
+        foreach ($candidates as $corp) {
+            if ($corp === '') {
+                continue;
+            }
+
+            try {
+                $portalData = $this->publicPortalService->fetch($processNumber, $corp);
+                $cacheKey = $processNumber.'|'.$corp;
+                $this->publicPortalCache[$cacheKey] = $portalData;
+
+                $this->logInfo('buscarProcesoConDatos: proceso encontrado vía portal público', [
+                    'process_number' => $processNumber,
+                    'corporacion' => $corp,
+                    'actuaciones' => count($portalData['actuaciones']),
+                    'sujetos' => count($portalData['sujetos']),
+                ]);
+
+                return [['Corporacion' => $corp, 'llaveProceso' => $processNumber]];
+            } catch (SamaiPublicPortalException $exception) {
+                $this->logInfo('buscarProcesoConDatos: portal no resolvió candidato', [
+                    'process_number' => $processNumber,
+                    'corporacion' => $corp,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        return [];
+    }
+
+    private function isTimeoutException(Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+
+        return str_contains($message, 'timed out')
+            || str_contains($message, 'timeout')
+            || str_contains($message, 'curl error 28');
     }
 
     /**

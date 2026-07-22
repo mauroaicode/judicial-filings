@@ -272,7 +272,7 @@ readonly class RegisterSamaiProcessService
     {
         $ponente = trim((string) ($processData['Ponente'] ?? ''));
 
-        if (str_starts_with($ponente, 'Juzgado') || str_starts_with($ponente, 'Tribunal')) {
+        if ($this->samaiPonenteIsCourtName($ponente)) {
             return rtrim($ponente, 'I');  // limpiar typo en API ("de CaliI")
         }
 
@@ -296,11 +296,19 @@ readonly class RegisterSamaiProcessService
         }
 
         // Si Ponente es el nombre del despacho (Juzgados), el speaker va vacío.
-        if (str_starts_with($ponente, 'Juzgado') || str_starts_with($ponente, 'Tribunal')) {
+        if ($this->samaiPonenteIsCourtName($ponente)) {
             return null;
         }
 
         return $ponente;
+    }
+
+    private function samaiPonenteIsCourtName(string $ponente): bool
+    {
+        $normalized = mb_strtolower($ponente);
+
+        return str_starts_with($normalized, 'juzgado')
+            || str_starts_with($normalized, 'tribunal');
     }
 
     /**

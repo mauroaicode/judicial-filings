@@ -254,6 +254,211 @@ class ProcessSyncService
     }
 
     /**
+     * Repara un proceso SAMAI incompleto: metadatos (despacho/clase) + actuaciones
+     * faltantes + sujetos si aún no existen.
+     *
+     * @return array{
+     *     metadata_updated: bool,
+     *     actions_before: int,
+     *     actions_after: int,
+     *     actions_added: int,
+     *     subjects_added: int,
+     *     actuaciones_fetched: int
+     * }
+     */
+    public function backfillSamaiProcess(Process $process, bool $notify = false): array
+    {
+        $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
+        $corporacion = $process->samai_corporacion;
+
+        if ($corporacion === null || $corporacion === '') {
+            throw new \InvalidArgumentException(
+                "Process {$process->id} no tiene samai_corporacion; no se puede backfill SAMAI."
+            );
+        }
+
+        $this->samaiService->withSeed((string) $process->process_number);
+
+        $metadataUpdated = $this->backfillSamaiMetadata($process, $corporacion);
+
+        $actionsBefore = $process->actions()->count();
+        $actuacionesFetched = 0;
+        $subjectsAdded = 0;
+
+        $result = $this->samaiService->obtenerActuaciones($corporacion, (string) $process->process_number);
+
+        if (! $result->isSuccessful) {
+            Log::channel($logChannel)->error('ProcessSyncService SAMAI backfill: failed actuaciones', [
+                'process_id' => $process->id,
+                'process_number' => $process->process_number,
+                'corporacion' => $corporacion,
+            ]);
+        } else {
+            $actuacionesFetched = count($result->data);
+            $this->syncSamaiActuaciones($process, $result->data, $notify);
+        }
+
+        $process->refresh();
+        $actionsAfter = $process->actions()->count();
+
+        if (! $process->subjects()->exists()) {
+            $subjectsBefore = 0;
+            $subjectsResult = $this->samaiService->obtenerSujetosProcesales(
+                $corporacion,
+                (string) $process->process_number
+            );
+
+            if ($subjectsResult->isSuccessful) {
+                $this->syncSamaiSujetos($process, $subjectsResult->data);
+                $subjectsAdded = $process->subjects()->count() - $subjectsBefore;
+            }
+        }
+
+        Log::channel($logChannel)->info('ProcessSyncService SAMAI backfill completed', [
+            'process_id' => $process->id,
+            'process_number' => $process->process_number,
+            'corporacion' => $corporacion,
+            'metadata_updated' => $metadataUpdated,
+            'actuaciones_fetched' => $actuacionesFetched,
+            'actions_added' => $actionsAfter - $actionsBefore,
+            'subjects_added' => $subjectsAdded,
+        ]);
+
+        return [
+            'metadata_updated' => $metadataUpdated,
+            'actions_before' => $actionsBefore,
+            'actions_after' => $actionsAfter,
+            'actions_added' => $actionsAfter - $actionsBefore,
+            'subjects_added' => $subjectsAdded,
+            'actuaciones_fetched' => $actuacionesFetched,
+        ];
+    }
+
+    /**
+     * Completa court/process_class/etc. cuando vienen vacíos tras un import parcial.
+     */
+    private function backfillSamaiMetadata(Process $process, string $corporacion): bool
+    {
+        $needsMeta = trim((string) $process->court) === ''
+            || trim((string) $process->process_class) === '';
+
+        if (! $needsMeta) {
+            return false;
+        }
+
+        $processData = $this->samaiService->obtenerDatosProceso(
+            $corporacion,
+            (string) $process->process_number
+        );
+
+        if ($processData === []) {
+            return false;
+        }
+
+        $update = [];
+
+        if (trim((string) $process->court) === '') {
+            $court = $this->buildSamaiCourtName($processData);
+            if ($court !== '') {
+                $update['court'] = $court;
+            }
+        }
+
+        if (trim((string) ($process->speaker ?? '')) === '') {
+            $speaker = $this->buildSamaiSpeakerName($processData);
+            if ($speaker !== null && $speaker !== '') {
+                $update['speaker'] = $speaker;
+            }
+        }
+
+        if (trim((string) $process->process_class) === '') {
+            $clase = trim((string) ($processData['claseProceso'] ?? ''));
+            if ($clase !== '') {
+                $update['process_class'] = $clase;
+            }
+        }
+
+        if (trim((string) ($process->process_type ?? '')) === '') {
+            $tipo = trim((string) ($processData['tipoProceso'] ?? ''));
+            if ($tipo !== '') {
+                $update['process_type'] = $tipo;
+            }
+        }
+
+        if (trim((string) ($process->department ?? '')) === '') {
+            $city = trim((string) ($processData['cityName'] ?? ''));
+            if ($city !== '') {
+                $update['department'] = $city;
+                $update['location'] = $city;
+            }
+        }
+
+        if (trim((string) ($process->litigants ?? '')) === '') {
+            $litigants = $this->buildSamaiLitigantsString($processData);
+            if ($litigants !== null) {
+                $update['litigants'] = $litigants;
+            }
+        }
+
+        if ($update === []) {
+            return false;
+        }
+
+        $update['last_api_update'] = now();
+        $process->update($update);
+
+        return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $processData
+     */
+    private function buildSamaiCourtName(array $processData): string
+    {
+        $ponente = trim((string) ($processData['Ponente'] ?? ''));
+        $normalized = mb_strtolower($ponente);
+
+        if (str_starts_with($normalized, 'juzgado') || str_starts_with($normalized, 'tribunal')) {
+            return rtrim($ponente, 'I');
+        }
+
+        $seccion = trim((string) ($processData['NombreSalaDecision'] ?? $processData['Seccion'] ?? ''));
+        $city = trim((string) ($processData['cityName'] ?? ''));
+
+        return $city !== '' ? "{$seccion} - {$city}" : $seccion;
+    }
+
+    /**
+     * @param  array<string, mixed>  $processData
+     */
+    private function buildSamaiSpeakerName(array $processData): ?string
+    {
+        $ponente = trim((string) ($processData['Ponente'] ?? ''));
+        if ($ponente === '') {
+            return null;
+        }
+
+        $normalized = mb_strtolower($ponente);
+        if (str_starts_with($normalized, 'juzgado') || str_starts_with($normalized, 'tribunal')) {
+            return null;
+        }
+
+        return $ponente;
+    }
+
+    /**
+     * @param  array<string, mixed>  $processData
+     */
+    private function buildSamaiLitigantsString(array $processData): ?string
+    {
+        $actor = trim((string) ($processData['Actor'] ?? ''));
+        $demandado = trim((string) ($processData['Demandado'] ?? ''));
+        $parts = array_filter([$actor, $demandado], static fn (string $v): bool => $v !== '');
+
+        return $parts !== [] ? implode(' | ', $parts) : null;
+    }
+
+    /**
      * Sincroniza actuaciones SAMAI para todos los procesos activos de un radicado.
      * Se llama desde el cron diario cuando el proceso tiene fuente SAMAI.
      */
