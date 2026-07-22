@@ -92,6 +92,8 @@ class SamaiPublicPortalService
             throw new SamaiPublicPortalException('SAMAI devolvió el historial público sin actuaciones.');
         }
 
+        $actuaciones = $this->expandTruncatedAnnotations($client, $url, $processDocument, $actuaciones);
+
         $subjectPayload = $this->hiddenFields($processDocument);
         $subjectPayload['__EVENTTARGET'] = 'ctl00$MainContent$LbtSujetos';
         $subjectPayload['__EVENTARGUMENT'] = '';
@@ -339,10 +341,104 @@ class SamaiPublicPortalService
                 'Registro' => $this->cellText($cells->item(1)),
                 'Estado' => $this->cellText($cells->item(5)),
                 'Anexos' => (int) $this->cellText($cells->item(6)),
+                '_ver_event_target' => $this->extractVerEventTarget($xpath, $cells->item(0)),
             ];
         }
 
         return $actuaciones;
+    }
+
+    /**
+     * El grid público trunca anotaciones (~55 chars + "..."). El texto completo
+     * vive en el detalle "Ver" (MainContent_Txtanotactu). Reutiliza el ViewState
+     * de la grilla expandida para no perder la sesión entre detalles.
+     *
+     * @param  list<array<string, mixed>>  $actuaciones
+     * @return list<array<string, mixed>>
+     */
+    private function expandTruncatedAnnotations(
+        PendingRequest $client,
+        string $url,
+        DOMDocument $gridDocument,
+        array $actuaciones,
+    ): array {
+        if (! (bool) config('samai.public_portal.expand_truncated_annotations', true)) {
+            return $this->stripInternalActuacionKeys($actuaciones);
+        }
+
+        $maxExpand = max(0, (int) config('samai.public_portal.max_expanded_annotations', 150));
+        if ($maxExpand === 0) {
+            return $this->stripInternalActuacionKeys($actuaciones);
+        }
+
+        $gridPayload = $this->hiddenFields($gridDocument);
+        $expanded = 0;
+
+        foreach ($actuaciones as $index => $actuacion) {
+            $anotacion = trim((string) ($actuacion['Anotacion'] ?? ''));
+            $target = (string) ($actuacion['_ver_event_target'] ?? '');
+
+            if ($target === '' || ! str_ends_with($anotacion, '...')) {
+                continue;
+            }
+
+            if ($expanded >= $maxExpand) {
+                break;
+            }
+
+            $payload = $gridPayload;
+            $payload['__EVENTTARGET'] = $target;
+            $payload['__EVENTARGUMENT'] = '';
+
+            try {
+                $detailDocument = $this->parseDocument(
+                    $client->asForm()->post($url, $payload)->throw()->body()
+                );
+                $full = $this->elementText($detailDocument, 'MainContent_Txtanotactu');
+                if ($full !== '' && strlen($full) > strlen($anotacion)) {
+                    $actuaciones[$index]['Anotacion'] = $full;
+                    $expanded++;
+                }
+            } catch (Throwable) {
+                // Conserva el preview truncado si el detalle falla.
+                continue;
+            }
+        }
+
+        return $this->stripInternalActuacionKeys($actuaciones);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $actuaciones
+     * @return list<array<string, mixed>>
+     */
+    private function stripInternalActuacionKeys(array $actuaciones): array
+    {
+        foreach ($actuaciones as $index => $actuacion) {
+            unset($actuaciones[$index]['_ver_event_target']);
+        }
+
+        return $actuaciones;
+    }
+
+    private function extractVerEventTarget(DOMXPath $xpath, ?\DOMNode $cell): string
+    {
+        if (! $cell instanceof \DOMNode) {
+            return '';
+        }
+
+        $links = $xpath->query('.//a[contains(@href,"__doPostBack")]', $cell);
+        $link = $links !== false ? $links->item(0) : null;
+        if (! $link instanceof DOMElement) {
+            return '';
+        }
+
+        $href = html_entity_decode($link->getAttribute('href'));
+        if (preg_match("/__doPostBack\\('([^']+)'/", $href, $matches) !== 1) {
+            return '';
+        }
+
+        return $matches[1];
     }
 
     /**

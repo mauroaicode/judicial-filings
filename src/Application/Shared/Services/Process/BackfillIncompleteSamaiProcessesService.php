@@ -12,8 +12,10 @@ use Src\Domain\Process\Models\Process;
 use Throwable;
 
 /**
- * Repara procesos SAMAI importados de forma incompleta (sin despacho/clase
- * y/o solo con la última página de actuaciones del portal público).
+ * Repara procesos SAMAI importados de forma incompleta:
+ *  - sin despacho/clase
+ *  - solo con la última página de actuaciones (historial incompleto)
+ *  - anotaciones truncadas del grid HTML (... )
  */
 class BackfillIncompleteSamaiProcessesService
 {
@@ -124,7 +126,18 @@ class BackfillIncompleteSamaiProcessesService
                 $q->whereNull('court')
                     ->orWhere('court', '')
                     ->orWhereNull('process_class')
-                    ->orWhere('process_class', '');
+                    ->orWhere('process_class', '')
+                    ->orWhereHas(
+                        'actions',
+                        fn (Builder $actions): Builder => $actions->where('annotation', 'like', '%...')
+                    )
+                    ->orWhereRaw(
+                        '(select coalesce(min(action_registration_id), 0) from process_actions where process_id = processes.id) > 1'
+                    )
+                    ->orWhereRaw(
+                        '(select coalesce(max(action_registration_id), 0) from process_actions where process_id = processes.id)
+                         > (select count(*) from process_actions where process_id = processes.id)'
+                    );
             });
         }
 

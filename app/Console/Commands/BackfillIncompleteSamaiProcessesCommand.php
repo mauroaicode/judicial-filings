@@ -11,6 +11,7 @@ use Src\Application\Shared\Services\Process\BackfillIncompleteSamaiProcessesServ
  * Repara procesos SAMAI que quedaron incompletos tras un import:
  *  - sin Despacho (court) y/o Clase de proceso
  *  - solo con la última página de actuaciones del portal HTML
+ *  - anotaciones truncadas (preview del grid con "...")
  *
  * Uso:
  *   php artisan samai:backfill-incomplete --radicado=76001333301320160005700
@@ -27,7 +28,7 @@ class BackfillIncompleteSamaiProcessesCommand extends Command
                             {--notify : Notificar actuaciones nuevas insertadas}
                             {--dry-run : Solo listar candidatos sin modificar}';
 
-    protected $description = 'Completa despacho/clase y actuaciones faltantes en procesos SAMAI incompletos';
+    protected $description = 'Completa despacho/clase, historial incompleto y anotaciones truncadas en SAMAI';
 
     public function handle(BackfillIncompleteSamaiProcessesService $service): int
     {

@@ -552,7 +552,14 @@ class ProcessSyncService
                 continue;
             }
 
-            if (ProcessAction::query()->existsByActionRegistrationId($process->id, $orden)) {
+            $existing = ProcessAction::query()
+                ->where('process_id', $process->id)
+                ->whereActionRegistrationId($orden)
+                ->first();
+
+            if ($existing instanceof ProcessAction) {
+                $this->refreshTruncatedSamaiAnnotation($existing, $apiActuacion);
+
                 continue;
             }
 
@@ -590,6 +597,30 @@ class ProcessSyncService
                 ProcessTimelineEventSource::SAMAI,
             );
         }
+    }
+
+    /**
+     * El portal HTML trunca anotaciones con "...". Si ya existe la actuación,
+     * actualiza solo cuando llega un texto más largo que reemplaza el preview.
+     *
+     * @param  array<string, mixed>  $apiActuacion
+     */
+    private function refreshTruncatedSamaiAnnotation(ProcessAction $existing, array $apiActuacion): void
+    {
+        $current = trim((string) ($existing->annotation ?? ''));
+        if ($current === '' || ! str_ends_with($current, '...')) {
+            return;
+        }
+
+        $incoming = isset($apiActuacion['Anotacion']) && $apiActuacion['Anotacion'] !== ''
+            ? trim((string) $apiActuacion['Anotacion'])
+            : '';
+
+        if ($incoming === '' || strlen($incoming) <= strlen($current)) {
+            return;
+        }
+
+        $existing->update(['annotation' => $incoming]);
     }
 
     /**

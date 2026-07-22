@@ -6,6 +6,7 @@ use Src\Application\Shared\Services\Process\BackfillIncompleteSamaiProcessesServ
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessDataSource;
 
 it('selects incomplete SAMAI processes missing court or process class', function (): void {
@@ -45,6 +46,67 @@ it('selects incomplete SAMAI processes missing court or process class', function
 
     expect($candidates)->toHaveCount(1)
         ->and($candidates->first()?->id)->toBe($incomplete->id);
+});
+
+it('selects SAMAI processes with incomplete history or truncated annotations', function (): void {
+    Process::query()->delete();
+
+    $samaiId = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::Samai);
+
+    $incompleteHistory = Process::factory()->create([
+        'process_number' => '76001333301420150045700',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600133',
+        'court' => 'Juzgado 14 Administrativo de Cali',
+        'process_class' => 'ACCION DE REPARACION DIRECTA',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $incompleteHistory->id,
+        'action_registration_id' => 61,
+        'cons_action' => 61,
+        'annotation' => 'OK',
+    ]);
+
+    $truncated = Process::factory()->create([
+        'process_number' => '76001333301320160005700',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600133',
+        'court' => 'Juzgado 13 Administrativo de Cali',
+        'process_class' => 'ACCION DE REPARACION DIRECTA',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $truncated->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'El Señor(a):HÉCTOR JAIME GIRALDO DUQUE con vincula...',
+    ]);
+
+    $complete = Process::factory()->create([
+        'process_number' => '76001333301320160009900',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600133',
+        'court' => 'Juzgado 14 Administrativo de Cali',
+        'process_class' => 'ACCION DE REPARACION DIRECTA',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $complete->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'Texto completo sin truncar',
+    ]);
+
+    $service = app(BackfillIncompleteSamaiProcessesService::class);
+    $candidates = $service->queryCandidates(onlyIncomplete: true);
+
+    expect($candidates->pluck('id')->all())
+        ->toContain($incompleteHistory->id, $truncated->id)
+        ->not->toContain($complete->id);
 });
 
 it('repairs candidates through ProcessSyncService backfill', function (): void {

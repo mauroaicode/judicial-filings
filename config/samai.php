@@ -50,6 +50,9 @@ return [
             'SAMAI_PUBLIC_PORTAL_USER_AGENT',
             'Mozilla/5.0 (compatible; NotiJudicial/1.0)'
         ),
+        // El grid HTML trunca anotaciones con "..."; el texto completo está en el detalle "Ver".
+        'expand_truncated_annotations' => (bool) env('SAMAI_PUBLIC_PORTAL_EXPAND_ANNOTATIONS', true),
+        'max_expanded_annotations' => (int) env('SAMAI_PUBLIC_PORTAL_MAX_EXPANDED_ANNOTATIONS', 150),
     ],
 
     /*
