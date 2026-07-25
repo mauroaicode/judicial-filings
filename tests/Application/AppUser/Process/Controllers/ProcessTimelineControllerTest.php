@@ -87,7 +87,9 @@ it('returns user-facing translations without replacing technical values', functi
             'to' => 'green',
             'lawyer_role' => 'plaintiff',
             'reason' => 'current_state_backfill',
+            'last_activity_date' => '2026-07-26',
         ],
+        'occurred_at' => '2026-07-25 00:00:00',
         'is_backfilled' => true,
         'occurred_at_is_estimated' => true,
     ]);
@@ -101,7 +103,12 @@ it('returns user-facing translations without replacing technical values', functi
         ->assertJsonPath('data.0.display.summary', 'El semáforo cambió de Sin nivel anterior a Verde.')
         ->assertJsonPath('data.0.display.reason', 'Estado inicial registrado')
         ->assertJsonPath('data.0.display.role', 'Demandante')
-        ->assertJsonPath('data.0.display.show_technical_metadata', false);
+        ->assertJsonPath('data.0.display.show_technical_metadata', false)
+        ->assertJsonPath('data.0.display.dates.0.key', 'semaphore_recorded_at')
+        ->assertJsonPath('data.0.display.dates.0.label', 'Fecha del semáforo')
+        ->assertJsonPath('data.0.display.dates.1.key', 'last_activity_date')
+        ->assertJsonPath('data.0.display.dates.1.label', 'Fecha de última actuación')
+        ->assertJsonPath('data.0.display.dates.1.value', '2026-07-26');
 });
 
 it('returns translated task values and a twelve-hour time', function (): void {
@@ -194,8 +201,16 @@ it('backfills existing data safely and can be rerun', function (): void {
 });
 
 it('records the effective semaphore color after a judicial action reset', function (): void {
+    $action = \Src\Domain\Process\Models\ProcessAction::factory()->create([
+        'process_id' => $this->process->id,
+        'action_date' => '2026-07-26',
+        'registration_date' => '2026-07-24',
+    ]);
+
+    $this->process->update(['last_activity_date' => '2026-07-26']);
+
     app(RecordSemaphoreTimelineEventService::class)->handle(
-        process: $this->process,
+        process: $this->process->fresh(),
         organizationId: $this->organization->id,
         from: 'yellow',
         to: 'green',
@@ -203,13 +218,14 @@ it('records the effective semaphore color after a judicial action reset', functi
         lawyerRole: 'plaintiff',
         source: ProcessTimelineEventSource::JUDICIAL_BRANCH,
         subjectType: 'process_action',
-        subjectId: 'action-001',
+        subjectId: $action->id,
+        action: $action,
     );
 
     $event = ProcessTimelineEvent::query()
         ->where('process_id', $this->process->id)
         ->where('event_type', ProcessTimelineEventType::SEMAPHORE_CHANGED->value)
-        ->where('subject_id', 'action-001')
+        ->where('subject_id', $action->id)
         ->firstOrFail();
 
     expect($event->payload)->toMatchArray([
@@ -217,4 +233,13 @@ it('records the effective semaphore color after a judicial action reset', functi
         'to' => 'green',
         'stored_level_after_reset' => null,
     ]);
+
+    $display = ProcessTimelineEventResource::fromModel($event)->toArray()['display'];
+    $dateKeys = collect($display['dates'])->pluck('key')->all();
+
+    expect($dateKeys)->toContain('semaphore_recorded_at', 'action_date', 'registration_date')
+        ->and(collect($display['dates'])->firstWhere('key', 'action_date')['value'])->toBe('2026-07-26')
+        ->and(collect($display['dates'])->firstWhere('key', 'registration_date')['value'])->toBe('2026-07-24')
+        ->and(collect($display['dates'])->firstWhere('key', 'action_date')['label'])->toBe('Fecha de actuación')
+        ->and(collect($display['dates'])->firstWhere('key', 'semaphore_recorded_at')['label'])->toBe('Fecha del semáforo');
 });

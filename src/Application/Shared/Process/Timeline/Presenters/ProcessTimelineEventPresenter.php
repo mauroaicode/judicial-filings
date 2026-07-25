@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Process\Timeline\Presenters;
 
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Lang;
+use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\ProcessTimelineEvent;
@@ -42,6 +44,7 @@ final class ProcessTimelineEventPresenter
             'to' => $toLabel,
             'task_type' => self::taskTypeLabel($payload['type'] ?? $payload['task_type'] ?? null),
             'task_status' => self::taskStatusLabel($payload['status'] ?? null),
+            'dates' => self::dates($event),
             'source' => self::translate('sources', $event->source->value, 'sources.system'),
             'actor' => self::translate('actors', $event->actor_type, 'actors.unknown'),
             'time' => $event->occurred_at
@@ -49,6 +52,111 @@ final class ProcessTimelineEventPresenter
                 ->timezone(config('app.timezone'))
                 ->format('g:i A'),
             'show_technical_metadata' => false,
+        ];
+    }
+
+    /**
+     * Fechas listas para UI. Cada ítem incluye key/attribute/label/value/formatted.
+     *
+     * @return list<array{
+     *     key: string,
+     *     attribute: string,
+     *     label: string,
+     *     value: string,
+     *     formatted: string
+     * }>
+     */
+    private static function dates(ProcessTimelineEvent $event): array
+    {
+        if ($event->event_type !== ProcessTimelineEventType::SEMAPHORE_CHANGED
+            && $event->event_type !== ProcessTimelineEventType::SPEAKER_CHANGED
+        ) {
+            return [];
+        }
+
+        $payload = $event->payload;
+        $rawDates = is_array($payload['dates'] ?? null) ? $payload['dates'] : [];
+        $items = [];
+        $seenKeys = [];
+
+        foreach ($rawDates as $rawDate) {
+            if (! is_array($rawDate)) {
+                continue;
+            }
+
+            $key = is_string($rawDate['key'] ?? null) ? $rawDate['key'] : null;
+            $attribute = is_string($rawDate['attribute'] ?? null) ? $rawDate['attribute'] : $key;
+            $value = is_string($rawDate['value'] ?? null) ? $rawDate['value'] : null;
+            if ($key === null) {
+                continue;
+            }
+
+            if ($attribute === null) {
+                continue;
+            }
+
+            if ($value === null) {
+                continue;
+            }
+
+            if ($value === '') {
+                continue;
+            }
+
+            $items[] = self::dateItem($key, $attribute, $value);
+            $seenKeys[$key] = true;
+        }
+
+        if ($items === []) {
+            $items[] = self::dateItem(
+                'semaphore_recorded_at',
+                'occurred_at',
+                $event->occurred_at->toDateTimeString(),
+            );
+            $seenKeys['semaphore_recorded_at'] = true;
+
+            $legacyLastActivity = is_string($payload['last_activity_date'] ?? null)
+                ? $payload['last_activity_date']
+                : null;
+
+            if ($legacyLastActivity !== null && $legacyLastActivity !== '') {
+                $legacyKey = ($payload['reason'] ?? null) === 'new_judicial_action'
+                    ? 'action_date'
+                    : 'last_activity_date';
+                $items[] = self::dateItem(
+                    $legacyKey,
+                    'last_activity_date',
+                    $legacyLastActivity,
+                );
+                $seenKeys[$legacyKey] = true;
+            }
+        } elseif (! isset($seenKeys['semaphore_recorded_at'])) {
+            array_unshift(
+                $items,
+                self::dateItem(
+                    'semaphore_recorded_at',
+                    'occurred_at',
+                    $event->occurred_at->toDateTimeString(),
+                )
+            );
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array{key: string, attribute: string, label: string, value: string, formatted: string}
+     */
+    private static function dateItem(string $key, string $attribute, string $value): array
+    {
+        $carbon = Date::parse($value);
+
+        return [
+            'key' => $key,
+            'attribute' => $attribute,
+            'label' => self::translate('date_labels', $key, 'date_labels.unknown'),
+            'value' => $carbon->toDateString(),
+            'formatted' => DateFormatHelper::formatDate($carbon),
         ];
     }
 

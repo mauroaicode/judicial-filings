@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Application\Shared\Traits\MapsSamaiActuacionTrait;
 use Src\Application\Shared\Traits\MapsSamaiSujetoTrait;
@@ -214,7 +215,7 @@ readonly class RegisterSamaiProcessService
      * Crea un nuevo proceso SAMAI en la base de datos.
      *
      * Los campos se mapean desde los campos reales que devuelve ObtenerDatosProcesoGet:
-     *   - NombreSalaDecision + cityName → court
+     *   - Origen / EntidadRadicadora → court (despacho)
      *   - Ponente → speaker (solo cuando es persona, no juzgado)
      *   - cityName → department/location
      *   - tipoProceso / claseProceso / claseProcesoComplemento1
@@ -260,34 +261,13 @@ readonly class RegisterSamaiProcessService
     }
 
     /**
-     * Construye el nombre del despacho.
-     *
-     * Para Juzgados Administrativos, el campo Ponente contiene el nombre completo del despacho
-     * (p. ej. "Juzgado 21 Administrativo de Cali") y es más descriptivo que NombreSalaDecision.
-     * Para Tribunales y CE, Ponente es una persona y se usa NombreSalaDecision + ciudad.
+     * Despacho desde el campo "Origen" de SAMAI (fallback Ponente / sala).
      *
      * @param  array<string, mixed>  $processData
      */
     private function buildSamaiCourt(array $processData): string
     {
-        $ponente = trim((string) ($processData['Ponente'] ?? ''));
-
-        if ($this->samaiPonenteIsCourtName($ponente)) {
-            return rtrim($ponente, 'I');  // limpiar typo en API ("de CaliI")
-        }
-
-        $seccion = trim((string) ($processData['NombreSalaDecision'] ?? $processData['Seccion'] ?? ''));
-        $city = trim((string) ($processData['cityName'] ?? ''));
-
-        if ($seccion === '') {
-            return '';
-        }
-
-        if ($city !== '' && ! str_contains(mb_strtolower($seccion), mb_strtolower($city))) {
-            return "{$seccion} - {$city}";
-        }
-
-        return $seccion;
+        return SamaiCourtNameHelper::build($processData);
     }
 
     /**

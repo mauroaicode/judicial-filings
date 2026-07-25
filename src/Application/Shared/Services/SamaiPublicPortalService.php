@@ -337,6 +337,8 @@ class SamaiPublicPortalService
             'cityName' => $cityName !== '' ? $cityName : null,
             'Vigente' => $vigente !== '' ? $vigente : null,
             'FECHAPROC' => $fechaRad !== '' ? $fechaRad : null,
+            // "Origen" en la UI pública de SAMAI (MainContent_LblorigenNombre).
+            'Origen' => $origen !== '' ? $origen : null,
             'EntidadRadicadora' => $origen !== '' ? $origen : null,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
@@ -416,6 +418,7 @@ class SamaiPublicPortalService
             if ($target === '') {
                 continue;
             }
+
             if (! str_ends_with($anotacion, '...')) {
                 continue;
             }

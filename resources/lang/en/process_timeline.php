@@ -67,6 +67,15 @@ return [
         'task_status_changed' => 'The status changed from :from to :to.',
     ],
 
+    'date_labels' => [
+        'semaphore_recorded_at' => 'Semaphore date',
+        'action_date' => 'Action date',
+        'registration_date' => 'Registration date',
+        'last_activity_date' => 'Last activity date',
+        'speaker_changed_at' => 'Reporting judge change date',
+        'unknown' => 'Date',
+    ],
+
     'values' => [
         'not_available' => 'No information',
     ],

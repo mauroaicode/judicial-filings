@@ -88,6 +88,8 @@ it('extracts actuaciones, subjects and metadata from the public SAMAI portal', f
             'claseProceso' => 'ACCION DE REPARACION DIRECTA',
             'cityName' => 'VALLE',
             'Vigente' => 'SI',
+            'Origen' => 'Juzgado Administrativo 013 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+            'EntidadRadicadora' => 'Juzgado Administrativo 013 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
         ]);
 
     Http::assertSentCount(5);

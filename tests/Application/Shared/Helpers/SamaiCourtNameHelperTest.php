@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
+
+it('prefers SAMAI Origen field for despacho', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'JUZGADO 002 ADMINISTRATIVO DE GUADALAJARA DE BUGA',
+        'Ponente' => 'HECTOR ALFREDO ALMEIDA TENA',
+        'NombreSalaDecision' => 'Tribunal Administrativo del Valle del Cauca',
+        'cityName' => 'VALLE',
+    ]);
+
+    expect($court)->toBe('JUZGADO 002 ADMINISTRATIVO DE GUADALAJARA DE BUGA');
+});
+
+it('normalizes prefixed EntidadRadicadora origen labels', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'EntidadRadicadora' => 'Juzgado Administrativo 014 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+        'Ponente' => 'HECTOR ALFREDO ALMEIDA TENA',
+        'NombreSalaDecision' => 'Tribunal Administrativo del Valle del Cauca',
+    ]);
+
+    expect($court)->toBe('JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+});
+
+it('ignores numeric EntidadRadicadora codes from REST', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'EntidadRadicadora' => '760013300014',
+        'Ponente' => 'JUZGADO 14 ADMINISTRATIVO DE CALI',
+    ]);
+
+    expect($court)->toBe('JUZGADO 14 ADMINISTRATIVO DE CALI');
+});
+
+it('falls back to NombreSalaDecision when origen is missing', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Ponente' => 'HECTOR ALFREDO ALMEIDA TENA',
+        'NombreSalaDecision' => 'Tribunal Administrativo del Valle del Cauca',
+        'cityName' => 'VALLE',
+    ]);
+
+    expect($court)->toBe('Tribunal Administrativo del Valle del Cauca');
+});
+
+it('scrubs the CaliI typo from SAMAI court names', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Ponente' => 'Juzgado 14 Administrativo de CaliI',
+    ]);
+
+    expect($court)->toBe('Juzgado 14 Administrativo de Cali');
+});

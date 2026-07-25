@@ -67,6 +67,15 @@ return [
         'task_status_changed' => 'El estado cambió de :from a :to.',
     ],
 
+    'date_labels' => [
+        'semaphore_recorded_at' => 'Fecha del semáforo',
+        'action_date' => 'Fecha de actuación',
+        'registration_date' => 'Fecha de registro',
+        'last_activity_date' => 'Fecha de última actuación',
+        'speaker_changed_at' => 'Fecha de cambio de ponente',
+        'unknown' => 'Fecha',
+    ],
+
     'values' => [
         'not_available' => 'Sin información',
     ],

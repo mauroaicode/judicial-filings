@@ -15,6 +15,7 @@ use Src\Application\Shared\Exceptions\SamaiPublicPortalException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
@@ -442,26 +443,7 @@ class ProcessSyncService
      */
     private function buildSamaiCourtName(array $processData): string
     {
-        $ponente = trim((string) ($processData['Ponente'] ?? ''));
-        $normalized = mb_strtolower($ponente);
-
-        if (str_starts_with($normalized, 'juzgado') || str_starts_with($normalized, 'tribunal')) {
-            return rtrim($ponente, 'I');
-        }
-
-        $seccion = trim((string) ($processData['NombreSalaDecision'] ?? $processData['Seccion'] ?? ''));
-        $city = trim((string) ($processData['cityName'] ?? ''));
-
-        if ($seccion === '') {
-            return '';
-        }
-
-        // Evita "Tribunal ... del Valle ... - VALLE"
-        if ($city !== '' && ! str_contains(mb_strtolower($seccion), mb_strtolower($city))) {
-            return "{$seccion} - {$city}";
-        }
-
-        return $seccion;
+        return SamaiCourtNameHelper::build($processData);
     }
 
     /**
@@ -827,7 +809,7 @@ class ProcessSyncService
                     source: $source,
                     subjectType: 'process_action',
                     subjectId: $action->id,
-                    occurredAt: $action->action_date,
+                    action: $action,
                 );
             }
         });

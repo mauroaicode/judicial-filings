@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
 use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
@@ -376,7 +377,7 @@ readonly class ProcessSourceFallbackService
                         source: ProcessTimelineEventSource::SAMAI,
                         subjectType: 'process_action',
                         subjectId: $latestNewAction->id,
-                        occurredAt: $latestNewAction->action_date,
+                        action: $latestNewAction,
                     );
                 }
             });
@@ -467,16 +468,7 @@ readonly class ProcessSourceFallbackService
      */
     private function buildSamaiCourt(array $data): string
     {
-        $ponente = trim((string) ($data['Ponente'] ?? ''));
-
-        if ($this->samaiPonenteIsCourtName($ponente)) {
-            return rtrim($ponente, 'I');
-        }
-
-        $seccion = trim((string) ($data['NombreSalaDecision'] ?? $data['Seccion'] ?? ''));
-        $city = trim((string) ($data['cityName'] ?? ''));
-
-        return $city !== '' ? "{$seccion} - {$city}" : $seccion;
+        return SamaiCourtNameHelper::build($data);
     }
 
     /**
