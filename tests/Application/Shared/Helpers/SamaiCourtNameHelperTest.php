@@ -15,14 +15,32 @@ it('prefers SAMAI Origen field for despacho', function (): void {
     expect($court)->toBe('JUZGADO 002 ADMINISTRATIVO DE GUADALAJARA DE BUGA');
 });
 
-it('normalizes prefixed EntidadRadicadora origen labels', function (): void {
+it('keeps the court number from prefixed Origen labels', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE AGUACHICA (CESAR)',
+        'NombreSalaDecision' => 'Juzgado Administrativo',
+        'cityName' => 'CESAR',
+    ]);
+
+    expect($court)->toBe('JUZGADO 001 ADMINISTRATIVO DE AGUACHICA (CESAR)');
+});
+
+it('normalizes prefixed EntidadRadicadora origen labels keeping the number', function (): void {
     $court = SamaiCourtNameHelper::build([
         'EntidadRadicadora' => 'Juzgado Administrativo 014 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
         'Ponente' => 'HECTOR ALFREDO ALMEIDA TENA',
         'NombreSalaDecision' => 'Tribunal Administrativo del Valle del Cauca',
     ]);
 
-    expect($court)->toBe('JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+    expect($court)->toBe('JUZGADO 014 ADMINISTRATIVO DE CALI (VALLE)');
+});
+
+it('drops placeholder 000 from tribunal-prefixed origen', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE ARMENIA',
+    ]);
+
+    expect($court)->toBe('JUZGADO ADMINISTRATIVO DE ARMENIA');
 });
 
 it('ignores numeric EntidadRadicadora codes from REST', function (): void {

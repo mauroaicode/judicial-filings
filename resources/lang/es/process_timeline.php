@@ -25,7 +25,7 @@ return [
         'became_private_at_backfill' => 'Cambio de privacidad registrado',
         'current_source_backfill' => 'Fuente judicial inicial registrada',
         'current_status_backfill' => 'Estado inicial de la tarea registrado',
-        'judicial_branch_api_reported_private' => 'La Rama Judicial reportó el proceso como privado',
+        'judicial_branch_api_reported_private' => 'El despacho judicial reportó el proceso como privado en los sistemas de consulta oficiales',
         'suspension_task_created_or_updated' => 'Tarea de suspensión',
         'suspension_task_completed' => 'La tarea de suspensión fue completada',
         'suspension_task_deleted' => 'La tarea de suspensión fue eliminada',
@@ -47,7 +47,7 @@ return [
     ],
 
     'sources' => [
-        'judicial_branch' => 'Rama Judicial',
+        'judicial_branch' => 'Sistemas de consulta oficiales',
         'samai' => 'SAMAI',
         'user' => 'Usuario',
         'system' => 'Sistema',

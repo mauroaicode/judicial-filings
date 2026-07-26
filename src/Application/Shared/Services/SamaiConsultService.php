@@ -175,7 +175,7 @@ class SamaiConsultService
             $proceso = $data['proceso'] ?? null;
 
             if (is_array($proceso) && $proceso !== []) {
-                return $proceso;
+                return $this->enrichProcesoMetaFromPortal($proceso, $corporacion, $processNumber);
             }
 
             // Sin datos REST (o respuesta vacía): usar metadatos del portal público
@@ -205,6 +205,46 @@ class SamaiConsultService
 
             return [];
         }
+    }
+
+    /**
+     * REST a veces no trae el label "Origen"; el portal sí. Sin eso el despacho
+     * cae a NombreSalaDecision genérico ("Juzgado Administrativo - Ciudad").
+     *
+     * @param  array<string, mixed>  $proceso
+     * @return array<string, mixed>
+     */
+    private function enrichProcesoMetaFromPortal(array $proceso, string $corporacion, string $processNumber): array
+    {
+        $hasOrigenName = trim((string) ($proceso['Origen'] ?? '')) !== ''
+            || (
+                trim((string) ($proceso['EntidadRadicadora'] ?? '')) !== ''
+                && preg_match('/^\d+$/', trim((string) $proceso['EntidadRadicadora'])) !== 1
+            );
+
+        if ($hasOrigenName || ! (bool) config('samai.public_portal.enabled', true)) {
+            return $proceso;
+        }
+
+        try {
+            $meta = $this->publicPortalData($corporacion, $processNumber)['meta'];
+            foreach (['Origen', 'EntidadRadicadora', 'cityName'] as $key) {
+                if (
+                    trim((string) ($proceso[$key] ?? '')) === ''
+                    && trim((string) ($meta[$key] ?? '')) !== ''
+                ) {
+                    $proceso[$key] = $meta[$key];
+                }
+            }
+        } catch (Throwable $exception) {
+            $this->logInfo('obtenerDatosProceso: no se pudo enriquecer Origen desde portal', [
+                'corporacion' => $corporacion,
+                'process_number' => $processNumber,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        return $proceso;
     }
 
     /**
@@ -414,15 +454,7 @@ class SamaiConsultService
     {
         $excluirSet = array_flip($excluir);
 
-        // Candidatos priorizados: juzgado > tribunal del dpto > CE > resto
-        $defaultCorp = substr($processNumber, 0, 7);
-        $deptTribunal = $this->departmentTribunalCode($processNumber);
-
-        $prioritized = array_unique(array_filter([
-            $defaultCorp,
-            $deptTribunal,
-            '1100103', // Consejo de Estado
-        ]));
+        $prioritized = $this->discoveryCorporacionCandidates($processNumber);
 
         $remaining = array_filter(
             self::CORPORACIONES_CANDIDATAS,
@@ -472,6 +504,19 @@ class SamaiConsultService
             }
         }
 
+        $portalHit = $this->discoverViaPublicPortal(
+            $processNumber,
+            array_values(array_filter(
+                $prioritized,
+                fn (string $c): bool => ! isset($excluirSet[$c])
+            ))
+        );
+        if ($portalHit !== []) {
+            $corp = $portalHit[0]['Corporacion'] ?? null;
+
+            return is_string($corp) && $corp !== '' ? $corp : null;
+        }
+
         $this->logInfo('encontrarCorporacion: no se encontró corporación', [
             'process_number' => $processNumber,
         ]);
@@ -500,14 +545,7 @@ class SamaiConsultService
      */
     private function buscarProcesoConDatos(string $processNumber): array
     {
-        $defaultCorp = substr($processNumber, 0, 7);
-        $deptTribunal = $this->departmentTribunalCode($processNumber);
-
-        $candidates = array_values(array_unique(array_filter([
-            $defaultCorp,
-            $deptTribunal,
-            '1100103',
-        ])));
+        $candidates = $this->discoveryCorporacionCandidates($processNumber);
 
         $timedOut = false;
         $httpTimeout = (int) config('samai.discovery_timeout', 25);
@@ -582,6 +620,35 @@ class SamaiConsultService
         ]);
 
         return [];
+    }
+
+    /**
+     * Corporaciones a probar al descubrir un radicado sin ApiKey.
+     *
+     * Incluye una variante embebida: a veces los dígitos 6-7 son especialidad
+     * y 8-9 el juzgado real (ej. 630012333000... → 6300133).
+     *
+     * @return list<string>
+     */
+    private function discoveryCorporacionCandidates(string $processNumber): array
+    {
+        $defaultCorp = substr($processNumber, 0, 7);
+        $deptTribunal = $this->departmentTribunalCode($processNumber);
+        $embeddedJuzgado = null;
+
+        if (strlen($processNumber) >= 9) {
+            $embeddedJuzgado = substr($processNumber, 0, 5).substr($processNumber, 7, 2);
+            if ($embeddedJuzgado === $defaultCorp) {
+                $embeddedJuzgado = null;
+            }
+        }
+
+        return array_values(array_unique(array_filter([
+            $defaultCorp,
+            $embeddedJuzgado,
+            $deptTribunal,
+            '1100103',
+        ])));
     }
 
     /**

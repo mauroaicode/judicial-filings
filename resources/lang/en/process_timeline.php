@@ -25,7 +25,7 @@ return [
         'became_private_at_backfill' => 'Privacy change recorded',
         'current_source_backfill' => 'Initial judicial source recorded',
         'current_status_backfill' => 'Initial task status recorded',
-        'judicial_branch_api_reported_private' => 'The Judicial Branch reported the process as private',
+        'judicial_branch_api_reported_private' => 'The court reported the process as private in the official consultation systems',
         'suspension_task_created_or_updated' => 'Suspension task',
         'suspension_task_completed' => 'The suspension task was completed',
         'suspension_task_deleted' => 'The suspension task was deleted',
@@ -47,7 +47,7 @@ return [
     ],
 
     'sources' => [
-        'judicial_branch' => 'Judicial Branch',
+        'judicial_branch' => 'Official consultation systems',
         'samai' => 'SAMAI',
         'user' => 'User',
         'system' => 'System',

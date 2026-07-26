@@ -63,11 +63,40 @@ final class SamaiCourtNameHelper
     }
 
     /**
-     * Limpia prefijos tipo "Juzgado Administrativo 014 JUZGADO ADMINISTRATIVO...".
+     * Normaliza labels de Origen.
+     *
+     * Ejemplos:
+     * - "JUZGADO 002 ADMINISTRATIVO DE GUADALAJARA DE BUGA" → igual
+     * - "Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE AGUACHICA (CESAR)"
+     *   → "JUZGADO 001 ADMINISTRATIVO DE AGUACHICA (CESAR)"
+     * - "Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE ARMENIA"
+     *   → "JUZGADO ADMINISTRATIVO DE ARMENIA" (000 no es número útil)
      */
     private static function normalizeOrigen(string $origen): string
     {
         $origen = trim((string) preg_replace('/\s+/u', ' ', $origen));
+
+        // Prefijo "Juzgado/Tribunal Administrativo NNN" + nombre completo en mayúsculas.
+        if (preg_match(
+            '/\b(?:Juzgado|Tribunal)\s+Administrativo\s+(\d{1,3})\s+(JUZGADO|TRIBUNAL)\s+(.+)$/iu',
+            $origen,
+            $matches
+        ) === 1) {
+            $number = $matches[1];
+            $kind = mb_strtoupper($matches[2]);
+            $rest = trim($matches[3]);
+
+            if ((int) $number > 0) {
+                return self::scrubSamaiTypo("{$kind} {$number} {$rest}");
+            }
+
+            return self::scrubSamaiTypo("{$kind} {$rest}");
+        }
+
+        // Ya viene como "JUZGADO 002 ADMINISTRATIVO..."
+        if (preg_match('/\b((?:JUZGADO|TRIBUNAL)\s+\d{1,3}\b.+)$/iu', $origen, $matches) === 1) {
+            return self::scrubSamaiTypo(trim($matches[1]));
+        }
 
         if (preg_match_all('/\b(?:JUZGADO|TRIBUNAL)\b/iu', $origen, $matches, PREG_OFFSET_CAPTURE) > 0) {
             $last = end($matches[0]);
