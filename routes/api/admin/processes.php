@@ -9,6 +9,7 @@ use Src\Application\Admin\Process\Controllers\AdminProcessInstancesController;
 use Src\Application\Admin\Process\Controllers\AdminProcessStatusController;
 use Src\Application\Admin\Process\Controllers\AdminProcessSubjectController;
 use Src\Application\Admin\Process\Controllers\PrivateProcessExcelImportController;
+use Src\Application\Admin\Process\Controllers\ProcessActuacionesImportController;
 use Src\Application\Admin\Process\Controllers\ProcessController;
 use Src\Application\Admin\Process\Controllers\ProcessImportController;
 
@@ -32,4 +33,5 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('processes/import-history', [AdminProcessImportHistoryController::class, 'index']);
     Route::post('processes/import', [ProcessImportController::class, 'import']);
     Route::post('processes/private-import', [PrivateProcessExcelImportController::class, 'import']);
+    Route::post('processes/actuaciones-import', [ProcessActuacionesImportController::class, 'import']);
 });

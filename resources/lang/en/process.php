@@ -127,8 +127,11 @@ return [
     'sync_command_failed' => 'Could not run :source sync. Please try again or check the system logs.',
     'sync_source_not_implemented' => ':source sync is not available yet.',
 
+    'actuaciones_import_success' => 'Actuaciones import completed.',
+
     'private_process_import_success' => 'Private import completed.',
     'private_process_import_invalid_data_source' => 'The requested data source is not valid for manual import.',
+    'api_process_import_invalid_data_source' => 'The requested data source is not valid for API import (Judicial Branch / SAMAI).',
     'private_process_import_history_row_reason' => 'Row :row: :detail',
     'private_process_import_no_data_rows' => 'The file has no valid data rows after the headers.',
     'private_process_import_missing_headers' => 'Could not recognise the expected column headers in the first row.',

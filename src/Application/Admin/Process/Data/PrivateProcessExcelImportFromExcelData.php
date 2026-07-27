@@ -33,8 +33,9 @@ class PrivateProcessExcelImportFromExcelData extends Data
             'data_source_slug' => [
                 'nullable',
                 'string',
+                Rule::in(ProcessDataSourceSlug::privateExcelImportValues()),
                 Rule::exists('process_data_sources', 'slug')->where(
-                    fn ($q) => $q->where('slug', '<>', ProcessDataSourceSlug::JudicialBranch->value)
+                    fn ($q) => $q->where('is_active', true)
                 ),
             ],
         ]);
@@ -45,6 +46,7 @@ class PrivateProcessExcelImportFromExcelData extends Data
             'file.required' => __('validation.file.required'),
             'file.file' => __('validation.file.file'),
             'file.mimes' => __('validation.file.mimes', ['values' => 'xlsx, xls']),
+            'data_source_slug.in' => __('process.private_process_import_invalid_data_source'),
         ]);
     }
 }

@@ -17,7 +17,7 @@ use Src\Domain\User\Models\User;
 
 /**
  * @property-read string $id
- * @property-read string $organization_id
+ * @property-read string|null $organization_id Null for cross-organization imports (e.g. actuaciones-only import)
  * @property-read string|null $requested_by
  * @property-read string $file_name
  * @property-read bool $is_private_import True for synchronous private Excel import (outside judicial queue jobs)

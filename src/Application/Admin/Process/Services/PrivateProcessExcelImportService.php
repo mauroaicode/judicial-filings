@@ -51,13 +51,8 @@ class PrivateProcessExcelImportService
             ];
         }
 
-        $slugValue = $dataSourceSlug ?: ProcessDataSourceSlug::Samai->value;
-
-        /** @var string|null $privateSourceUuid */
-        $privateSourceUuid = ProcessDataSource::query()
-            ->where('slug', $slugValue)
-            ->where('slug', '<>', ProcessDataSourceSlug::JudicialBranch->value)
-            ->value('id');
+        $slugValue = $dataSourceSlug ?: ProcessDataSourceSlug::PublicacionesProcesales->value;
+        $privateSourceUuid = $this->resolvePrivateImportDataSourceId($slugValue);
 
         if ($privateSourceUuid === null) {
             return [
@@ -385,6 +380,23 @@ class PrivateProcessExcelImportService
     private function courtKey(string $court): string
     {
         return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $court) ?? ''));
+    }
+
+    private function resolvePrivateImportDataSourceId(string $slugValue): ?string
+    {
+        $slug = ProcessDataSourceSlug::tryFrom($slugValue);
+        if ($slug === null || ! $slug->allowsPrivateExcelImport()) {
+            return null;
+        }
+
+        /** @var string|null $id */
+        $id = ProcessDataSource::query()
+            ->whereActive()
+            ->forPrivateExcelImport()
+            ->whereSlug($slug->value)
+            ->value('id');
+
+        return $id;
     }
 
     /**

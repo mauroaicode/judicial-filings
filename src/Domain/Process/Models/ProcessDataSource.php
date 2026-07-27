@@ -7,6 +7,7 @@ namespace Src\Domain\Process\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
+use Src\Domain\Process\QueryBuilders\ProcessDataSourceQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 
 /**
@@ -14,6 +15,8 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $slug
  * @property-read string $name
  * @property-read bool $is_active
+ *
+ * @method static ProcessDataSourceQueryBuilder query()
  */
 class ProcessDataSource extends Model
 {
@@ -38,6 +41,11 @@ class ProcessDataSource extends Model
         ];
     }
 
+    public function newEloquentBuilder(mixed $query): ProcessDataSourceQueryBuilder
+    {
+        return new ProcessDataSourceQueryBuilder($query);
+    }
+
     /**
      * @return HasMany<Process, $this>
      */
@@ -48,7 +56,7 @@ class ProcessDataSource extends Model
 
     public static function uuidForSlug(ProcessDataSourceSlug $slug): string
     {
-        $id = static::query()->where('slug', $slug->value)->value('id');
+        $id = static::query()->whereSlug($slug->value)->value('id');
 
         if ($id === null) {
             throw new \InvalidArgumentException(sprintf('Missing process_data_sources.slug=%s', $slug->value));

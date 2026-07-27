@@ -220,6 +220,121 @@ it('persists failed import batch when spreadsheet has validation errors', functi
     }
 });
 
+it('imports private excel with publicaciones_procesales data source', function (): void {
+    Queue::fake();
+
+    $sourceUuid = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::PublicacionesProcesales);
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+
+    $headers = [
+        'Despacho',
+        'Radicación',
+        'Clase Proceso',
+        'Demandante',
+        'Demandado',
+        'Actuación',
+        'Anotación',
+        'Fecha Inicial',
+        'Fecha Finalización',
+        'Fecha Registro',
+    ];
+
+    foreach ($headers as $i => $title) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $sheet->setCellValue('A2', 'JUZGADO PROMISCUO MUNICIPAL DE HATO COROZAL');
+    $sheet->setCellValue('B2', '08001418901220220076400');
+    $sheet->setCellValue('C2', 'Ejecutivo Singular');
+    $sheet->setCellValue('D2', 'Credivalores');
+    $sheet->setCellValue('E2', 'Vicente Alberto Diaz Pedroza');
+    $sheet->setCellValue('F2', 'Auto Decidir');
+    $sheet->setCellValue('G2', 'Ordena seguir adelante la ejecución');
+    $sheet->setCellValue('H2', '2026-04-30');
+    $sheet->setCellValue('I2', '2026-04-30');
+    $sheet->setCellValue('J2', '2026-04-24');
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-pp').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $uploadedFile = new UploadedFile(
+        $this->privateImportSpreadsheetTmp,
+        'plantilla-importar-privados.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        null,
+        true
+    );
+
+    $response = $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => $uploadedFile,
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ]);
+
+    $response->assertStatus(200);
+    expect($response->json('processes_created'))->toBe(1)
+        ->and($response->json('actions_imported'))->toBe(1);
+
+    $process = Process::query()->first();
+    expect($process)->not->toBeNull()
+        ->and($process->process_data_source_id)->toBe($sourceUuid)
+        ->and($process->process_number)->toBe('08001418901220220076400')
+        ->and($process->is_private)->toBeTrue()
+        ->and($process->is_manual_sync)->toBeTrue()
+        ->and($process->processDataSource?->slug)->toBe(ProcessDataSourceSlug::PublicacionesProcesales->value);
+});
+
+it('defaults private import data source to publicaciones_procesales when omitted', function (): void {
+    Queue::fake();
+
+    $sourceUuid = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::PublicacionesProcesales);
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    foreach (
+        ['Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado', 'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro'] as $i => $title
+    ) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $sheet->setCellValue('A2', 'JUZGADO TEST DEFAULT');
+    $sheet->setCellValue('B2', '08001418901234567890124');
+    $sheet->setCellValue('C2', 'Ejecutivo');
+    $sheet->setCellValue('D2', 'Demandante SA');
+    $sheet->setCellValue('E2', 'Demandado');
+    $sheet->setCellValue('F2', 'Auto');
+    $sheet->setCellValue('G2', '');
+    $sheet->setCellValue('H2', '2026-04-30');
+    $sheet->setCellValue('I2', '2026-04-30');
+    $sheet->setCellValue('J2', '2026-04-24');
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-default').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $uploadedFile = new UploadedFile(
+        $this->privateImportSpreadsheetTmp,
+        'default-source.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        null,
+        true
+    );
+
+    $response = $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => $uploadedFile,
+        ]);
+
+    $response->assertStatus(200);
+
+    $process = Process::query()->first();
+    expect($process)->not->toBeNull()
+        ->and($process->process_data_source_id)->toBe($sourceUuid);
+});
+
 it('rejects judicial_branch as data_source_slug', function (): void {
     Queue::fake();
 

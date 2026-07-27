@@ -170,4 +170,25 @@ return [
         'ADMIN_PRIVACY_TRANSITION_EMAIL',
         env('ADMIN_PROCESS_IMPORT_REPORT_EMAIL')
     ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto Digest After Sync
+    |--------------------------------------------------------------------------
+    |
+    | When true (default), each sync batch (judicial:sync-processes and
+    | samai:sync-processes) automatically fires DispatchOrganizationDigestsJob
+    | at the end of the batch — sending the consolidated email immediately.
+    |
+    | Set to false when you want to accumulate notifications from multiple
+    | sources (Rama Judicial, SAMAI, manual Excel uploads) and send a single
+    | consolidated email via the admin "Enviar consolidado" button
+    | (POST /api/admin/digest-packages/send).
+    |
+    | With this flag off the crons still store every new actuacion as pending
+    | (is_email_notified = false); nothing is lost. The next digest dispatch
+    | (manual or automatic) will include all accumulated pending items.
+    |
+    */
+    'auto_digest_after_sync' => (bool) env('JUDICIAL_SYNC_AUTO_DIGEST', true),
 ];

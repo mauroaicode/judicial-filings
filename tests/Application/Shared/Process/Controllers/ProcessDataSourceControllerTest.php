@@ -42,11 +42,15 @@ it('lists active process data sources for admin', function (): void {
     ]);
 
     $slugs = collect($response->json())->pluck('slug')->all();
-    expect($slugs)->toContain('judicial_branch', 'samai')
+    expect($slugs)->toContain('judicial_branch', 'samai', 'publicaciones_procesales')
         ->and($slugs)->not->toContain('inactive_test_source');
 
     $rows = collect($response->json());
     expect($rows->every(fn (array $r): bool => $r['is_active'] === true))->toBeTrue();
+
+    $publicaciones = $rows->firstWhere('slug', 'publicaciones_procesales');
+    expect($publicaciones)->not->toBeNull()
+        ->and($publicaciones['name'])->toBe('Publicaciones Procesales');
 });
 
 it('requires authentication for app user process data sources index', function (): void {
@@ -64,6 +68,6 @@ it('lists active process data sources for app user', function (): void {
 
     $response->assertStatus(200);
     $slugs = collect($response->json())->pluck('slug')->all();
-    expect($slugs)->toContain('judicial_branch', 'samai')
+    expect($slugs)->toContain('judicial_branch', 'samai', 'publicaciones_procesales')
         ->and($slugs)->not->toContain('inactive_test_source');
 });

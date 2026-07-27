@@ -10,15 +10,15 @@ use Src\Domain\Process\Models\ProcessDataSource;
 class ListProcessDataSourcesService
 {
     /**
-     * Active process data sources (Rama Judicial, SAMAI, etc.), ordered by label.
+     * Active process data sources (Rama Judicial, SAMAI, Publicaciones Procesales, …), ordered by label.
      *
      * @return Collection<int, ProcessDataSource>
      */
     public function handle(): Collection
     {
         return ProcessDataSource::query()
-            ->where('is_active', true)
-            ->orderBy('name')
+            ->whereActive()
+            ->orderedByName()
             ->get();
     }
 }

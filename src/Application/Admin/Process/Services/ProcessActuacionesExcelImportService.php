@@ -1,0 +1,463 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Src\Application\Admin\Process\Services;
+
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
+use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
+use Src\Application\Admin\Process\Resources\ProcessActuacionesImportResource;
+use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationService;
+use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
+use Src\Domain\Process\Models\ProcessImportBatch;
+use Src\Domain\Process\Models\ProcessSubject;
+use Throwable;
+
+/**
+ * Imports actuaciones (movements) from the standard private-process Excel template.
+ *
+ * Primary intent: add new actuaciones to already-registered processes, resolved
+ * exclusively by radicado (process_number) across all organizations and data sources.
+ *
+ * Radicados not found in the database are returned in
+ * {@see ProcessActuacionesImportResource::$not_found_process_numbers} so the admin
+ * can create those processes first with the "Importar Procesos" flow.
+ *
+ * Deduplication: an actuacion is skipped if a row already exists for that
+ * process with the same registration_date + action text + annotation.
+ */
+class ProcessActuacionesExcelImportService
+{
+    private int $actionRegistrationSeed;
+
+    public function __construct(
+        private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
+    ) {
+        $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
+        $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
+    }
+
+    /**
+     * @return array{status: int, body: array<string, mixed>}
+     *
+     * @throws Throwable
+     */
+    public function handle(UploadedFile $file, ?string $requestedByUserId = null): array
+    {
+        $fileName = $file->getClientOriginalName();
+
+        $parsed = (new PrivateProcessExcelReader($file))->parse();
+
+        if ($parsed->hasErrors()) {
+            $batch = $this->persistBatchFailedFromRowErrors($requestedByUserId, $fileName, $parsed);
+
+            return [
+                'status' => 422,
+                'body' => [
+                    'message' => __('process.import_validation_failed'),
+                    'errors' => ['rows' => $parsed->rowErrors],
+                    'import_batch_id' => $batch->id,
+                ],
+            ];
+        }
+
+        if ($parsed->rows === []) {
+            $batch = $this->persistBatchFailed($requestedByUserId, $fileName, 0, 0, [
+                ['process_number' => '', 'reason' => __('process.private_process_import_no_data_rows')],
+            ]);
+
+            return [
+                'status' => 422,
+                'body' => [
+                    'message' => __('process.private_process_import_no_data_rows'),
+                    'import_batch_id' => $batch->id,
+                ],
+            ];
+        }
+
+        $grouped = $this->groupRows($parsed->rows);
+
+        $actionsImported = 0;
+        $actionsSkipped = 0;
+        $processesUpdated = 0;
+        $notFoundProcessNumbers = [];
+
+        DB::transaction(function () use (
+            $grouped,
+            &$actionsImported,
+            &$actionsSkipped,
+            &$processesUpdated,
+            &$notFoundProcessNumbers,
+        ): void {
+            foreach ($grouped as $rows) {
+                /** @var list<PrivateProcessExcelImportedRowDTO> $rows */
+                $first = $rows[0];
+
+                $process = $this->findExistingProcess($first->processNumber);
+
+                if (! $process instanceof \Src\Domain\Process\Models\Process) {
+                    if (! in_array($first->processNumber, $notFoundProcessNumbers, true)) {
+                        $notFoundProcessNumbers[] = $first->processNumber;
+                    }
+
+                    continue;
+                }
+
+                $processesUpdated++;
+
+                $this->syncSubjectsFromRows($process, $rows);
+                $this->extendLigigantsFromRows($process, $rows);
+
+                $imported = $this->importActuaciones($process, $rows);
+                $actionsImported += $imported;
+                $actionsSkipped += count($rows) - $imported;
+            }
+        });
+
+        $batch = $this->persistBatchCompleted(
+            $requestedByUserId,
+            $fileName,
+            $parsed,
+            $grouped,
+            $actionsImported,
+        );
+
+        return [
+            'status' => 200,
+            'body' => (new ProcessActuacionesImportResource(
+                actions_imported: $actionsImported,
+                actions_skipped: $actionsSkipped,
+                processes_updated: $processesUpdated,
+                not_found_count: count($notFoundProcessNumbers),
+                not_found_process_numbers: $notFoundProcessNumbers,
+                import_batch_id: $batch->id,
+            ))->toArray(),
+        ];
+    }
+
+    // ─── Process resolution ──────────────────────────────────────────────────
+
+    private function findExistingProcess(string $processNumber): ?Process
+    {
+        /** @var Process|null */
+        return Process::query()
+            ->where('process_number', $processNumber)
+            ->first();
+    }
+
+    // ─── Actuaciones ─────────────────────────────────────────────────────────
+
+    /**
+     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
+     */
+    private function importActuaciones(Process $process, array $rows): int
+    {
+        $nextCons = (int) (ProcessAction::query()
+            ->where('process_id', $process->id)
+            ->max('cons_action') ?? 0);
+
+        $imported = 0;
+
+        foreach ($rows as $row) {
+            if ($this->actionAlreadyExists($process->id, $row)) {
+                continue;
+            }
+
+            $nextCons++;
+            $registrationDate = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
+
+            $action = ProcessAction::query()->create([
+                'process_id' => $process->id,
+                'action_registration_id' => $this->takeNextNegativeActionRegistrationId(),
+                'cons_action' => max(1, $nextCons),
+                'action_date' => $registrationDate,
+                'action' => $row->actionText,
+                'annotation' => $row->annotation,
+                'start_date' => $row->startDate,
+                'end_date' => $row->endDate,
+                'registration_date' => $registrationDate,
+            ]);
+
+            $this->refreshActivityBoundaries($process, $row);
+
+            $imported++;
+
+            $processReloaded = Process::query()->whereKey($process->id)->with('organizations')->first();
+            if ($processReloaded instanceof Process) {
+                $this->processActionAlertNotificationService->handle($action, $processReloaded);
+            }
+        }
+
+        return $imported;
+    }
+
+    private function actionAlreadyExists(string $processId, PrivateProcessExcelImportedRowDTO $row): bool
+    {
+        $registrationDate = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
+
+        $query = ProcessAction::query()
+            ->where('process_id', $processId)
+            ->whereDate('registration_date', $registrationDate)
+            ->where('action', $row->actionText);
+
+        if ($row->annotation === null || $row->annotation === '') {
+            $query->whereNull('annotation');
+        } else {
+            $query->where('annotation', $row->annotation);
+        }
+
+        return $query->exists();
+    }
+
+    private function takeNextNegativeActionRegistrationId(): int
+    {
+        $id = $this->actionRegistrationSeed;
+        $this->actionRegistrationSeed--;
+
+        return $id;
+    }
+
+    private function refreshActivityBoundaries(Process $process, PrivateProcessExcelImportedRowDTO $row): void
+    {
+        $reg = $row->registrationDate;
+        $actDate = $row->startDate ?? $reg;
+
+        $process->refresh();
+
+        $updates = [];
+
+        if ($reg !== null) {
+            $currentPd = $process->process_date->format('Y-m-d');
+            if ($reg < $currentPd) {
+                $updates['process_date'] = $reg;
+            }
+        }
+
+        $currentLa = $process->last_activity_date?->format('Y-m-d');
+        foreach ([$reg, $actDate, $row->endDate] as $candidate) {
+            if ($candidate === null) {
+                continue;
+            }
+            if ($candidate === '') {
+                continue;
+            }
+            if ($currentLa === null || $candidate > $currentLa) {
+                $updates['last_activity_date'] = $candidate;
+                $currentLa = $candidate;
+            }
+        }
+
+        if ($updates !== []) {
+            $process->update($updates);
+        }
+    }
+
+    // ─── Subjects / litigants ────────────────────────────────────────────────
+
+    /**
+     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
+     */
+    private function syncSubjectsFromRows(Process $process, array $rows): void
+    {
+        foreach ($rows as $row) {
+            $process->loadMissing('subjects');
+            foreach (PrivateImportSubjectNamesSplitter::split($row->plaintiffsRaw) as $name) {
+                $this->attachSubjectIfMissing($process, $name, ProcessSubject::TYPE_PLAINTIFF);
+            }
+
+            foreach (PrivateImportSubjectNamesSplitter::split($row->defendantsRaw) as $name) {
+                $this->attachSubjectIfMissing($process, $name, ProcessSubject::TYPE_DEFENDANT);
+            }
+        }
+    }
+
+    private function attachSubjectIfMissing(Process $process, string $name, string $type): void
+    {
+        $process->loadMissing('subjects');
+        foreach ($process->subjects as $existing) {
+            if (
+                $existing->subject_type === $type
+                && mb_strtolower(trim((string) $existing->name_or_business_name)) === mb_strtolower(trim($name))
+            ) {
+                return;
+            }
+        }
+
+        $subject = ProcessSubject::query()->create([
+            'subject_registration_id' => null,
+            'subject_type' => $type,
+            'is_cited' => false,
+            'identification' => null,
+            'name_or_business_name' => $name,
+        ]);
+
+        $process->subjects()->attach($subject->id);
+        $process->unsetRelation('subjects');
+    }
+
+    /**
+     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
+     */
+    private function extendLigigantsFromRows(Process $process, array $rows): void
+    {
+        foreach ($rows as $row) {
+            $this->extendLitigantsSummary($process, $row);
+        }
+    }
+
+    private function extendLitigantsSummary(Process $process, PrivateProcessExcelImportedRowDTO $row): void
+    {
+        $chunks = [];
+        foreach (PrivateImportSubjectNamesSplitter::split($row->plaintiffsRaw) as $name) {
+            $chunks[] = __('process.private_process_litigant_prefix_plaintiff').$name;
+        }
+
+        foreach (PrivateImportSubjectNamesSplitter::split($row->defendantsRaw) as $name) {
+            $chunks[] = __('process.private_process_litigant_prefix_defendant').$name;
+        }
+
+        $addition = implode(' | ', array_slice($chunks, 0, 12));
+        if ($addition === '') {
+            return;
+        }
+
+        $existing = trim((string) ($process->litigants ?? ''));
+        $merged = $existing === '' ? $addition : $existing.' | '.$addition;
+        if (strlen($merged) > 6000) {
+            $merged = mb_substr($merged, 0, 5997).'...';
+        }
+
+        $process->update(['litigants' => $merged]);
+        $process->refresh();
+    }
+
+    // ─── Grouping helpers ────────────────────────────────────────────────────
+
+    /**
+     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
+     * @return array<string, list<PrivateProcessExcelImportedRowDTO>>
+     */
+    private function groupRows(array $rows): array
+    {
+        /** @var array<string, list<PrivateProcessExcelImportedRowDTO>> $grouped */
+        $grouped = [];
+        foreach ($rows as $row) {
+            $key = $row->processNumber.'|'.$this->courtKey($row->court);
+            $grouped[$key] ??= [];
+            $grouped[$key][] = $row;
+        }
+
+        return $grouped;
+    }
+
+    private function courtKey(string $court): string
+    {
+        return mb_strtolower(trim(preg_replace('/\s+/u', ' ', $court) ?? ''));
+    }
+
+    // ─── Batch persistence ───────────────────────────────────────────────────
+
+    /**
+     * @param  array<string, list<PrivateProcessExcelImportedRowDTO>>  $grouped
+     */
+    private function persistBatchCompleted(
+        ?string $requestedByUserId,
+        string $fileName,
+        PrivateProcessExcelParseResult $parsed,
+        array $grouped,
+        int $actionsImported,
+    ): ProcessImportBatch {
+        $excelRows = count($parsed->rows);
+
+        return ProcessImportBatch::query()->create([
+            'organization_id' => null,
+            'requested_by' => $requestedByUserId,
+            'file_name' => $fileName,
+            'is_private_import' => true,
+            'excel_total_count' => $excelRows,
+            'total_count' => count($grouped),
+            'enqueued_process_numbers' => $this->orderedUniqueRadicados($parsed->rows),
+            'success_count' => $actionsImported,
+            'failed_count' => max(0, $excelRows - $actionsImported),
+            'multiple_instances_count' => 0,
+            'status' => ProcessImportBatch::STATUS_COMPLETED,
+            'errors' => [],
+            'laravel_batch_id' => null,
+            'completed_at' => now(),
+        ]);
+    }
+
+    private function persistBatchFailedFromRowErrors(
+        ?string $requestedByUserId,
+        string $fileName,
+        PrivateProcessExcelParseResult $parsed,
+    ): ProcessImportBatch {
+        $errors = [];
+        foreach ($parsed->rowErrors as $excelRow => $message) {
+            $errors[] = [
+                'process_number' => '',
+                'reason' => __('process.private_process_import_history_row_reason', [
+                    'row' => (string) $excelRow,
+                    'detail' => (string) $message,
+                ]),
+            ];
+        }
+
+        return $this->persistBatchFailed(
+            $requestedByUserId,
+            $fileName,
+            count($parsed->rows),
+            count($errors),
+            $errors,
+        );
+    }
+
+    /**
+     * @param  list<array{process_number: string, reason: string}>  $errors
+     */
+    private function persistBatchFailed(
+        ?string $requestedByUserId,
+        string $fileName,
+        int $excelTotalCount,
+        int $failedCount,
+        array $errors,
+    ): ProcessImportBatch {
+        return ProcessImportBatch::query()->create([
+            'organization_id' => null,
+            'requested_by' => $requestedByUserId,
+            'file_name' => $fileName,
+            'is_private_import' => true,
+            'excel_total_count' => $excelTotalCount,
+            'total_count' => $excelTotalCount,
+            'enqueued_process_numbers' => [],
+            'success_count' => 0,
+            'failed_count' => $failedCount,
+            'multiple_instances_count' => 0,
+            'status' => ProcessImportBatch::STATUS_FAILED,
+            'errors' => $errors,
+            'laravel_batch_id' => null,
+            'completed_at' => now(),
+        ]);
+    }
+
+    /**
+     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
+     * @return list<string>
+     */
+    private function orderedUniqueRadicados(array $rows): array
+    {
+        $out = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            if (! isset($seen[$row->processNumber])) {
+                $seen[$row->processNumber] = true;
+                $out[] = $row->processNumber;
+            }
+        }
+
+        return $out;
+    }
+}

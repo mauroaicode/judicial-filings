@@ -130,8 +130,11 @@ return [
     'sync_command_failed' => 'No se pudo ejecutar la sincronización de :source. Intente de nuevo o revise los registros del sistema.',
     'sync_source_not_implemented' => 'La sincronización de :source aún no está disponible.',
 
+    'actuaciones_import_success' => 'Importación de actuaciones completada.',
+
     'private_process_import_success' => 'Importación privada completada.',
     'private_process_import_invalid_data_source' => 'La fuente de datos indicada no es válida para importación manual.',
+    'api_process_import_invalid_data_source' => 'La fuente de datos indicada no es válida para importación vía API (Rama Judicial / SAMAI).',
     'private_process_import_history_row_reason' => 'Fila :row: :detail',
     'private_process_import_no_data_rows' => 'El archivo no contiene filas de datos válidas después de las cabeceras.',
     'private_process_import_missing_headers' => 'No se reconocieron las cabeceras de columnas esperadas en la primera fila.',

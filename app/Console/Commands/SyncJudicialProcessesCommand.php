@@ -84,11 +84,16 @@ class SyncJudicialProcessesCommand extends Command
                 ->finally(function (Batch $batch) use ($runId, $channel): void {
                     // Run digest dispatch synchronously: async dispatch() from this batch
                     // callback was not being processed reliably after large sync batches.
-                    DispatchOrganizationDigestsJob::dispatchSync();
+                    // Skipped when JUDICIAL_SYNC_AUTO_DIGEST=false so the admin can send
+                    // one consolidated package after all sources (Rama + SAMAI + Excel) finish.
+                    if (config('judicial-sync.auto_digest_after_sync', true)) {
+                        DispatchOrganizationDigestsJob::dispatchSync();
+                    }
 
                     Log::channel($channel)->info('SyncJudicialProcessesCommand: Digest dispatch completed after batch', [
                         'run_id' => $runId,
                         'batch_id' => $batch->id,
+                        'auto_digest' => config('judicial-sync.auto_digest_after_sync', true),
                     ]);
 
                     $record = JudicialSyncRun::query()->find($runId);
