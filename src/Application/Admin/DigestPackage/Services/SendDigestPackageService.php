@@ -4,24 +4,31 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\DigestPackage\Services;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackageSendResource;
 use Src\Application\Shared\Jobs\SendOrganizationDigestJob;
+use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
+use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\ProcessAction;
 
 /**
- * Dispatches the pending digest package to all organizations that have
- * unnotified actuaciones.
+ * Dispatches the pending digest package to organizations that have
+ * digest-eligible unnotified actuaciones (ProcessAction + registration cutoff).
  *
  * Reuses the same SendOrganizationDigestJob → NotificationDigestService
- * pipeline as the automatic post-cron dispatch, ensuring consistent
- * deduplication, channel delivery and markAsNotified behaviour.
+ * pipeline as the automatic post-cron dispatch.
  */
 class SendDigestPackageService
 {
+    public function __construct(
+        private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+    ) {}
+
     public function handle(): DigestPackageSendResource
     {
-        $organizations = $this->resolveOrganizationsWithPendingNotifications();
+        $organizations = $this->resolveOrganizationsReadyToSend();
 
         $this->dispatchDigestJobsForOrganizations($organizations);
 
@@ -41,20 +48,43 @@ class SendDigestPackageService
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Organization>
+     * @return Collection<int, Organization>
      */
-    private function resolveOrganizationsWithPendingNotifications(): \Illuminate\Support\Collection
+    private function resolveOrganizationsReadyToSend(): Collection
     {
-        return Organization::query()
-            ->whereHas('notifications', fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q->where('is_email_notified', false))
+        $morphClass = (new ProcessAction)->getMorphClass();
+
+        $candidates = Organization::query()
+            ->whereHas(
+                'notifications',
+                fn ($q) => $q
+                    ->where('is_email_notified', false)
+                    ->where('notifiable_type', $morphClass)
+            )
             ->orderBy('name')
             ->get();
+
+        return $candidates
+            ->filter(fn (Organization $org): bool => $this->hasEligiblePendingActuaciones($org->id))
+            ->values();
+    }
+
+    private function hasEligiblePendingActuaciones(string $organizationId): bool
+    {
+        $query = OrganizationNotification::query()
+            ->where('organization_id', $organizationId)
+            ->where('is_email_notified', false)
+            ->forActiveOrganizationProcesses($organizationId);
+
+        $this->registrationCutoffService->applyDigestPendingCutoff($query, $organizationId);
+
+        return $query->exists();
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, Organization>  $organizations
+     * @param  Collection<int, Organization>  $organizations
      */
-    private function dispatchDigestJobsForOrganizations(\Illuminate\Support\Collection $organizations): void
+    private function dispatchDigestJobsForOrganizations(Collection $organizations): void
     {
         foreach ($organizations as $organization) {
             dispatch(new SendOrganizationDigestJob($organization));

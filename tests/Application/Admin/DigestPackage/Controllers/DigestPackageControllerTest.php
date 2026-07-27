@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Src\Application\Shared\Jobs\SendOrganizationDigestJob;
+use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
@@ -16,6 +17,7 @@ use Src\Domain\User\Models\User;
 
 beforeEach(function (): void {
     OrganizationNotification::query()->delete();
+    NotificationDigest::query()->delete();
 
     $this->user = User::factory()->create([
         'email' => 'admin-digest@example.com',
@@ -29,6 +31,32 @@ beforeEach(function (): void {
     $this->orgA = Organization::factory()->create(['name' => 'Bufete Alpha']);
     $this->orgB = Organization::factory()->create(['name' => 'Bufete Beta']);
 });
+
+function attachActiveProcess(Organization $org, ?Process $process = null): Process
+{
+    $process ??= Process::factory()->create();
+    $process->organizations()->attach($org->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+    ]);
+
+    return $process;
+}
+
+function createPendingActuacionNotification(Organization $org, ProcessAction $action): void
+{
+    OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $org->id,
+        'notifiable_id' => $action->id,
+        'notifiable_type' => $action->getMorphClass(),
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'is_email_notified' => false,
+    ]);
+}
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
@@ -69,28 +97,56 @@ it('returns empty preview when no pending notifications exist', function (): voi
         ->getJson('/api/admin/digest-packages/preview');
 
     $response->assertStatus(200);
-    expect($response->json('organizations_count'))->toBe(0)
+    expect($response->json('consolidates_ready'))->toBe(0)
+        ->and($response->json('total_pending_processes'))->toBe(0)
         ->and($response->json('total_pending_actions'))->toBe(0)
         ->and($response->json('organizations'))->toBe([]);
 });
 
-it('lists organizations with pending notifications in preview', function (): void {
-    $process = Process::factory()->create();
-    $process->organizations()->attach($this->orgA->id, [
-        'interest_date' => now()->toDateString(),
-        'is_active' => true,
-        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+it('lists consolidates with pending processes and actions', function (): void {
+    $process1 = attachActiveProcess($this->orgA);
+    $process2 = attachActiveProcess($this->orgA);
+
+    $action1 = ProcessAction::factory()->create([
+        'process_id' => $process1->id,
+        'registration_date' => now()->toDateString(),
+    ]);
+    $action2 = ProcessAction::factory()->create([
+        'process_id' => $process1->id,
+        'registration_date' => now()->toDateString(),
+    ]);
+    $action3 = ProcessAction::factory()->create([
+        'process_id' => $process2->id,
+        'registration_date' => now()->toDateString(),
     ]);
 
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
-    $morphClass = $action->getMorphClass();
+    createPendingActuacionNotification($this->orgA, $action1);
+    createPendingActuacionNotification($this->orgA, $action2);
+    createPendingActuacionNotification($this->orgA, $action3);
 
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/digest-packages/preview');
+
+    $response->assertStatus(200);
+    expect($response->json('consolidates_ready'))->toBe(1)
+        ->and($response->json('total_pending_processes'))->toBe(2)
+        ->and($response->json('total_pending_actions'))->toBe(3);
+
+    $orgs = $response->json('organizations');
+    expect($orgs)->toHaveCount(1)
+        ->and($orgs[0]['organization_id'])->toBe($this->orgA->id)
+        ->and($orgs[0]['organization_name'])->toBe('Bufete Alpha')
+        ->and($orgs[0]['pending_processes'])->toBe(2)
+        ->and($orgs[0]['pending_actions'])->toBe(3);
+});
+
+it('ignores non-ProcessAction pending notifications in preview', function (): void {
     OrganizationNotification::query()->create([
         'id' => (string) Str::uuid(),
         'organization_id' => $this->orgA->id,
-        'notifiable_id' => $action->id,
-        'notifiable_type' => $morphClass,
-        'notification_type' => 'actuacion',
+        'notifiable_id' => $this->orgA->id,
+        'notifiable_type' => Process::class,
+        'notification_type' => 'proceso',
         'is_viewed' => false,
         'is_notified' => false,
         'is_email_notified' => false,
@@ -100,44 +156,49 @@ it('lists organizations with pending notifications in preview', function (): voi
         ->getJson('/api/admin/digest-packages/preview');
 
     $response->assertStatus(200);
-    expect($response->json('organizations_count'))->toBe(1)
-        ->and($response->json('total_pending_actions'))->toBe(1);
-
-    $orgs = $response->json('organizations');
-    expect($orgs)->toHaveCount(1)
-        ->and($orgs[0]['organization_id'])->toBe($this->orgA->id)
-        ->and($orgs[0]['organization_name'])->toBe('Bufete Alpha')
-        ->and($orgs[0]['pending_actions'])->toBe(1);
+    expect($response->json('consolidates_ready'))->toBe(0)
+        ->and($response->json('organizations'))->toBe([]);
 });
 
-it('excludes organizations that have no pending notifications from preview', function (): void {
-    $process = Process::factory()->create();
-    $process->organizations()->attach($this->orgA->id, [
-        'interest_date' => now()->toDateString(),
-        'is_active' => true,
-        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+it('excludes actuaciones blocked by registration cutoff from preview', function (): void {
+    $process = attachActiveProcess($this->orgA);
+
+    $oldAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => '2026-07-01',
+        'created_at' => now()->subDays(10),
+    ]);
+    $sentAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => '2026-07-20',
+        'created_at' => now()->subDays(5),
     ]);
 
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
-    $morphClass = $action->getMorphClass();
+    $digest = NotificationDigest::query()->create([
+        'organization_id' => $this->orgA->id,
+        'data' => [],
+    ]);
 
-    // Already notified → must NOT appear
     OrganizationNotification::query()->create([
         'id' => (string) Str::uuid(),
         'organization_id' => $this->orgA->id,
-        'notifiable_id' => $action->id,
-        'notifiable_type' => $morphClass,
+        'notifiable_id' => $sentAction->id,
+        'notifiable_type' => $sentAction->getMorphClass(),
         'notification_type' => 'actuacion',
+        'notification_digest_id' => $digest->id,
         'is_viewed' => true,
         'is_notified' => true,
         'is_email_notified' => true,
     ]);
 
+    createPendingActuacionNotification($this->orgA, $oldAction);
+
     $response = $this->actingAs($this->user)
         ->getJson('/api/admin/digest-packages/preview');
 
     $response->assertStatus(200);
-    expect($response->json('organizations_count'))->toBe(0);
+    expect($response->json('consolidates_ready'))->toBe(0)
+        ->and($response->json('organizations'))->toBe([]);
 });
 
 it('includes active notification channels per organization in preview', function (): void {
@@ -160,24 +221,12 @@ it('includes active notification channels per organization in preview', function
         'priority' => 3,
     ]);
 
-    $process = Process::factory()->create();
-    $process->organizations()->attach($this->orgA->id, [
-        'interest_date' => now()->toDateString(),
-        'is_active' => true,
-        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+    $process = attachActiveProcess($this->orgA);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now()->toDateString(),
     ]);
-    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
-
-    OrganizationNotification::query()->create([
-        'id' => (string) Str::uuid(),
-        'organization_id' => $this->orgA->id,
-        'notifiable_id' => $action->id,
-        'notifiable_type' => $action->getMorphClass(),
-        'notification_type' => 'actuacion',
-        'is_viewed' => false,
-        'is_notified' => false,
-        'is_email_notified' => false,
-    ]);
+    createPendingActuacionNotification($this->orgA, $action);
 
     $response = $this->actingAs($this->user)
         ->getJson('/api/admin/digest-packages/preview');
@@ -214,48 +263,24 @@ it('returns nothing pending when no unnotified notifications exist on send', fun
     Queue::assertNothingPushed();
 });
 
-it('dispatches SendOrganizationDigestJob for each org with pending notifications', function (): void {
+it('dispatches SendOrganizationDigestJob for each org with eligible pending actuaciones', function (): void {
     Queue::fake();
 
-    // Org A — 2 pending
-    $processA = Process::factory()->create();
-    $processA->organizations()->attach($this->orgA->id, [
-        'interest_date' => now()->toDateString(),
-        'is_active' => true,
-        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
-    ]);
+    $processA = attachActiveProcess($this->orgA);
     foreach (range(1, 2) as $_) {
-        $action = ProcessAction::factory()->create(['process_id' => $processA->id]);
-        OrganizationNotification::query()->create([
-            'id' => (string) Str::uuid(),
-            'organization_id' => $this->orgA->id,
-            'notifiable_id' => $action->id,
-            'notifiable_type' => $action->getMorphClass(),
-            'notification_type' => 'actuacion',
-            'is_viewed' => false,
-            'is_notified' => false,
-            'is_email_notified' => false,
+        $action = ProcessAction::factory()->create([
+            'process_id' => $processA->id,
+            'registration_date' => now()->toDateString(),
         ]);
+        createPendingActuacionNotification($this->orgA, $action);
     }
 
-    // Org B — 1 pending
-    $processB = Process::factory()->create();
-    $processB->organizations()->attach($this->orgB->id, [
-        'interest_date' => now()->toDateString(),
-        'is_active' => true,
-        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+    $processB = attachActiveProcess($this->orgB);
+    $actionB = ProcessAction::factory()->create([
+        'process_id' => $processB->id,
+        'registration_date' => now()->toDateString(),
     ]);
-    $actionB = ProcessAction::factory()->create(['process_id' => $processB->id]);
-    OrganizationNotification::query()->create([
-        'id' => (string) Str::uuid(),
-        'organization_id' => $this->orgB->id,
-        'notifiable_id' => $actionB->id,
-        'notifiable_type' => $actionB->getMorphClass(),
-        'notification_type' => 'actuacion',
-        'is_viewed' => false,
-        'is_notified' => false,
-        'is_email_notified' => false,
-    ]);
+    createPendingActuacionNotification($this->orgB, $actionB);
 
     $response = $this->actingAs($this->user)
         ->postJson('/api/admin/digest-packages/send');
@@ -266,18 +291,34 @@ it('dispatches SendOrganizationDigestJob for each org with pending notifications
     Queue::assertPushed(SendOrganizationDigestJob::class, 2);
 });
 
+it('does not dispatch jobs when only non-ProcessAction notifications are pending', function (): void {
+    Queue::fake();
+
+    OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $this->orgA->id,
+        'notifiable_id' => $this->orgA->id,
+        'notifiable_type' => Process::class,
+        'notification_type' => 'proceso',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'is_email_notified' => false,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/admin/digest-packages/send');
+
+    $response->assertStatus(200);
+    expect($response->json('organizations_queued'))->toBe(0);
+    Queue::assertNothingPushed();
+});
+
 it('does not dispatch jobs for already notified organizations', function (): void {
     Queue::fake();
 
-    $process = Process::factory()->create();
-    $process->organizations()->attach($this->orgA->id, [
-        'interest_date' => now()->toDateString(),
-        'is_active' => true,
-        'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
-    ]);
+    $process = attachActiveProcess($this->orgA);
     $action = ProcessAction::factory()->create(['process_id' => $process->id]);
 
-    // Already notified
     OrganizationNotification::query()->create([
         'id' => (string) Str::uuid(),
         'organization_id' => $this->orgA->id,

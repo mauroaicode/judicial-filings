@@ -7,31 +7,48 @@ namespace Src\Application\Admin\DigestPackage\Services;
 use Illuminate\Support\Collection;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackageOrganizationResource;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackagePreviewResource;
+use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\Notification\QueryBuilders\OrganizationNotificationQueryBuilder;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\ProcessAction;
 
 /**
  * Builds a read-only preview of the pending digest package.
- * No notifications are sent or marked; this is purely informational.
+ *
+ * Aligns with {@see \Src\Application\Shared\Services\Notification\NotificationDigestService}:
+ * only ProcessAction notifications that pass the registration cutoff are counted.
+ * Other notifiable types (Process, Task, ProcessImportBatch, …) are excluded.
  */
 class PreviewDigestPackageService
 {
+    public function __construct(
+        private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+    ) {}
+
     public function handle(): DigestPackagePreviewResource
     {
-        $organizations = $this->resolveOrganizationsWithPendingNotifications();
+        $organizations = $this->resolveOrganizationsWithPendingActuacionNotifications();
 
-        $orgResources = $organizations->map(
-            fn (Organization $org): DigestPackageOrganizationResource => $this->buildOrganizationResource($org)
-        )->values()->all();
+        $orgResources = $organizations
+            ->map(fn (Organization $org): DigestPackageOrganizationResource => $this->buildOrganizationResource($org))
+            ->filter(static fn (DigestPackageOrganizationResource $resource): bool => $resource->pending_processes > 0)
+            ->values()
+            ->all();
 
-        $totalPending = array_sum(array_column(
-            array_map(static fn (DigestPackageOrganizationResource $r): array => $r->toArray(), $orgResources),
-            'pending_actions'
+        $totalProcesses = array_sum(array_map(
+            static fn (DigestPackageOrganizationResource $r): int => $r->pending_processes,
+            $orgResources,
+        ));
+        $totalActions = array_sum(array_map(
+            static fn (DigestPackageOrganizationResource $r): int => $r->pending_actions,
+            $orgResources,
         ));
 
         return new DigestPackagePreviewResource(
-            organizations_count: count($orgResources),
-            total_pending_actions: $totalPending,
+            consolidates_ready: count($orgResources),
+            total_pending_processes: $totalProcesses,
+            total_pending_actions: $totalActions,
             auto_digest_enabled: (bool) config('judicial-sync.auto_digest_after_sync', true),
             organizations: $orgResources,
         );
@@ -40,10 +57,17 @@ class PreviewDigestPackageService
     /**
      * @return Collection<int, Organization>
      */
-    private function resolveOrganizationsWithPendingNotifications(): Collection
+    private function resolveOrganizationsWithPendingActuacionNotifications(): Collection
     {
+        $morphClass = (new ProcessAction)->getMorphClass();
+
         return Organization::query()
-            ->whereHas('notifications', fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q->where('is_email_notified', false))
+            ->whereHas(
+                'notifications',
+                fn ($q) => $q
+                    ->where('is_email_notified', false)
+                    ->where('notifiable_type', $morphClass)
+            )
             ->with(['notificationChannels' => fn ($q) => $q->where('is_active', true)->orderBy('priority')])
             ->orderBy('name')
             ->get();
@@ -51,23 +75,48 @@ class PreviewDigestPackageService
 
     private function buildOrganizationResource(Organization $org): DigestPackageOrganizationResource
     {
-        $pendingCount = $this->countPendingNotifications($org->id);
-        $channels = $this->groupActiveChannels($org);
+        $counts = $this->countEligiblePending($org->id);
 
         return new DigestPackageOrganizationResource(
             organization_id: $org->id,
             organization_name: $org->name,
-            pending_actions: $pendingCount,
-            channels: $channels,
+            pending_processes: $counts['processes'],
+            pending_actions: $counts['actions'],
+            channels: $this->groupActiveChannels($org),
         );
     }
 
-    private function countPendingNotifications(string $organizationId): int
+    /**
+     * @return array{processes: int, actions: int}
+     */
+    private function countEligiblePending(string $organizationId): array
     {
-        return (int) OrganizationNotification::query()
+        $query = $this->eligiblePendingQuery($organizationId);
+
+        $actions = (clone $query)->count();
+
+        $processes = (int) (clone $query)
+            ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
+            ->distinct()
+            ->count('process_actions.process_id');
+
+        return [
+            'processes' => $processes,
+            'actions' => $actions,
+        ];
+    }
+
+    private function eligiblePendingQuery(string $organizationId): OrganizationNotificationQueryBuilder
+    {
+        /** @var OrganizationNotificationQueryBuilder $query */
+        $query = OrganizationNotification::query()
             ->where('organization_id', $organizationId)
             ->where('is_email_notified', false)
-            ->count();
+            ->forActiveOrganizationProcesses($organizationId);
+
+        $this->registrationCutoffService->applyDigestPendingCutoff($query, $organizationId);
+
+        return $query;
     }
 
     /**
