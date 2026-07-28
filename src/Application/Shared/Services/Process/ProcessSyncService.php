@@ -53,6 +53,7 @@ class ProcessSyncService
         private readonly NotificationDigestService $notificationDigestService,
         private readonly ProcessTimelineRecorder $timelineRecorder,
         private readonly RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
+        private readonly StaleReplicationDetector $staleReplicationDetector,
     ) {}
 
     public function handle(Process $process, bool $notify = true): void
@@ -211,6 +212,37 @@ class ProcessSyncService
             ]);
 
         $this->notificationDigestService->sendDigest($organization, $limitToProcessNumbers);
+    }
+
+    /**
+     * Tras registrar/adjuntar un radicado SAMAI: encola notificaciones de
+     * actuaciones recientes para el consolidado de la organización registrante.
+     */
+    public function finalizeSamaiRegistration(
+        string $processNumber,
+        string $organizationId,
+        bool $dispatchDigest = true,
+    ): void {
+        $processes = Process::query()
+            ->where('process_number', $processNumber)
+            ->where('is_manual_sync', false)
+            ->whereHas(
+                'processDataSource',
+                fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::Samai->value)
+            )
+            ->whereHas(
+                'organizations',
+                fn (Builder $q) => $q->where('organizations.id', $organizationId)
+            )
+            ->get();
+
+        foreach ($processes as $process) {
+            $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
+        }
+
+        if ($dispatchDigest) {
+            $this->dispatchRegistrationDigestIfPending($organizationId, [$processNumber]);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -885,6 +917,11 @@ class ProcessSyncService
 
         $this->judicialService->withSeed($processNumber);
 
+        $candidate = $processes->first(fn (Process $process): bool => (int) ($process->process_id ?? 0) > 0);
+        if ($candidate instanceof Process) {
+            $this->staleReplicationDetector->evaluateRadicado($processNumber, $candidate);
+        }
+
         $lock = Cache::lock('judicial-sync:radicado:'.$processNumber, 300);
 
         $lock->block(120, function () use ($processNumber, $processes, $notify, $skipInactiveThreshold, $channel): void {
@@ -1215,10 +1252,14 @@ class ProcessSyncService
 
         $data = $detail->data;
 
+        $processNumber = (string) ($data['llaveProceso'] ?? $apiProceso['llaveProceso'] ?? '');
+        $court = (string) ($data['despacho'] ?? $apiProceso['despacho'] ?? 'N/A');
+        $this->staleReplicationDetector->evaluateDetailPayload($processNumber, $data, $court);
+
         return Process::query()->create([
             'process_id' => $apiProcessId,
-            'process_number' => (string) ($data['llaveProceso'] ?? $apiProceso['llaveProceso'] ?? ''),
-            'court' => (string) ($data['despacho'] ?? $apiProceso['despacho'] ?? 'N/A'),
+            'process_number' => $processNumber,
+            'court' => $court,
             'speaker' => (string) ($data['ponente'] ?? $apiProceso['ponente'] ?? null),
             'department' => (string) ($data['departamento'] ?? $apiProceso['departamento'] ?? 'N/A'),
             'process_type' => (string) ($data['tipoProceso'] ?? 'N/A'),

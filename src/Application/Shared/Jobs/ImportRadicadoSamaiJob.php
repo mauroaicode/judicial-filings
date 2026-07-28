@@ -79,6 +79,7 @@ class ImportRadicadoSamaiJob implements ShouldQueue
                 $this->organizationId,
                 null,
                 $seed,
+                deferRegistrationDigest: true,
             );
 
             $this->incrementBatchSuccess($result->registeredCount);

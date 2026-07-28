@@ -85,6 +85,15 @@ it('selects SAMAI processes with incomplete history or truncated annotations', f
         'annotation' => 'El Señor(a):HÉCTOR JAIME GIRALDO DUQUE con vincula...',
     ]);
 
+    $genericCourt = Process::factory()->create([
+        'process_number' => '73001333300720210004100',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7300133',
+        'court' => 'Juzgado Administrativo - Ibague (tolima)',
+        'process_class' => 'NULIDAD',
+        'is_manual_sync' => false,
+    ]);
+
     $complete = Process::factory()->create([
         'process_number' => '76001333301320160009900',
         'process_data_source_id' => $samaiId,
@@ -105,7 +114,7 @@ it('selects SAMAI processes with incomplete history or truncated annotations', f
     $candidates = $service->queryCandidates(onlyIncomplete: true);
 
     expect($candidates->pluck('id')->all())
-        ->toContain($incompleteHistory->id, $truncated->id)
+        ->toContain($incompleteHistory->id, $truncated->id, $genericCourt->id)
         ->not->toContain($complete->id);
 });
 

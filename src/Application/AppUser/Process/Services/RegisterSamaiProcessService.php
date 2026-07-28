@@ -12,6 +12,7 @@ use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
+use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Application\Shared\Traits\MapsSamaiActuacionTrait;
 use Src\Application\Shared\Traits\MapsSamaiSujetoTrait;
@@ -48,6 +49,7 @@ readonly class RegisterSamaiProcessService
 
     public function __construct(
         private SamaiConsultService $samaiService,
+        private ProcessSyncService $processSyncService,
     ) {}
 
     /**
@@ -72,10 +74,24 @@ readonly class RegisterSamaiProcessService
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
 
         if ($existingProcesses->isNotEmpty()) {
-            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId);
+            $result = $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId);
+            $this->processSyncService->finalizeSamaiRegistration(
+                $processNumber,
+                $organizationId,
+                dispatchDigest: ! $deferRegistrationDigest,
+            );
+
+            return $result;
         }
 
-        return $this->registerFromSamaiApi($processNumber, $organizationId, $lawyerRole, $appUserId);
+        $result = $this->registerFromSamaiApi($processNumber, $organizationId, $lawyerRole, $appUserId);
+        $this->processSyncService->finalizeSamaiRegistration(
+            $processNumber,
+            $organizationId,
+            dispatchDigest: ! $deferRegistrationDigest,
+        );
+
+        return $result;
     }
 
     // -------------------------------------------------------------------------

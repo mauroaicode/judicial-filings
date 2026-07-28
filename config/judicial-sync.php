@@ -191,4 +191,22 @@ return [
     |
     */
     'auto_digest_after_sync' => (bool) env('JUDICIAL_SYNC_AUTO_DIGEST', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rama data-replication staleness (fecha de replicación)
+    |--------------------------------------------------------------------------
+    |
+    | During judicial:sync-processes, each radicado's detail endpoint is checked
+    | for ultimaActualizacion (portal: "Fecha de replicación de datos") vs
+    | fechaConsulta. When the lag exceeds stale_after_hours, the radicado is
+    | queued for a Discord alert on CHANNEL_LATE_SYNC after the batch ends.
+    |
+    | Costs one extra detail API call per radicado that reaches actuacion sync.
+    |
+    */
+    'replication_staleness' => [
+        'enabled' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALENESS_ENABLED', true),
+        'stale_after_hours' => (int) env('JUDICIAL_SYNC_REPLICATION_STALE_HOURS', 24),
+    ],
 ];

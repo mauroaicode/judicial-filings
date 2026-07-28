@@ -15,6 +15,9 @@ readonly class DiscordNotificationChannelService
     /** Webhook key for daily judicial sync reports (#log-sync-daily). */
     public const CHANNEL_LOG_SYNC_DAILY = 'log_sync_daily';
 
+    /** Webhook key for Rama data-replication lag alerts (#sincronizacion-tardia). */
+    public const CHANNEL_LATE_SYNC = 'late_sync';
+
     /**
      * @param  array<int, array<string, mixed>>  $embeds  Discord embed payloads (see Spatie docs).
      */

@@ -127,6 +127,14 @@ class BackfillIncompleteSamaiProcessesService
                     ->orWhere('court', '')
                     ->orWhereNull('process_class')
                     ->orWhere('process_class', '')
+                    // Despacho genérico sin número (ej. "Juzgado Administrativo - Ibague").
+                    ->orWhere(function (Builder $courtQ): void {
+                        $courtQ->where(function (Builder $pattern): void {
+                            $pattern->where('court', 'like', 'Juzgado Administrativo -%')
+                                ->orWhere('court', 'like', 'Juzgado Administrativo de %')
+                                ->orWhere('court', 'like', 'Tribunal Administrativo -%');
+                        })->where('court', 'not regexp', '[0-9]{2,3}');
+                    })
                     ->orWhereHas(
                         'actions',
                         fn (Builder $actions): Builder => $actions->where('annotation', 'like', '%...')

@@ -8,6 +8,8 @@ return [
         'default' => env('DISCORD_ALERT_WEBHOOK'),
         /** #log-sync-daily — judicial sync command (`judicial:sync-processes`) completion reports. */
         'log_sync_daily' => env('DISCORD_ALERT_WEBHOOK_LOG_SYNC_DAILY'),
+        /** #sincronizacion-tardia — Rama data-replication lag (fecha de replicación vs consulta). */
+        'late_sync' => env('DISCORD_ALERT_WEBHOOK_LATE_SYNC'),
     ],
 
     /*

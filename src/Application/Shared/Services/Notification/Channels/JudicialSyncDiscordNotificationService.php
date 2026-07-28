@@ -14,8 +14,11 @@ use Src\Domain\JudicialSync\Models\JudicialSyncRun;
  */
 readonly class JudicialSyncDiscordNotificationService
 {
+    private const LATE_SYNC_RADICADOS_PREVIEW = 25;
+
     public function __construct(
         private DiscordNotificationChannelService $discordChannel,
+        private StaleReplicationAlertCollector $staleReplicationCollector,
     ) {}
 
     public function notifyNoProcesses(JudicialSyncRun $run): void
@@ -106,6 +109,68 @@ readonly class JudicialSyncDiscordNotificationService
         $this->discordChannel->send(
             DiscordNotificationChannelService::CHANNEL_LOG_SYNC_DAILY,
             '**'.$this->syncTitle($run).'** — '.$title,
+            [$embed]
+        );
+
+        $this->notifyStaleReplicationIfNeeded($run);
+    }
+
+    /**
+     * Alerts #sincronizacion-tardia when Rama detail reports replication older than the threshold.
+     * Only applies to Rama Judicial batches (SAMAI has no equivalent field).
+     */
+    public function notifyStaleReplicationIfNeeded(JudicialSyncRun $run): void
+    {
+        if ($this->resolveDataSource($run) !== JudicialSyncDataSource::JudicialBranch) {
+            return;
+        }
+
+        if (! $this->discordChannel->canSend(DiscordNotificationChannelService::CHANNEL_LATE_SYNC)) {
+            $this->staleReplicationCollector->pullAll();
+
+            return;
+        }
+
+        $items = $this->staleReplicationCollector->pullAll();
+        if ($items === []) {
+            return;
+        }
+
+        $thresholdHours = max(1, (int) config('judicial-sync.replication_staleness.stale_after_hours', 24));
+        $preview = array_slice($items, 0, self::LATE_SYNC_RADICADOS_PREVIEW);
+        $remaining = count($items) - count($preview);
+
+        $lines = [];
+        foreach ($preview as $item) {
+            $court = $item['court'] !== null ? ' · '.$item['court'] : '';
+            $lines[] = '`'.$item['process_number'].'` · atraso **'.$item['lag_hours'].'h**'
+                ."\n└ consulta ".$item['consulted_at'].' · replicación '.$item['replicated_at'].$court;
+        }
+
+        if ($remaining > 0) {
+            $lines[] = '_… y **'.$remaining.'** radicado(s) más (ver logs `StaleReplicationDetector`)._';
+        }
+
+        $embed = [
+            'title' => 'Replicación de datos atrasada en Rama',
+            'description' => 'La API de detalle reportó `ultimaActualizacion` (fecha de replicación) '
+                .'con más de **'.$thresholdHours.'h** de diferencia frente a `fechaConsulta`.'
+                ."\n\nRevisar manualmente estos radicados para no perder actuaciones/notificaciones.",
+            'color' => '#E67E22',
+            'fields' => [
+                $this->field('Radicados afectados', (string) count($items), true),
+                $this->field('Umbral', $thresholdHours.' h', true),
+                $this->field('Ciclo sync', '`'.$run->id.'`', true),
+                $this->field('Detalle', implode("\n\n", $lines), false),
+            ],
+            'footer' => [
+                'text' => 'Canal sincronización tardía · run '.$run->id,
+            ],
+        ];
+
+        $this->discordChannel->send(
+            DiscordNotificationChannelService::CHANNEL_LATE_SYNC,
+            '**Sincronización tardía** — '.count($items).' radicado(s) con replicación atrasada en Rama.',
             [$embed]
         );
     }
