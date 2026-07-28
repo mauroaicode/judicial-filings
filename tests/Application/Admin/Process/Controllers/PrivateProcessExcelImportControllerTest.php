@@ -160,7 +160,7 @@ it('imports private excel synchronously for organization', function (): void {
 
     $actions = ProcessAction::query()->orderBy('cons_action')->get();
     expect($actions)->toHaveCount(2)
-        ->and($actions[0]->annotation)->toBe('Anotación de prueba fila 1')
+        ->and($actions[0]->annotation)->toBe('Anotacion de Prueba Fila 1')
         ->and($actions[1]->annotation)->toBeNull();
 });
 
@@ -333,6 +333,68 @@ it('defaults private import data source to publicaciones_procesales when omitted
     $process = Process::query()->first();
     expect($process)->not->toBeNull()
         ->and($process->process_data_source_id)->toBe($sourceUuid);
+});
+
+it('imports private process without actuación or dates', function (): void {
+    Queue::fake();
+
+    $sourceUuid = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::PublicacionesProcesales);
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    foreach (
+        ['Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado', 'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro'] as $i => $title
+    ) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $sheet->setCellValue('A2', 'JUZGADO 001 PROMISCUO MUNICIPAL DE DAGUA');
+    $sheet->setCellValue('B2', '76233408900120230011400');
+    $sheet->setCellValue('C2', 'VERBAL PERTENENCIA (LEY 1561 DE 2012)');
+    $sheet->setCellValue('D2', 'CARMEN ELENA MEDINA MUÑOZ');
+    $sheet->setCellValue('E2', 'HEREDEROS DETERMINADOS E INDETERMINADOS');
+    $sheet->setCellValue('F2', '');
+    $sheet->setCellValue('G2', '');
+    $sheet->setCellValue('H2', '');
+    $sheet->setCellValue('I2', '');
+    $sheet->setCellValue('J2', '');
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-no-act').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $uploadedFile = new UploadedFile(
+        $this->privateImportSpreadsheetTmp,
+        'sin-actuacion.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        null,
+        true
+    );
+
+    $response = $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => $uploadedFile,
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ]);
+
+    $response->assertStatus(200);
+    expect($response->json('processes_created'))->toBe(1)
+        ->and($response->json('actions_imported'))->toBe(0);
+
+    $process = Process::query()->first();
+    expect($process)->not->toBeNull()
+        ->and($process->process_data_source_id)->toBe($sourceUuid)
+        ->and($process->process_number)->toBe('76233408900120230011400')
+        ->and($process->court)->toBe('Juzgado 001 Promiscuo Municipal de Dagua')
+        ->and($process->process_class)->toBe('Verbal Pertenencia (ley 1561 de 2012)')
+        ->and(ProcessAction::query()->count())->toBe(0);
+
+    $process->load('subjects');
+    expect($process->subjects)->not->toBeEmpty();
+
+    $plaintiff = $process->subjects->firstWhere('subject_type', 'Demandante');
+    expect($plaintiff)->not->toBeNull()
+        ->and($plaintiff->name_or_business_name)->toBe('Carmen Elena Medina Muñoz');
 });
 
 it('rejects judicial_branch as data_source_slug', function (): void {

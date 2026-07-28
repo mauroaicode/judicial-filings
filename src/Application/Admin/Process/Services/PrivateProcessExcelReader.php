@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Facades\Excel as ExcelFacade;
 use PhpOffice\PhpSpreadsheet\Shared\Date as SpreadsheetExcelDate;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
+use Src\Application\Shared\Helpers\StrParseHelper;
 
 class PrivateProcessExcelReader implements ToCollection
 {
@@ -78,7 +79,8 @@ class PrivateProcessExcelReader implements ToCollection
     /** @param  array<string, int>  $map */
     private function missingRequiredColumns(array $map): array
     {
-        $required = ['court', 'radicacion', 'clase_proceso', 'actuacion'];
+        // Actuación y fechas son opcionales: procesos "a estudio" aún sin historial.
+        $required = ['court', 'radicacion', 'clase_proceso'];
         $missing = [];
         foreach ($required as $key) {
             if (! isset($map[$key])) {
@@ -99,17 +101,19 @@ class PrivateProcessExcelReader implements ToCollection
 
         $radi = $this->normalizeProcessNumber((string) $this->cell($row, $map['radicacion'] ?? -1));
 
-        $courtRaw = trim((string) $this->cell($row, $map['court'] ?? -1));
+        $courtRaw = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['court'] ?? -1));
 
-        $class = trim((string) $this->cell($row, $map['clase_proceso'] ?? -1));
-        $plaintiffs = trim((string) $this->cell($row, $map['demandante'] ?? -1));
-        $defendants = trim((string) $this->cell($row, $map['demandado'] ?? -1));
+        $class = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['clase_proceso'] ?? -1));
+        $plaintiffs = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['demandante'] ?? -1));
+        $defendants = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['demandado'] ?? -1));
 
-        $act = trim((string) $this->cell($row, $map['actuacion'] ?? -1));
+        $act = isset($map['actuacion'])
+            ? StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['actuacion']))
+            : '';
 
         $annotation = null;
         if (isset($map['anotacion'])) {
-            $annotationRaw = trim((string) $this->cell($row, $map['anotacion']));
+            $annotationRaw = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['anotacion']));
             $annotation = $annotationRaw === '' ? null : $annotationRaw;
         }
 
@@ -145,22 +149,23 @@ class PrivateProcessExcelReader implements ToCollection
             return;
         }
 
-        if ($act === '') {
-            $this->rowErrors[$excelRow] = __('process.private_process_import_row_empty_actuacion', ['row' => $excelRow]);
+        // Sin actuación: se crea el proceso; no se inventan fechas ni se crea ProcessAction.
+        if ($act !== '') {
+            if ($registrationDate === null || $registrationDate === '') {
+                $registrationDate = $startDate ?? now()->format('Y-m-d');
+            }
 
-            return;
-        }
+            if ($startDate === null || $startDate === '') {
+                $startDate = $registrationDate;
+            }
 
-        if ($registrationDate === null || $registrationDate === '') {
-            $registrationDate = $startDate ?? now()->format('Y-m-d');
-        }
-
-        if ($startDate === null || $startDate === '') {
-            $startDate = $registrationDate;
-        }
-
-        if ($endDate === null || $endDate === '') {
-            $endDate = $startDate;
+            if ($endDate === null || $endDate === '') {
+                $endDate = $startDate;
+            }
+        } else {
+            $startDate = null;
+            $endDate = null;
+            $registrationDate = null;
         }
 
         $this->rows[] = new PrivateProcessExcelImportedRowDTO(

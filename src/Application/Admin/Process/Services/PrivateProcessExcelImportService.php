@@ -156,6 +156,10 @@ class PrivateProcessExcelImportService
                     ->max('cons_action') ?? 0);
 
                 foreach ($rows as $row) {
+                    if (trim($row->actionText) === '') {
+                        continue;
+                    }
+
                     if ($this->actionAlreadyExists($process->id, $row)) {
                         continue;
                     }
@@ -228,7 +232,12 @@ class PrivateProcessExcelImportService
         int $actionsImported,
     ): ProcessImportBatch {
         $excelRows = count($parsed->rows);
-        $skippedActions = max(0, $excelRows - $actionsImported);
+        $rowsWithoutAction = count(array_filter(
+            $parsed->rows,
+            static fn (PrivateProcessExcelImportedRowDTO $row): bool => trim($row->actionText) === '',
+        ));
+        $rowsWithAction = $excelRows - $rowsWithoutAction;
+        $skippedDuplicateActions = max(0, $rowsWithAction - $actionsImported);
 
         return ProcessImportBatch::query()->create([
             'organization_id' => $organizationId,
@@ -238,8 +247,8 @@ class PrivateProcessExcelImportService
             'excel_total_count' => $excelRows,
             'total_count' => count($grouped),
             'enqueued_process_numbers' => $this->orderedUniqueRadicados($parsed->rows),
-            'success_count' => $actionsImported,
-            'failed_count' => $skippedActions,
+            'success_count' => $actionsImported + $rowsWithoutAction,
+            'failed_count' => $skippedDuplicateActions,
             'multiple_instances_count' => $this->multipleCourtInstanceRadicadoCount($grouped),
             'status' => ProcessImportBatch::STATUS_COMPLETED,
             'errors' => [],
@@ -504,18 +513,16 @@ class PrivateProcessExcelImportService
 
         $updates = [];
 
-        $currentPd = $process->process_date->format('Y-m-d');
-        if ($reg < $currentPd) {
-            $updates['process_date'] = $reg;
+        if ($reg !== null && $reg !== '') {
+            $currentPd = $process->process_date->format('Y-m-d');
+            if ($reg < $currentPd) {
+                $updates['process_date'] = $reg;
+            }
         }
 
         $currentLa = $process->last_activity_date?->format('Y-m-d');
         foreach ([$reg, $actDate, $row->endDate] as $candidate) {
-            if ($candidate === null) {
-                continue;
-            }
-
-            if ($candidate === '') {
+            if ($candidate === null || $candidate === '') {
                 continue;
             }
 

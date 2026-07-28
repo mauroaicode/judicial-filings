@@ -7,6 +7,53 @@ namespace Src\Application\Shared\Helpers;
 class StrParseHelper
 {
     /**
+     * Strip Latin diacritics (á→a) but keep ñ/Ñ (not treated as a tilde to drop).
+     */
+    public static function stripAccentsKeepEnie(?string $text): ?string
+    {
+        if ($text === null) {
+            return null;
+        }
+
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        // Protect ñ before ASCII transliteration (Str::ascii turns ñ → n).
+        $protected = str_replace(
+            ['ñ', 'Ñ'],
+            ['__enie_lower__', '__enie_upper__'],
+            $trimmed,
+        );
+        $ascii = \Illuminate\Support\Str::ascii($protected);
+
+        return str_replace(
+            ['__enie_lower__', '__enie_upper__'],
+            ['ñ', 'Ñ'],
+            $ascii,
+        );
+    }
+
+    /**
+     * Normalize imported labels: remove accents (keep ñ) + title case.
+     * Empty input stays empty string (unlike {@see toTitleCase} which returns null).
+     */
+    public static function normalizeImportedLabel(?string $text): string
+    {
+        if ($text === null) {
+            return '';
+        }
+
+        $stripped = self::stripAccentsKeepEnie($text) ?? '';
+        if ($stripped === '') {
+            return '';
+        }
+
+        return self::toTitleCase($stripped) ?? '';
+    }
+
+    /**
      * Convert a string to title case (first letter of each word capitalized).
      * Handles special cases like "DE", "Y", "DEL", etc. that should remain lowercase.
      * Preserves abbreviations like "S.A.", "S.A.S.", "LTDA.", etc.
