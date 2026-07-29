@@ -64,6 +64,7 @@ readonly class RegisterSamaiProcessService
         string $proxySeed = '',
         ?string $appUserId = null,
         bool $deferRegistrationDigest = false,
+        bool $queueRegistrationNotifications = true,
     ): RegisterProcessResult {
         if ($proxySeed !== '') {
             $this->samaiService->withSeed($proxySeed);
@@ -79,6 +80,7 @@ readonly class RegisterSamaiProcessService
                 $processNumber,
                 $organizationId,
                 dispatchDigest: ! $deferRegistrationDigest,
+                queueNotifications: $queueRegistrationNotifications,
             );
 
             return $result;
@@ -89,6 +91,7 @@ readonly class RegisterSamaiProcessService
             $processNumber,
             $organizationId,
             dispatchDigest: ! $deferRegistrationDigest,
+            queueNotifications: $queueRegistrationNotifications,
         );
 
         return $result;

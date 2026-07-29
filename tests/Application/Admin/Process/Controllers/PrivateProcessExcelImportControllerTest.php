@@ -485,3 +485,50 @@ it('splits combined fijacion estado + auto into two actuaciones on private impor
         ->and($actions[0]->registration_date->format('Y-m-d'))->toBe('2026-04-24')
         ->and($actions[1]->registration_date->format('Y-m-d'))->toBe('2026-04-24');
 });
+
+it('does not queue digest notifications when creating processes via private import', function (): void {
+    Queue::fake();
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    foreach (
+        ['Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado', 'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro'] as $i => $title
+    ) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $sheet->setCellValue('A2', 'JUZGADO SIN DIGEST');
+    $sheet->setCellValue('B2', '08001418901234567890999');
+    $sheet->setCellValue('C2', 'Ejecutivo');
+    $sheet->setCellValue('D2', 'A');
+    $sheet->setCellValue('E2', 'B');
+    $sheet->setCellValue('F2', 'AUTO ADMITE DEMANDA');
+    $sheet->setCellValue('G2', '');
+    $sheet->setCellValue('H2', '2026-07-28');
+    $sheet->setCellValue('I2', '2026-07-28');
+    $sheet->setCellValue('J2', '2026-07-27');
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-no-digest').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $uploadedFile = new UploadedFile(
+        $this->privateImportSpreadsheetTmp,
+        'no-digest.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        null,
+        true
+    );
+
+    $before = \Src\Domain\Notification\Models\OrganizationNotification::query()->count();
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => $uploadedFile,
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ])
+        ->assertStatus(200);
+
+    expect(ProcessAction::query()->whereHas('process', fn ($q) => $q->where('process_number', '08001418901234567890999'))->count())->toBe(1)
+        ->and(\Src\Domain\Notification\Models\OrganizationNotification::query()->count())->toBe($before);
+});

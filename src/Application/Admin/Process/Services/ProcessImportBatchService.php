@@ -13,7 +13,6 @@ use Src\Application\Shared\Jobs\FinalizeProcessImportBatchJob;
 use Src\Application\Shared\Jobs\ImportRadicadoJob;
 use Src\Application\Shared\Jobs\ImportRadicadoSamaiJob;
 use Src\Application\Shared\Services\Notification\ImportReportNotificationService;
-use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Throwable;
 
@@ -21,7 +20,6 @@ readonly class ProcessImportBatchService
 {
     public function __construct(
         private ImportReportNotificationService $notificationService,
-        private ProcessSyncService $processSyncService,
     ) {}
 
     /**
@@ -56,8 +54,9 @@ readonly class ProcessImportBatchService
     }
 
     /**
-     * Marks batch as completed, sends import report notifications and builds the
-     * registration consolidado for recent actuaciones (single digest for the whole batch).
+     * Marks batch as completed and sends import report notifications.
+     * Does not build a registration consolidado: process creation imports must not
+     * enqueue digest notifications (use actuaciones-import for that).
      */
     public function finalize(string $importBatchId): void
     {
@@ -70,16 +69,6 @@ readonly class ProcessImportBatchService
         }
 
         if ($importBatch->status === ProcessImportBatch::STATUS_COMPLETED) {
-            try {
-                $this->dispatchImportRegistrationDigest($importBatch);
-            } catch (\Throwable $e) {
-                Log::channel(config('process-import.log_channel', 'process_import'))
-                    ->error('Import batch registration digest failed', [
-                        'batch_id' => $importBatch->id,
-                        'error' => $e->getMessage(),
-                    ]);
-            }
-
             return;
         }
 
@@ -97,30 +86,6 @@ readonly class ProcessImportBatchService
                     'error' => $e->getMessage(),
                 ]);
         }
-
-        try {
-            $this->dispatchImportRegistrationDigest($importBatch);
-        } catch (\Throwable $e) {
-            Log::channel(config('process-import.log_channel', 'process_import'))
-                ->error('Import batch registration digest failed', [
-                    'batch_id' => $importBatch->id,
-                    'error' => $e->getMessage(),
-                ]);
-        }
-    }
-
-    /**
-     * Builds the registration consolidado only for radicados imported in this batch.
-     */
-    private function dispatchImportRegistrationDigest(ProcessImportBatch $importBatch): void
-    {
-        /** @var array<int, string> $processNumbers */
-        $processNumbers = $importBatch->enqueued_process_numbers ?? [];
-
-        $this->processSyncService->dispatchRegistrationDigestIfPending(
-            $importBatch->organization_id,
-            $processNumbers !== [] ? $processNumbers : null,
-        );
     }
 
     /**

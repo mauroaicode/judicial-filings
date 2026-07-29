@@ -80,6 +80,7 @@ class ImportRadicadoSamaiJob implements ShouldQueue
                 null,
                 $seed,
                 deferRegistrationDigest: true,
+                queueRegistrationNotifications: false,
             );
 
             $this->incrementBatchSuccess($result->registeredCount);

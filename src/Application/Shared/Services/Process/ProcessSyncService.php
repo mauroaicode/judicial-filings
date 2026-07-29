@@ -130,11 +130,15 @@ class ProcessSyncService
      *
      * - Saves full history for brand-new instances; first page only for existing ones.
      * - Reuses the same instance-sync loop as the daily cron.
-     * - Queues digest notifications only for the registering organization.
+     * - Optionally queues digest notifications only for the registering organization.
      * - Only notifies actuaciones within the registration alert window (today/tomorrow).
      */
-    public function syncForRegistration(string $processNumber, string $organizationId, bool $dispatchDigest = true): void
-    {
+    public function syncForRegistration(
+        string $processNumber,
+        string $organizationId,
+        bool $dispatchDigest = true,
+        bool $queueNotifications = true,
+    ): void {
         $processes = Process::query()
             ->where('process_number', $processNumber)
             ->where('is_manual_sync', false)
@@ -150,22 +154,24 @@ class ProcessSyncService
 
         $lock = Cache::lock('judicial-sync:radicado:'.$processNumber, 300);
 
-        $lock->block(120, function () use ($processNumber, $processes, $organizationId, $dispatchDigest): void {
+        $lock->block(120, function () use ($processNumber, $processes, $organizationId, $dispatchDigest, $queueNotifications): void {
             $this->syncInstancesForRadicado(
                 processNumber: $processNumber,
                 processes: $processes,
-                notify: true,
+                notify: $queueNotifications,
                 scopedOrganizationId: $organizationId,
                 registrationMode: true,
                 skipInactiveThreshold: true,
             );
 
-            foreach ($processes as $process) {
-                if (! $process->organizations()->where('organizations.id', $organizationId)->exists()) {
-                    continue;
-                }
+            if ($queueNotifications) {
+                foreach ($processes as $process) {
+                    if (! $process->organizations()->where('organizations.id', $organizationId)->exists()) {
+                        continue;
+                    }
 
-                $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
+                    $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
+                }
             }
 
             if ($dispatchDigest) {
@@ -215,13 +221,14 @@ class ProcessSyncService
     }
 
     /**
-     * Tras registrar/adjuntar un radicado SAMAI: encola notificaciones de
+     * Tras registrar/adjuntar un radicado SAMAI: opcionalmente encola notificaciones de
      * actuaciones recientes para el consolidado de la organización registrante.
      */
     public function finalizeSamaiRegistration(
         string $processNumber,
         string $organizationId,
         bool $dispatchDigest = true,
+        bool $queueNotifications = true,
     ): void {
         $processes = Process::query()
             ->where('process_number', $processNumber)
@@ -236,8 +243,10 @@ class ProcessSyncService
             )
             ->get();
 
-        foreach ($processes as $process) {
-            $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
+        if ($queueNotifications) {
+            foreach ($processes as $process) {
+                $this->notifyRecentExistingActionsForOrganization($process, $organizationId);
+            }
         }
 
         if ($dispatchDigest) {

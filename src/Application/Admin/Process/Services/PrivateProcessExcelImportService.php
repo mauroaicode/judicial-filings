@@ -9,7 +9,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
-use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationService;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
@@ -25,7 +24,6 @@ class PrivateProcessExcelImportService
     private int $actionRegistrationSeed;
 
     public function __construct(
-        private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
         private readonly FijacionEstadoActionSplitter $fijacionEstadoActionSplitter,
     ) {
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
@@ -173,8 +171,6 @@ class PrivateProcessExcelImportService
 
                     $registrationDateForAction = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
 
-                    $processReloaded = null;
-
                     foreach ($actionTitles as $actionTitle) {
                         $nextCons++;
                         $registrationId = $this->takeNextNegativeActionRegistrationId();
@@ -192,15 +188,6 @@ class PrivateProcessExcelImportService
                         ]);
 
                         $actionsImported++;
-
-                        $processReloaded ??= Process::query()
-                            ->whereKey($process->id)
-                            ->with('organizations')
-                            ->first();
-
-                        if ($processReloaded instanceof Process) {
-                            $this->processActionAlertNotificationService->handle($action, $processReloaded);
-                        }
                     }
 
                     $this->refreshProcessActivityBoundariesAfterAction($process, $row);

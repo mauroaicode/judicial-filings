@@ -61,6 +61,7 @@ readonly class RegisterProcessService
         ?string $appUserId = null,
         ?array $prefetchedApiProcessesFromPortal = null,
         bool $deferRegistrationDigest = false,
+        bool $queueRegistrationNotifications = true,
     ): RegisterProcessResult {
         if ($proxySeed !== '') {
             $this->judicialBranchConsultService->withSeed($proxySeed);
@@ -71,10 +72,25 @@ readonly class RegisterProcessService
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
 
         if ($existingProcesses->isNotEmpty()) {
-            return $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId, $deferRegistrationDigest);
+            return $this->attachExistingProcesses(
+                $existingProcesses,
+                $organizationId,
+                $lawyerRole,
+                $appUserId,
+                $deferRegistrationDigest,
+                $queueRegistrationNotifications,
+            );
         }
 
-        return $this->registerFromApi($processNumber, $organizationId, $lawyerRole, $appUserId, $prefetchedApiProcessesFromPortal, $deferRegistrationDigest);
+        return $this->registerFromApi(
+            $processNumber,
+            $organizationId,
+            $lawyerRole,
+            $appUserId,
+            $prefetchedApiProcessesFromPortal,
+            $deferRegistrationDigest,
+            $queueRegistrationNotifications,
+        );
     }
 
     /**
@@ -89,8 +105,14 @@ readonly class RegisterProcessService
      *
      * @throws Throwable
      */
-    private function attachExistingProcesses(Collection $processes, string $organizationId, ?ProcessLawyerRole $lawyerRole, ?string $appUserId, bool $deferRegistrationDigest = false): RegisterProcessResult
-    {
+    private function attachExistingProcesses(
+        Collection $processes,
+        string $organizationId,
+        ?ProcessLawyerRole $lawyerRole,
+        ?string $appUserId,
+        bool $deferRegistrationDigest = false,
+        bool $queueRegistrationNotifications = true,
+    ): RegisterProcessResult {
         $processNumber = (string) $processes->first()->process_number;
 
         $migratedToSamai = $this->detectPrivacyFlipAndMigrateToSamai($processNumber, $organizationId);
@@ -138,6 +160,7 @@ readonly class RegisterProcessService
                 $processNumber,
                 $organizationId,
                 dispatchDigest: ! $deferRegistrationDigest,
+                queueNotifications: $queueRegistrationNotifications,
             );
         }
 
@@ -259,6 +282,7 @@ readonly class RegisterProcessService
         ?string $appUserId,
         ?array $prefetchedApiProcessesFromPortal = null,
         bool $deferRegistrationDigest = false,
+        bool $queueRegistrationNotifications = true,
     ): RegisterProcessResult {
         $processesData = $this->validateAndGetProcessesFromPortalJudicial($processNumber, $prefetchedApiProcessesFromPortal);
 
@@ -343,6 +367,7 @@ readonly class RegisterProcessService
             $processNumber,
             $organizationId,
             dispatchDigest: ! $deferRegistrationDigest,
+            queueNotifications: $queueRegistrationNotifications,
         );
 
         foreach ($result->processes as $process) {

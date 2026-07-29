@@ -428,3 +428,51 @@ it('ignores organization_id and data_source_slug if sent by client', function ()
     $response->assertStatus(200);
     expect($response->json('actions_imported'))->toBe(1);
 });
+
+it('queues digest notifications when importing actuaciones for an existing process', function (): void {
+    Queue::fake();
+
+    $process = Process::query()->create([
+        'process_number' => '08001418901234567890888',
+        'court' => 'JUZGADO DIGEST ACT',
+        'process_data_source_id' => $this->ppUuid,
+        'department' => 'Sin departamento',
+        'process_type' => 'Proceso privado',
+        'process_class' => 'Ejecutivo',
+        'is_private' => true,
+        'is_manual_sync' => true,
+        'process_date' => '2026-07-20',
+        'status' => 'activo',
+    ]);
+    $process->organizations()->syncWithoutDetaching([
+        $this->organization->id => [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'status' => OrganizationProcessStatus::ACTIVE->value,
+        ],
+    ]);
+
+    $spreadsheet = buildActuacionesSpreadsheet([
+        ['JUZGADO DIGEST ACT', '08001418901234567890888', 'Ejecutivo', 'A', 'B',
+            'AUTO ORDENA SEGUIR ADELANTE', '', '2026-07-28', '2026-07-28', '2026-07-27'],
+    ]);
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-digest');
+    $this->tmpPaths[] = $path;
+
+    $before = \Src\Domain\Notification\Models\OrganizationNotification::query()
+        ->where('organization_id', $this->organization->id)
+        ->where('is_email_notified', false)
+        ->count();
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/actuaciones-import', ['file' => makeUploadedFile($path)])
+        ->assertStatus(200);
+
+    $after = \Src\Domain\Notification\Models\OrganizationNotification::query()
+        ->where('organization_id', $this->organization->id)
+        ->where('is_email_notified', false)
+        ->where('notifiable_type', (new ProcessAction)->getMorphClass())
+        ->count();
+
+    expect($after)->toBeGreaterThan($before);
+});
