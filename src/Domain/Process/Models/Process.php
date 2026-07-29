@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Src\Application\Shared\Data\ProcessFilterData;
+use Src\Application\Shared\Services\Process\AttachUnassignedProcessActionsService;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\QueryBuilders\ProcessQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
@@ -73,6 +74,13 @@ class Process extends Model
     protected $keyType = 'string';
 
     public $incrementing = false;
+
+    protected static function booted(): void
+    {
+        static::created(function (Process $process): void {
+            app(AttachUnassignedProcessActionsService::class)->handle($process);
+        });
+    }
 
     /**
      * The attributes that are mass assignable.

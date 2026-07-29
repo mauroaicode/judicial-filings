@@ -117,16 +117,16 @@ it('rejects non-excel file', function (): void {
         ->assertJsonValidationErrors(['file']);
 });
 
-// ─── Process not found in DB ─────────────────────────────────────────────────
+// ─── Radicado without Process → store in unassigned repository ───────────────
 
-it('reports not_found_process_numbers when radicado does not exist in db', function (): void {
+it('stores actuaciones in unassigned repository when radicado does not exist in db', function (): void {
     Queue::fake();
 
     $spreadsheet = buildActuacionesSpreadsheet([
         ['JUZGADO INEXISTENTE', '99999999900000000000001', 'Ejecutivo', 'A', 'B',
             'AUTO', '', '2026-04-30', '2026-04-30', '2026-04-24'],
     ]);
-    $path = saveSpreadsheetToTmp($spreadsheet, 'act-notfound');
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-unassigned');
     $this->tmpPaths[] = $path;
 
     $response = $this->actingAs($this->user)
@@ -135,15 +135,20 @@ it('reports not_found_process_numbers when radicado does not exist in db', funct
         ]);
 
     $response->assertStatus(200);
-    expect($response->json('not_found_count'))->toBe(1)
-        ->and($response->json('not_found_process_numbers'))->toBe(['99999999900000000000001'])
+    expect($response->json('unassigned_count'))->toBe(1)
+        ->and($response->json('unassigned_process_numbers'))->toBe(['99999999900000000000001'])
+        ->and($response->json('actions_stored_unassigned'))->toBe(1)
         ->and($response->json('actions_imported'))->toBe(0)
         ->and($response->json('processes_updated'))->toBe(0);
 
     expect(Process::query()->where('process_number', '99999999900000000000001')->exists())->toBeFalse();
+    expect(\Src\Domain\Process\Models\UnassignedProcessAction::query()
+        ->whereProcessNumber('99999999900000000000001')
+        ->whereUnassigned()
+        ->count())->toBe(1);
 });
 
-it('does not create a process when radicado is not found', function (): void {
+it('does not create a process when radicado is only stored as unassigned', function (): void {
     Queue::fake();
 
     $spreadsheet = buildActuacionesSpreadsheet([
@@ -160,6 +165,49 @@ it('does not create a process when radicado is not found', function (): void {
         ->assertStatus(200);
 
     expect(Process::query()->count())->toBe($before);
+});
+
+it('attaches historical unassigned actuaciones when the process is created later', function (): void {
+    Queue::fake();
+
+    $spreadsheet = buildActuacionesSpreadsheet([
+        ['JUZGADO RETRO', '88888888800000000000001', 'Ejecutivo', 'DEMANDANTE', 'DEMANDADO',
+            'AUTO HISTORICO JULIO', 'Anota', '2026-07-10', '2026-07-10', '2026-07-09'],
+        ['JUZGADO RETRO', '88888888800000000000001', 'Ejecutivo', 'DEMANDANTE', 'DEMANDADO',
+            'AUTO HISTORICO AGOSTO', '', '2026-08-15', '2026-08-15', '2026-08-14'],
+    ]);
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-retro');
+    $this->tmpPaths[] = $path;
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/actuaciones-import', ['file' => makeUploadedFile($path)])
+        ->assertStatus(200)
+        ->assertJsonPath('actions_stored_unassigned', 2);
+
+    $process = Process::query()->create([
+        'process_number' => '88888888800000000000001',
+        'court' => 'JUZGADO RETRO',
+        'process_data_source_id' => $this->ppUuid,
+        'department' => 'Sin departamento',
+        'process_type' => 'Proceso privado',
+        'process_class' => 'Ejecutivo',
+        'is_private' => true,
+        'is_manual_sync' => true,
+        'process_date' => '2026-11-01',
+        'status' => 'activo',
+    ]);
+
+    expect(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(2)
+        ->and(\Src\Domain\Process\Models\UnassignedProcessAction::query()
+            ->whereProcessNumber('88888888800000000000001')
+            ->whereUnassigned()
+            ->count())->toBe(0);
+
+    $actionIds = ProcessAction::query()->where('process_id', $process->id)->pluck('id');
+    expect(\Src\Domain\Notification\Models\OrganizationNotification::query()
+        ->where('notifiable_type', (new ProcessAction)->getMorphClass())
+        ->whereIn('notifiable_id', $actionIds)
+        ->count())->toBe(0);
 });
 
 // ─── Adds actuaciones to existing process ─────────────────────────────────────
@@ -204,8 +252,8 @@ it('adds actuaciones to an existing process found by radicado', function (): voi
     $response->assertStatus(200);
     expect($response->json('processes_updated'))->toBe(1)
         ->and($response->json('actions_imported'))->toBe(2)
-        ->and($response->json('not_found_count'))->toBe(0)
-        ->and($response->json('not_found_process_numbers'))->toBe([]);
+        ->and($response->json('unassigned_count'))->toBe(0)
+        ->and($response->json('unassigned_process_numbers'))->toBe([]);
 
     expect(Process::query()->where('process_number', '76233408900120240006800')->count())->toBe(1);
     expect(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(2);
@@ -251,7 +299,7 @@ it('finds an existing process regardless of organization or data source', functi
     $response->assertStatus(200);
     expect($response->json('processes_updated'))->toBe(1)
         ->and($response->json('actions_imported'))->toBe(1)
-        ->and($response->json('not_found_count'))->toBe(0);
+        ->and($response->json('unassigned_count'))->toBe(0);
 });
 
 // ─── Deduplication ───────────────────────────────────────────────────────────
@@ -305,7 +353,7 @@ it('skips actuaciones that already exist (deduplication)', function (): void {
 
 // ─── Mixed: some found, some not ─────────────────────────────────────────────
 
-it('imports actuaciones for existing and reports not_found for missing', function (): void {
+it('imports actuaciones for existing and stores unassigned for missing', function (): void {
     Queue::fake();
 
     $existingProcess = Process::query()->create([
@@ -347,11 +395,15 @@ it('imports actuaciones for existing and reports not_found for missing', functio
     $response->assertStatus(200);
     expect($response->json('processes_updated'))->toBe(1)
         ->and($response->json('actions_imported'))->toBe(1)
-        ->and($response->json('not_found_count'))->toBe(1)
-        ->and($response->json('not_found_process_numbers'))->toBe(['76109400300320180004300']);
+        ->and($response->json('unassigned_count'))->toBe(1)
+        ->and($response->json('unassigned_process_numbers'))->toBe(['76109400300320180004300'])
+        ->and($response->json('actions_stored_unassigned'))->toBe(1);
 
-    // Missing process must NOT be created
+    // Missing process must NOT be created, but actuaciones are kept in repository
     expect(Process::query()->where('process_number', '76109400300320180004300')->exists())->toBeFalse();
+    expect(\Src\Domain\Process\Models\UnassignedProcessAction::query()
+        ->whereProcessNumber('76109400300320180004300')
+        ->count())->toBe(1);
 });
 
 // ─── Batch tracking ───────────────────────────────────────────────────────────

@@ -20,12 +20,9 @@ use Throwable;
 /**
  * Imports actuaciones (movements) from the standard private-process Excel template.
  *
- * Primary intent: add new actuaciones to already-registered processes, resolved
- * exclusively by radicado (process_number) across all organizations and data sources.
- *
- * Radicados not found in the database are returned in
- * {@see ProcessActuacionesImportResource::$not_found_process_numbers} so the admin
- * can create those processes first with the "Importar Procesos" flow.
+ * - If a Process already exists for the radicado → attach actuaciones (may feed digest).
+ * - If not → persist them in {@see UnassignedProcessAction} for later retroactive attach
+ *   when the Process is created (no data loss for Publicaciones Procesales / small courts).
  *
  * Deduplication: an actuacion is skipped if a row already exists for that
  * process with the same registration_date + action text + annotation.
@@ -37,6 +34,7 @@ class ProcessActuacionesExcelImportService
     public function __construct(
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
         private readonly FijacionEstadoActionSplitter $fijacionEstadoActionSplitter,
+        private readonly PersistUnassignedProcessActionsService $persistUnassignedProcessActionsService,
     ) {
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
         $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
@@ -84,15 +82,18 @@ class ProcessActuacionesExcelImportService
 
         $actionsImported = 0;
         $actionsSkipped = 0;
+        $actionsStoredUnassigned = 0;
         $processesUpdated = 0;
-        $notFoundProcessNumbers = [];
+        $unassignedProcessNumbers = [];
 
         DB::transaction(function () use (
             $grouped,
+            $requestedByUserId,
             &$actionsImported,
             &$actionsSkipped,
+            &$actionsStoredUnassigned,
             &$processesUpdated,
-            &$notFoundProcessNumbers,
+            &$unassignedProcessNumbers,
         ): void {
             foreach ($grouped as $rows) {
                 /** @var list<PrivateProcessExcelImportedRowDTO> $rows */
@@ -100,9 +101,18 @@ class ProcessActuacionesExcelImportService
 
                 $process = $this->findExistingProcess($first->processNumber);
 
-                if (! $process instanceof \Src\Domain\Process\Models\Process) {
-                    if (! in_array($first->processNumber, $notFoundProcessNumbers, true)) {
-                        $notFoundProcessNumbers[] = $first->processNumber;
+                if (! $process instanceof Process) {
+                    $stored = $this->persistUnassignedProcessActionsService->handle(
+                        $rows,
+                        null,
+                        $requestedByUserId,
+                    );
+                    $actionsStoredUnassigned += $stored['stored'];
+                    $actionsSkipped += $stored['skipped'];
+                    foreach ($stored['process_numbers'] as $processNumber) {
+                        if (! in_array($processNumber, $unassignedProcessNumbers, true)) {
+                            $unassignedProcessNumbers[] = $processNumber;
+                        }
                     }
 
                     continue;
@@ -124,7 +134,7 @@ class ProcessActuacionesExcelImportService
             $fileName,
             $parsed,
             $grouped,
-            $actionsImported,
+            $actionsImported + $actionsStoredUnassigned,
         );
 
         return [
@@ -132,9 +142,10 @@ class ProcessActuacionesExcelImportService
             'body' => (new ProcessActuacionesImportResource(
                 actions_imported: $actionsImported,
                 actions_skipped: $actionsSkipped,
+                actions_stored_unassigned: $actionsStoredUnassigned,
                 processes_updated: $processesUpdated,
-                not_found_count: count($notFoundProcessNumbers),
-                not_found_process_numbers: $notFoundProcessNumbers,
+                unassigned_count: count($unassignedProcessNumbers),
+                unassigned_process_numbers: $unassignedProcessNumbers,
                 import_batch_id: $batch->id,
             ))->toArray(),
         ];
