@@ -106,7 +106,9 @@ class GroupProcessActionsService
         return str_contains($text, 'fijacion') ||
                str_contains($text, 'fijación') ||
                str_contains($text, 'notificacion') ||
-               str_contains($text, 'notificación');
+               str_contains($text, 'notificación') ||
+               str_contains($text, 'publicacion estado') ||
+               str_contains($text, 'publicación estado');
     }
 
     private function isActionPair(array $action1, array $action2): bool

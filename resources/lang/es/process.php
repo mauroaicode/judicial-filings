@@ -5,7 +5,7 @@ return [
     'not_found' => 'Proceso no encontrado.',
     'not_found_in_judicial_branch' => 'El número de radicado no está disponible para consulta en línea.',
     'not_found_in_samai' => 'El número de radicado no fue encontrado en el sistema SAMAI del Consejo de Estado.',
-    'not_found_in_any_source' => 'El número de radicado no fue encontrado en Rama Judicial ni en SAMAI.',
+    'not_found_in_any_source' => 'El número de radicado que desea agregar no se encuentra habilitado. Por favor contacte a su asesor.',
     'registered_successfully' => 'Proceso registrado exitosamente.',
     'user_has_no_organization' => 'El usuario no pertenece a ninguna organización.',
     'is_private' => 'El número de radicado corresponde a un proceso privado y no es posible registrarlo.',

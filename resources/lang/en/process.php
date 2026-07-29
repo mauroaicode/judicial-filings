@@ -5,7 +5,7 @@ return [
     'not_found' => 'Process not found.',
     'not_found_in_samai' => 'The case number was not found in the SAMAI system of the Consejo de Estado.',
     'not_found_in_judicial_branch' => 'The case number is not available for online viewing.',
-    'not_found_in_any_source' => 'The case number was not found in Judicial Branch or SAMAI.',
+    'not_found_in_any_source' => 'The filing number you want to add is not enabled. Please contact your advisor.',
     'registered_successfully' => 'Process registered successfully.',
     'user_has_no_organization' => 'The user does not belong to any organization.',
     'is_private' => 'The filing number corresponds to a private process and cannot be registered.',

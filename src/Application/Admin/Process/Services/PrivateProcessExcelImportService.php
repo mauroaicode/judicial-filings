@@ -17,6 +17,7 @@ use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessImportBatch;
 use Src\Domain\Process\Models\ProcessSubject;
+use Src\Domain\Process\Services\FijacionEstadoActionSplitter;
 use Throwable;
 
 class PrivateProcessExcelImportService
@@ -25,6 +26,7 @@ class PrivateProcessExcelImportService
 
     public function __construct(
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
+        private readonly FijacionEstadoActionSplitter $fijacionEstadoActionSplitter,
     ) {
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
         $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
@@ -164,35 +166,44 @@ class PrivateProcessExcelImportService
                         continue;
                     }
 
-                    $nextCons++;
-                    $registrationId = $this->takeNextNegativeActionRegistrationId();
+                    $actionTitles = $this->fijacionEstadoActionSplitter->split($row->actionText);
+                    if ($actionTitles === []) {
+                        continue;
+                    }
 
                     $registrationDateForAction = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
 
-                    $action = ProcessAction::query()->create([
-                        'process_id' => $process->id,
-                        'action_registration_id' => $registrationId,
-                        'cons_action' => max(1, $nextCons),
-                        'action_date' => $registrationDateForAction,
-                        'action' => $row->actionText,
-                        'annotation' => $row->annotation,
-                        'start_date' => $row->startDate,
-                        'end_date' => $row->endDate,
-                        'registration_date' => $registrationDateForAction,
-                    ]);
+                    $processReloaded = null;
+
+                    foreach ($actionTitles as $actionTitle) {
+                        $nextCons++;
+                        $registrationId = $this->takeNextNegativeActionRegistrationId();
+
+                        $action = ProcessAction::query()->create([
+                            'process_id' => $process->id,
+                            'action_registration_id' => $registrationId,
+                            'cons_action' => max(1, $nextCons),
+                            'action_date' => $registrationDateForAction,
+                            'action' => $actionTitle,
+                            'annotation' => $row->annotation,
+                            'start_date' => $row->startDate,
+                            'end_date' => $row->endDate,
+                            'registration_date' => $registrationDateForAction,
+                        ]);
+
+                        $actionsImported++;
+
+                        $processReloaded ??= Process::query()
+                            ->whereKey($process->id)
+                            ->with('organizations')
+                            ->first();
+
+                        if ($processReloaded instanceof Process) {
+                            $this->processActionAlertNotificationService->handle($action, $processReloaded);
+                        }
+                    }
 
                     $this->refreshProcessActivityBoundariesAfterAction($process, $row);
-
-                    $actionsImported++;
-
-                    $processReloaded = Process::query()
-                        ->whereKey($process->id)
-                        ->with('organizations')
-                        ->first();
-
-                    if ($processReloaded instanceof Process) {
-                        $this->processActionAlertNotificationService->handle($action, $processReloaded);
-                    }
                 }
 
                 $process->refresh();
@@ -541,15 +552,39 @@ class PrivateProcessExcelImportService
     {
         $registrationDateForAction = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
 
+        if ($this->actionExistsWithText($processId, $registrationDateForAction, $row->actionText, $row->annotation)) {
+            return true;
+        }
+
+        $parts = $this->fijacionEstadoActionSplitter->split($row->actionText);
+        if (count($parts) < 2) {
+            return false;
+        }
+
+        foreach ($parts as $part) {
+            if (! $this->actionExistsWithText($processId, $registrationDateForAction, $part, $row->annotation)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function actionExistsWithText(
+        string $processId,
+        string $registrationDate,
+        string $actionText,
+        ?string $annotation,
+    ): bool {
         $query = ProcessAction::query()
             ->where('process_id', $processId)
-            ->whereDate('registration_date', $registrationDateForAction)
-            ->where('action', $row->actionText);
+            ->whereDate('registration_date', $registrationDate)
+            ->where('action', $actionText);
 
-        if ($row->annotation === null || $row->annotation === '') {
+        if ($annotation === null || $annotation === '') {
             $query->whereNull('annotation');
         } else {
-            $query->where('annotation', $row->annotation);
+            $query->where('annotation', $annotation);
         }
 
         return $query->exists();

@@ -434,3 +434,54 @@ it('rejects judicial_branch as data_source_slug', function (): void {
         }
     }
 });
+
+it('splits combined fijacion estado + auto into two actuaciones on private import', function (): void {
+    Queue::fake();
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    foreach (
+        ['Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado', 'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro'] as $i => $title
+    ) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $sheet->setCellValue('A2', 'JUZGADO 001 PROMISCUO MUNICIPAL DE DAGUA');
+    $sheet->setCellValue('B2', '76233408900120260014600');
+    $sheet->setCellValue('C2', 'Pertenencia');
+    $sheet->setCellValue('D2', 'NORBERTO MUÑOZ VALENCIA');
+    $sheet->setCellValue('E2', 'HEREDEROS');
+    $sheet->setCellValue('F2', 'Fijacion Estado Auto Admite Demanda');
+    $sheet->setCellValue('G2', '');
+    $sheet->setCellValue('H2', '2026-04-27');
+    $sheet->setCellValue('I2', '2026-04-27');
+    $sheet->setCellValue('J2', '2026-04-24');
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-fijacion').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $uploadedFile = new UploadedFile(
+        $this->privateImportSpreadsheetTmp,
+        'fijacion-split.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        null,
+        true
+    );
+
+    $response = $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => $uploadedFile,
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ]);
+
+    $response->assertStatus(200);
+    expect($response->json('actions_imported'))->toBe(2);
+
+    $actions = ProcessAction::query()->orderBy('cons_action')->get();
+    expect($actions)->toHaveCount(2)
+        ->and($actions[0]->action)->toBe('Fijación Estado')
+        ->and($actions[1]->action)->toBe('Auto Admite Demanda')
+        ->and($actions[0]->registration_date->format('Y-m-d'))->toBe('2026-04-24')
+        ->and($actions[1]->registration_date->format('Y-m-d'))->toBe('2026-04-24');
+});
