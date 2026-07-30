@@ -18,11 +18,11 @@ return new class extends Migration
         Schema::create('unassigned_process_actions', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->string('process_number', 23)->index();
-            $table->string('court')->nullable();
-            $table->string('process_class')->nullable();
+            $table->text('court')->nullable();
+            $table->text('process_class')->nullable();
             $table->text('plaintiffs_raw')->nullable();
             $table->text('defendants_raw')->nullable();
-            $table->string('action');
+            $table->text('action');
             $table->text('annotation')->nullable();
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
