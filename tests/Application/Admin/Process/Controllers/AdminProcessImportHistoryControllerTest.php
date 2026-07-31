@@ -83,6 +83,22 @@ it('returns batches ordered by created_at descending', function (): void {
         ->and($ids[1])->toBe($oldest->id);
 });
 
+it('returns batches with null organization_id for cross-organization imports', function (): void {
+    ProcessImportBatch::factory()->completed()->create([
+        'organization_id' => null,
+        'file_name' => 'actuaciones_multi_org.xlsx',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes/import-history');
+
+    $response->assertOk();
+    expect($response->json('total'))->toBe(1)
+        ->and($response->json('data.0.organization_id'))->toBeNull()
+        ->and($response->json('data.0.organization_name'))->toBe('')
+        ->and($response->json('data.0.file_name'))->toBe('actuaciones_multi_org.xlsx');
+});
+
 it('returns expected resource structure including errors and organization', function (): void {
     $errors = [
         ['process_number' => '76001400300520150055500', 'reason' => 'Radicado no disponible.'],

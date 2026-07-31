@@ -16,7 +16,7 @@ class AdminProcessImportBatchResource extends Resource
      */
     public function __construct(
         public string $id,
-        public string $organization_id,
+        public ?string $organization_id,
         public string $organization_name,
         public string $file_name,
         public bool $is_private_import,
