@@ -346,7 +346,13 @@ it('skips actuaciones that already exist (deduplication)', function (): void {
 
     $response->assertStatus(200);
     expect($response->json('actions_imported'))->toBe(1)
-        ->and($response->json('actions_skipped'))->toBe(1);
+        ->and($response->json('actions_skipped'))->toBe(1)
+        ->and($response->json('skipped_actions'))->toHaveCount(1)
+        ->and($response->json('skipped_actions.0.process_number'))->toBe('76109310500320250000300')
+        ->and($response->json('skipped_actions.0.action'))->toBe('Auto Fija Fecha y Hora de Audiencia')
+        ->and($response->json('skipped_actions.0.registration_date'))->toBe('2026-05-04')
+        ->and($response->json('skipped_actions.0.reason'))->toBe('duplicate')
+        ->and($response->json('skipped_actions.0.excel_row'))->toBe(2);
 
     expect(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(2);
 });

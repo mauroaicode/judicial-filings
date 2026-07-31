@@ -9,14 +9,15 @@ use Spatie\LaravelData\Resource;
 /**
  * Result of importing actuaciones from a manual Excel upload.
  *
- * Radicados without a Process are no longer discarded: their actuaciones are
- * stored in {@see \Src\Domain\Process\Models\UnassignedProcessAction} and listed
- * in {@see $unassigned_process_numbers} for transparency.
+ * Radicados without a Process are stored in
+ * {@see \Src\Domain\Process\Models\UnassignedProcessAction} and listed in
+ * {@see $unassigned_process_numbers}. Duplicates are listed in {@see $skipped_actions}.
  */
 class ProcessActuacionesImportResource extends Resource
 {
     /**
-     * @param  list<string>  $unassigned_process_numbers  Radicados whose actuaciones were stored in the historical repository (no Process yet).
+     * @param  list<string>  $unassigned_process_numbers
+     * @param  list<ProcessActuacionesSkippedItemResource>  $skipped_actions
      */
     public function __construct(
         public int $actions_imported,
@@ -25,6 +26,7 @@ class ProcessActuacionesImportResource extends Resource
         public int $processes_updated,
         public int $unassigned_count,
         public array $unassigned_process_numbers,
+        public array $skipped_actions,
         public string $import_batch_id,
     ) {}
 }

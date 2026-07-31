@@ -20,7 +20,20 @@ class PersistUnassignedProcessActionsService
 
     /**
      * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
-     * @return array{stored: int, skipped: int, process_numbers: list<string>}
+     * @return array{
+     *     stored: int,
+     *     skipped: int,
+     *     process_numbers: list<string>,
+     *     skipped_actions: list<array{
+     *         process_number: string,
+     *         action: string,
+     *         annotation: string|null,
+     *         registration_date: string|null,
+     *         court: string|null,
+     *         excel_row: int,
+     *         reason: string
+     *     }>
+     * }
      */
     public function handle(
         array $rows,
@@ -31,6 +44,8 @@ class PersistUnassignedProcessActionsService
         $skipped = 0;
         /** @var array<string, true> $processNumbers */
         $processNumbers = [];
+        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string}> $skippedActions */
+        $skippedActions = [];
 
         foreach ($rows as $row) {
             if (trim($row->actionText) === '') {
@@ -60,6 +75,15 @@ class PersistUnassignedProcessActionsService
 
                 if ($exists) {
                     $skipped++;
+                    $skippedActions[] = [
+                        'process_number' => $row->processNumber,
+                        'action' => $actionTitle,
+                        'annotation' => $row->annotation,
+                        'registration_date' => $registrationDate,
+                        'court' => $row->court !== '' ? $row->court : null,
+                        'excel_row' => $row->excelRowNumber,
+                        'reason' => 'duplicate',
+                    ];
 
                     continue;
                 }
@@ -89,6 +113,7 @@ class PersistUnassignedProcessActionsService
             'stored' => $stored,
             'skipped' => $skipped,
             'process_numbers' => array_keys($processNumbers),
+            'skipped_actions' => $skippedActions,
         ];
     }
 }

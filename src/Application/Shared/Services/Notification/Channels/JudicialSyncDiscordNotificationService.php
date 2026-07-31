@@ -14,7 +14,8 @@ use Src\Domain\JudicialSync\Models\JudicialSyncRun;
  */
 readonly class JudicialSyncDiscordNotificationService
 {
-    private const LATE_SYNC_RADICADOS_PREVIEW = 25;
+    /** Discord embed field values are capped at 1024 characters; longer payloads are rejected silently by the API. */
+    private const DISCORD_EMBED_FIELD_MAX_CHARS = 1024;
 
     public function __construct(
         private DiscordNotificationChannelService $discordChannel,
@@ -137,42 +138,103 @@ readonly class JudicialSyncDiscordNotificationService
         }
 
         $thresholdHours = max(1, (int) config('judicial-sync.replication_staleness.stale_after_hours', 24));
-        $preview = array_slice($items, 0, self::LATE_SYNC_RADICADOS_PREVIEW);
-        $remaining = count($items) - count($preview);
+        $chunks = $this->chunkLateSyncDetalleLines($items);
+        $totalChunks = count($chunks);
 
+        foreach ($chunks as $index => $detalle) {
+            $part = $index + 1;
+            $isFirst = $index === 0;
+
+            $fields = [];
+            if ($isFirst) {
+                $fields[] = $this->field('Radicados afectados', (string) count($items), true);
+                $fields[] = $this->field('Umbral', $thresholdHours.' h', true);
+                $fields[] = $this->field('Ciclo sync', '`'.$run->id.'`', true);
+            } else {
+                $fields[] = $this->field('Ciclo sync', '`'.$run->id.'`', true);
+                $fields[] = $this->field('Parte', $part.'/'.$totalChunks, true);
+            }
+
+            $fields[] = $this->field(
+                $totalChunks > 1 ? 'Radicados ('.$part.'/'.$totalChunks.')' : 'Radicados',
+                $detalle,
+                false
+            );
+
+            $embed = [
+                'title' => $isFirst
+                    ? 'Replicación de datos atrasada en Rama'
+                    : 'Replicación atrasada (continuación '.$part.'/'.$totalChunks.')',
+                'description' => $isFirst
+                    ? 'La API de detalle reportó `ultimaActualizacion` (fecha de replicación) '
+                        .'con más de **'.$thresholdHours.'h** de diferencia frente a `fechaConsulta`.'
+                        ."\n\nRevisar manualmente estos radicados para no perder actuaciones/notificaciones."
+                        ."\n_Lista compacta: radicado · atraso. Detalle fino en logs `StaleReplicationDetector`._"
+                    : 'Continuación del listado de radicados con replicación atrasada.',
+                'color' => '#E67E22',
+                'fields' => $fields,
+                'footer' => [
+                    'text' => 'Canal sincronización tardía · run '.$run->id
+                        .($totalChunks > 1 ? ' · '.$part.'/'.$totalChunks : ''),
+                ],
+            ];
+
+            $content = $isFirst
+                ? '**Sincronización tardía** — '.count($items).' radicado(s) con replicación atrasada en Rama.'
+                : '**Sincronización tardía** — continuación '.$part.'/'.$totalChunks.'.';
+
+            $this->discordChannel->send(
+                DiscordNotificationChannelService::CHANNEL_LATE_SYNC,
+                $content,
+                [$embed]
+            );
+        }
+    }
+
+    /**
+     * Compact one-liners packed into Discord-safe field chunks (≤1024 chars each).
+     *
+     * @param  list<array{process_number: string, consulted_at: string, replicated_at: string, lag_hours: int, court: string|null}>  $items
+     * @return list<string>
+     */
+    private function chunkLateSyncDetalleLines(array $items): array
+    {
         $lines = [];
-        foreach ($preview as $item) {
-            $court = $item['court'] !== null ? ' · '.$item['court'] : '';
-            $lines[] = '`'.$item['process_number'].'` · atraso **'.$item['lag_hours'].'h**'
-                ."\n└ consulta ".$item['consulted_at'].' · replicación '.$item['replicated_at'].$court;
+        foreach ($items as $item) {
+            $lines[] = '`'.$item['process_number'].'` · **'.$item['lag_hours'].'h**';
         }
 
-        if ($remaining > 0) {
-            $lines[] = '_… y **'.$remaining.'** radicado(s) más (ver logs `StaleReplicationDetector`)._';
+        if ($lines === []) {
+            return [];
         }
 
-        $embed = [
-            'title' => 'Replicación de datos atrasada en Rama',
-            'description' => 'La API de detalle reportó `ultimaActualizacion` (fecha de replicación) '
-                .'con más de **'.$thresholdHours.'h** de diferencia frente a `fechaConsulta`.'
-                ."\n\nRevisar manualmente estos radicados para no perder actuaciones/notificaciones.",
-            'color' => '#E67E22',
-            'fields' => [
-                $this->field('Radicados afectados', (string) count($items), true),
-                $this->field('Umbral', $thresholdHours.' h', true),
-                $this->field('Ciclo sync', '`'.$run->id.'`', true),
-                $this->field('Detalle', implode("\n\n", $lines), false),
-            ],
-            'footer' => [
-                'text' => 'Canal sincronización tardía · run '.$run->id,
-            ],
-        ];
+        $chunks = [];
+        $current = [];
 
-        $this->discordChannel->send(
-            DiscordNotificationChannelService::CHANNEL_LATE_SYNC,
-            '**Sincronización tardía** — '.count($items).' radicado(s) con replicación atrasada en Rama.',
-            [$embed]
-        );
+        foreach ($lines as $line) {
+            $candidate = $current === [] ? $line : implode("\n", $current)."\n".$line;
+            if (strlen($candidate) > self::DISCORD_EMBED_FIELD_MAX_CHARS && $current !== []) {
+                $chunks[] = implode("\n", $current);
+                $current = [$line];
+
+                continue;
+            }
+
+            if (strlen($candidate) > self::DISCORD_EMBED_FIELD_MAX_CHARS) {
+                $chunks[] = mb_substr($line, 0, self::DISCORD_EMBED_FIELD_MAX_CHARS - 1).'…';
+                $current = [];
+
+                continue;
+            }
+
+            $current[] = $line;
+        }
+
+        if ($current !== []) {
+            $chunks[] = implode("\n", $current);
+        }
+
+        return $chunks;
     }
 
     private function timelineBlockForBatchRun(JudicialSyncRun $run): string
@@ -290,6 +352,10 @@ readonly class JudicialSyncDiscordNotificationService
      */
     private function field(string $name, string $value, bool $inline): array
     {
+        if (strlen($value) > self::DISCORD_EMBED_FIELD_MAX_CHARS) {
+            $value = mb_substr($value, 0, self::DISCORD_EMBED_FIELD_MAX_CHARS - 1).'…';
+        }
+
         return [
             'name' => $name,
             'value' => $value,

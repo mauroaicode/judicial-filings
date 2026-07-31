@@ -139,10 +139,61 @@ it('queues late-sync discord alert with stale radicados after batch', function (
     app(JudicialSyncDiscordNotificationService::class)->notifyBatchFinished($run, fakeFinishedBatch(10, 0));
 
     Queue::assertPushed(SendToDiscordChannelJob::class, function (SendToDiscordChannelJob $job): bool {
+        $radicadosField = collect($job->embeds[0]['fields'] ?? [])->firstWhere('name', 'Radicados');
+
         return str_contains($job->text, 'Sincronización tardía')
             && str_contains($job->text, '76109333300220240012000') === false
-            && str_contains($job->embeds[0]['fields'][3]['value'] ?? '', '76109333300220240012000');
+            && str_contains($radicadosField['value'] ?? '', '76109333300220240012000')
+            && strlen($radicadosField['value'] ?? '') <= 1024;
     });
+});
+
+it('chunks late-sync discord alerts so each embed field stays within discord limits', function (): void {
+    config([
+        'discord-alerts.webhook_urls.late_sync' => 'https://discord.com/api/webhooks/123456789/late-sync-abcdefghijklmnopqrstuvwxyz',
+    ]);
+
+    $collector = app(StaleReplicationAlertCollector::class);
+    for ($i = 0; $i < 80; $i++) {
+        $collector->remember([
+            'process_number' => sprintf('76001410500720250017%03d', $i),
+            'consulted_at' => '2026-07-29 16:00:00 -05',
+            'replicated_at' => '2026-07-24 17:33:34 -05',
+            'lag_hours' => 100 + $i,
+            'court' => 'DESPACHO LARGO QUE ANTES ROMPIA EL LIMITE DE DISCORD EN EL EMBED',
+        ]);
+    }
+
+    $run = JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchCompleted,
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+        'processes_queued' => 80,
+        'failed_jobs_count' => 0,
+        'command_finished_at' => now(),
+        'batch_finished_at' => now(),
+        'laravel_batch_id' => 'uuid-batch-chunk',
+    ]);
+
+    app(JudicialSyncDiscordNotificationService::class)->notifyBatchFinished($run, fakeFinishedBatch(80, 0));
+
+    $lateJobs = Queue::pushed(SendToDiscordChannelJob::class, function (SendToDiscordChannelJob $job): bool {
+        return str_contains($job->text, 'Sincronización tardía');
+    });
+
+    expect($lateJobs->count())->toBeGreaterThan(1);
+
+    foreach ($lateJobs as $job) {
+        foreach ($job->embeds[0]['fields'] ?? [] as $field) {
+            expect(strlen($field['value'] ?? ''))->toBeLessThanOrEqual(1024);
+        }
+    }
+
+    $allValues = $lateJobs
+        ->flatMap(fn (SendToDiscordChannelJob $job) => collect($job->embeds[0]['fields'] ?? [])->pluck('value'))
+        ->implode("\n");
+
+    expect($allValues)->toContain('76001410500720250017000')
+        ->and($allValues)->toContain('76001410500720250017079');
 });
 
 it('does not send late-sync alert for samai batches', function (): void {

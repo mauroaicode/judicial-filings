@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
 use Src\Application\Admin\Process\Resources\ProcessActuacionesImportResource;
+use Src\Application\Admin\Process\Resources\ProcessActuacionesSkippedItemResource;
 use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationService;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
@@ -85,6 +86,8 @@ class ProcessActuacionesExcelImportService
         $actionsStoredUnassigned = 0;
         $processesUpdated = 0;
         $unassignedProcessNumbers = [];
+        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string}> $skippedActions */
+        $skippedActions = [];
 
         DB::transaction(function () use (
             $grouped,
@@ -94,6 +97,7 @@ class ProcessActuacionesExcelImportService
             &$actionsStoredUnassigned,
             &$processesUpdated,
             &$unassignedProcessNumbers,
+            &$skippedActions,
         ): void {
             foreach ($grouped as $rows) {
                 /** @var list<PrivateProcessExcelImportedRowDTO> $rows */
@@ -109,6 +113,9 @@ class ProcessActuacionesExcelImportService
                     );
                     $actionsStoredUnassigned += $stored['stored'];
                     $actionsSkipped += $stored['skipped'];
+                    foreach ($stored['skipped_actions'] as $skipped) {
+                        $skippedActions[] = $skipped;
+                    }
                     foreach ($stored['process_numbers'] as $processNumber) {
                         if (! in_array($processNumber, $unassignedProcessNumbers, true)) {
                             $unassignedProcessNumbers[] = $processNumber;
@@ -123,9 +130,12 @@ class ProcessActuacionesExcelImportService
                 $this->syncSubjectsFromRows($process, $rows);
                 $this->extendLigigantsFromRows($process, $rows);
 
-                $imported = $this->importActuaciones($process, $rows);
-                $actionsImported += $imported;
-                $actionsSkipped += count($rows) - $imported;
+                $result = $this->importActuaciones($process, $rows);
+                $actionsImported += $result['imported'];
+                $actionsSkipped += count($result['skipped']);
+                foreach ($result['skipped'] as $skipped) {
+                    $skippedActions[] = $skipped;
+                }
             }
         });
 
@@ -137,6 +147,19 @@ class ProcessActuacionesExcelImportService
             $actionsImported + $actionsStoredUnassigned,
         );
 
+        $skippedResources = array_map(
+            static fn (array $item): ProcessActuacionesSkippedItemResource => new ProcessActuacionesSkippedItemResource(
+                process_number: $item['process_number'],
+                action: $item['action'],
+                annotation: $item['annotation'],
+                registration_date: $item['registration_date'],
+                court: $item['court'],
+                excel_row: $item['excel_row'],
+                reason: $item['reason'],
+            ),
+            $skippedActions,
+        );
+
         return [
             'status' => 200,
             'body' => (new ProcessActuacionesImportResource(
@@ -146,6 +169,7 @@ class ProcessActuacionesExcelImportService
                 processes_updated: $processesUpdated,
                 unassigned_count: count($unassignedProcessNumbers),
                 unassigned_process_numbers: $unassignedProcessNumbers,
+                skipped_actions: $skippedResources,
                 import_batch_id: $batch->id,
             ))->toArray(),
         ];
@@ -165,21 +189,47 @@ class ProcessActuacionesExcelImportService
 
     /**
      * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
+     * @return array{
+     *     imported: int,
+     *     skipped: list<array{
+     *         process_number: string,
+     *         action: string,
+     *         annotation: string|null,
+     *         registration_date: string|null,
+     *         court: string|null,
+     *         excel_row: int,
+     *         reason: string
+     *     }>
+     * }
      */
-    private function importActuaciones(Process $process, array $rows): int
+    private function importActuaciones(Process $process, array $rows): array
     {
         $nextCons = (int) (ProcessAction::query()
             ->where('process_id', $process->id)
             ->max('cons_action') ?? 0);
 
         $imported = 0;
+        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string}> $skipped */
+        $skipped = [];
 
         foreach ($rows as $row) {
             if (trim($row->actionText) === '') {
                 continue;
             }
 
+            $registrationDate = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
+
             if ($this->actionAlreadyExists($process->id, $row)) {
+                $skipped[] = [
+                    'process_number' => $row->processNumber,
+                    'action' => $row->actionText,
+                    'annotation' => $row->annotation,
+                    'registration_date' => $registrationDate,
+                    'court' => $row->court !== '' ? $row->court : null,
+                    'excel_row' => $row->excelRowNumber,
+                    'reason' => 'duplicate',
+                ];
+
                 continue;
             }
 
@@ -188,7 +238,6 @@ class ProcessActuacionesExcelImportService
                 continue;
             }
 
-            $registrationDate = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
             $processReloaded = null;
 
             foreach ($actionTitles as $actionTitle) {
@@ -217,7 +266,10 @@ class ProcessActuacionesExcelImportService
             $this->refreshActivityBoundaries($process, $row);
         }
 
-        return $imported;
+        return [
+            'imported' => $imported,
+            'skipped' => $skipped,
+        ];
     }
 
     private function actionAlreadyExists(string $processId, PrivateProcessExcelImportedRowDTO $row): bool
