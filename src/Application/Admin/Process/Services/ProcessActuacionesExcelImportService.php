@@ -116,6 +116,7 @@ class ProcessActuacionesExcelImportService
                     foreach ($stored['skipped_actions'] as $skipped) {
                         $skippedActions[] = $skipped;
                     }
+
                     foreach ($stored['process_numbers'] as $processNumber) {
                         if (! in_array($processNumber, $unassignedProcessNumbers, true)) {
                             $unassignedProcessNumbers[] = $processNumber;
@@ -343,9 +344,11 @@ class ProcessActuacionesExcelImportService
             if ($candidate === null) {
                 continue;
             }
+
             if ($candidate === '') {
                 continue;
             }
+
             if ($currentLa === null || $candidate > $currentLa) {
                 $updates['last_activity_date'] = $candidate;
                 $currentLa = $candidate;

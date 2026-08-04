@@ -16,11 +16,12 @@ use Throwable;
  * Detects Rama Judicial "fecha de replicación de datos" lag using detail API fields
  * {@see fechaConsulta} and {@see ultimaActualizacion}.
  */
-final class StaleReplicationDetector
+final readonly class StaleReplicationDetector
 {
     public function __construct(
-        private readonly JudicialBranchConsultService $judicialService,
-        private readonly StaleReplicationAlertCollector $collector,
+        private JudicialBranchConsultService $judicialService,
+        private StaleReplicationAlertCollector $collector,
+        private ColombiaHolidayCalendar $colombiaHolidays,
     ) {}
 
     public function evaluateRadicado(string $processNumber, Process $process): void
@@ -46,7 +47,7 @@ final class StaleReplicationDetector
             return;
         }
 
-        if (! $detail->isSuccessful || ! is_array($detail->data)) {
+        if (! $detail->isSuccessful) {
             return;
         }
 
@@ -65,12 +66,14 @@ final class StaleReplicationDetector
         $consultedAt = $this->parseDateTime($detailData['fechaConsulta'] ?? null);
         $replicatedAt = $this->parseDateTime($detailData['ultimaActualizacion'] ?? null);
 
-        if ($consultedAt === null || $replicatedAt === null) {
+        if (! $consultedAt instanceof \Illuminate\Support\Carbon || ! $replicatedAt instanceof \Illuminate\Support\Carbon) {
             return;
         }
 
         $thresholdHours = max(1, (int) config('judicial-sync.replication_staleness.stale_after_hours', 24));
-        $lagHours = (int) $replicatedAt->diffInHours($consultedAt);
+        $excludeWeekends = (bool) config('judicial-sync.replication_staleness.exclude_weekends', true);
+        $excludeHolidays = (bool) config('judicial-sync.replication_staleness.exclude_colombia_holidays', true);
+        $lagHours = $this->lagHours($replicatedAt, $consultedAt, $excludeWeekends, $excludeHolidays);
 
         if ($lagHours < $thresholdHours) {
             return;
@@ -91,7 +94,44 @@ final class StaleReplicationDetector
                 'replicated_at' => $replicatedAt->toIso8601String(),
                 'lag_hours' => $lagHours,
                 'threshold_hours' => $thresholdHours,
+                'exclude_weekends' => $excludeWeekends,
+                'exclude_colombia_holidays' => $excludeHolidays,
             ]);
+    }
+
+    /**
+     * Hours between replication and consultation. Optionally skips Saturday/Sunday and
+     * Colombian public holidays (package {@see ColombiaHolidayCalendar}).
+     */
+    private function lagHours(
+        Carbon $replicatedAt,
+        Carbon $consultedAt,
+        bool $excludeWeekends,
+        bool $excludeHolidays,
+    ): int {
+        if (! $excludeWeekends && ! $excludeHolidays) {
+            return (int) $replicatedAt->diffInHours($consultedAt);
+        }
+
+        /** @var array<string, true> $holidayDates */
+        $holidayDates = $excludeHolidays
+            ? $this->colombiaHolidays->holidayDatesBetween($replicatedAt, $consultedAt)
+            : [];
+
+        return $replicatedAt->diffInHoursFiltered(
+            static function (Carbon $hour) use ($excludeWeekends, $holidayDates): bool {
+                if ($excludeWeekends && $hour->isWeekend()) {
+                    return false;
+                }
+
+                if ($holidayDates !== [] && isset($holidayDates[$hour->toDateString()])) {
+                    return false;
+                }
+
+                return true;
+            },
+            $consultedAt,
+        );
     }
 
     private function parseDateTime(mixed $value): ?Carbon

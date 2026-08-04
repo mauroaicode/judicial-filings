@@ -78,7 +78,7 @@ class Process extends Model
     protected static function booted(): void
     {
         static::created(function (Process $process): void {
-            app(AttachUnassignedProcessActionsService::class)->handle($process);
+            resolve(AttachUnassignedProcessActionsService::class)->handle($process);
         });
     }
 

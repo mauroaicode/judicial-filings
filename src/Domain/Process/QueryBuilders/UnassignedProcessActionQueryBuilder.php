@@ -29,6 +29,6 @@ class UnassignedProcessActionQueryBuilder extends Builder
 
     public function orderedByRegistrationDate(): self
     {
-        return $this->orderBy('registration_date')->orderBy('created_at');
+        return $this->oldest('registration_date')->oldest();
     }
 }

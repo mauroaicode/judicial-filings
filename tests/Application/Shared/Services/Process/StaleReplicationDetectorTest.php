@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Cache;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Notification\Channels\StaleReplicationAlertCollector;
+use Src\Application\Shared\Services\Process\ColombiaHolidayCalendar;
 use Src\Application\Shared\Services\Process\StaleReplicationDetector;
 use Src\Domain\Process\Models\Process;
 
@@ -13,6 +14,8 @@ beforeEach(function (): void {
     config([
         'judicial-sync.replication_staleness.enabled' => true,
         'judicial-sync.replication_staleness.stale_after_hours' => 24,
+        'judicial-sync.replication_staleness.exclude_weekends' => true,
+        'judicial-sync.replication_staleness.exclude_colombia_holidays' => true,
     ]);
 });
 
@@ -28,6 +31,61 @@ it('remembers radicado when replication lags beyond threshold', function (): voi
 
     expect($items)->toHaveCount(1)
         ->and($items[0]['process_number'])->toBe('76109333300220240012000')
+        ->and($items[0]['lag_hours'])->toBeGreaterThanOrEqual(24);
+});
+
+it('does not alert for friday-to-monday gaps when weekends are excluded', function (): void {
+    // Calendar lag ~64h, business (Mon–Fri) lag ~17h → under 24h threshold.
+    app(StaleReplicationDetector::class)->evaluateDetailPayload('76001410500720250017101', [
+        'fechaConsulta' => '2026-08-03T10:00:00',
+        'ultimaActualizacion' => '2026-07-31T17:33:34',
+    ], null);
+
+    expect(app(StaleReplicationAlertCollector::class)->pullAll())->toBe([]);
+});
+
+it('still alerts friday-to-monday gaps when weekend exclusion is disabled', function (): void {
+    config([
+        'judicial-sync.replication_staleness.exclude_weekends' => false,
+        'judicial-sync.replication_staleness.exclude_colombia_holidays' => false,
+    ]);
+
+    app(StaleReplicationDetector::class)->evaluateDetailPayload('76001410500720250017101', [
+        'fechaConsulta' => '2026-08-03T10:00:00',
+        'ultimaActualizacion' => '2026-07-31T17:33:34',
+    ], null);
+
+    $items = app(StaleReplicationAlertCollector::class)->pullAll();
+
+    expect($items)->toHaveCount(1)
+        ->and($items[0]['lag_hours'])->toBeGreaterThanOrEqual(24);
+});
+
+it('does not alert across a colombian weekday holiday when holidays are excluded', function (): void {
+    // 2026-08-07 = Batalla de Boyacá (Friday). Thu 08:00 → Sat 08:00.
+    // Weekends-only lag ~40h (would alert); with holidays ~16h (no alert).
+    app(StaleReplicationDetector::class)->evaluateDetailPayload('76001410500720250017101', [
+        'fechaConsulta' => '2026-08-08T08:00:00',
+        'ultimaActualizacion' => '2026-08-06T08:00:00',
+    ], null);
+
+    expect(app(StaleReplicationAlertCollector::class)->pullAll())->toBe([]);
+});
+
+it('alerts across a colombian weekday holiday when holiday exclusion is disabled', function (): void {
+    config([
+        'judicial-sync.replication_staleness.exclude_weekends' => true,
+        'judicial-sync.replication_staleness.exclude_colombia_holidays' => false,
+    ]);
+
+    app(StaleReplicationDetector::class)->evaluateDetailPayload('76001410500720250017101', [
+        'fechaConsulta' => '2026-08-08T08:00:00',
+        'ultimaActualizacion' => '2026-08-06T08:00:00',
+    ], null);
+
+    $items = app(StaleReplicationAlertCollector::class)->pullAll();
+
+    expect($items)->toHaveCount(1)
         ->and($items[0]['lag_hours'])->toBeGreaterThanOrEqual(24);
 });
 
@@ -72,7 +130,11 @@ it('fetches detail and evaluates for a process', function (): void {
             ],
         ]);
 
-    $detector = new StaleReplicationDetector($judicial, app(StaleReplicationAlertCollector::class));
+    $detector = new StaleReplicationDetector(
+        $judicial,
+        app(StaleReplicationAlertCollector::class),
+        app(ColombiaHolidayCalendar::class),
+    );
     $detector->evaluateRadicado($process->process_number, $process);
 
     expect(app(StaleReplicationAlertCollector::class)->pullAll())->toHaveCount(1);

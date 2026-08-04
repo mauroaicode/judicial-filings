@@ -136,10 +136,12 @@ class AttachUnassignedProcessActionsService
                 if ($date === null) {
                     continue;
                 }
+
                 $formatted = $date->format('Y-m-d');
                 if ($minReg === null || $formatted < $minReg) {
                     $minReg = $formatted;
                 }
+
                 if ($maxActivity === null || $formatted > $maxActivity) {
                     $maxActivity = $formatted;
                 }

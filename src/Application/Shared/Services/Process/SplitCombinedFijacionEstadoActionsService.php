@@ -13,10 +13,10 @@ use Src\Domain\Process\Services\FijacionEstadoActionSplitter;
  * ("Fijación Estado Auto …") by splitting them into two rows so
  * {@see \Src\Domain\Process\Services\GroupProcessActionsService} can pair them.
  */
-final class SplitCombinedFijacionEstadoActionsService
+final readonly class SplitCombinedFijacionEstadoActionsService
 {
     public function __construct(
-        private readonly FijacionEstadoActionSplitter $splitter,
+        private FijacionEstadoActionSplitter $splitter,
     ) {}
 
     /**
@@ -33,7 +33,7 @@ final class SplitCombinedFijacionEstadoActionsService
     {
         $query = ProcessAction::query()
             ->with('process:id,process_number')
-            ->where(function ($q): void {
+            ->where(function (\Illuminate\Contracts\Database\Query\Builder $q): void {
                 $q->where('action', 'like', 'Fijacion Estado %')
                     ->orWhere('action', 'like', 'Fijación Estado %')
                     ->orWhere('action', 'like', 'Notificacion Estado %')
@@ -45,7 +45,7 @@ final class SplitCombinedFijacionEstadoActionsService
             ->orderBy('cons_action');
 
         if ($processNumbers !== null && $processNumbers !== []) {
-            $query->whereHas('process', function ($q) use ($processNumbers): void {
+            $query->whereHas('process', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($processNumbers): void {
                 $q->whereIn('process_number', $processNumbers);
             });
         }
@@ -78,7 +78,7 @@ final class SplitCombinedFijacionEstadoActionsService
                 continue;
             }
 
-            $processNumber = (string) ($action->process?->process_number ?? '');
+            $processNumber = (string) $action->process->process_number;
 
             $items[] = [
                 'process_number' => $processNumber,
@@ -133,11 +133,8 @@ final class SplitCombinedFijacionEstadoActionsService
         $query = ProcessAction::query()
             ->where('process_id', $action->process_id)
             ->where('action', $decisionLabel)
-            ->where('id', '!=', $action->id);
-
-        if ($action->registration_date !== null) {
-            $query->whereDate('registration_date', $action->registration_date->format('Y-m-d'));
-        }
+            ->where('id', '!=', $action->id)
+            ->whereDate('registration_date', $action->registration_date->format('Y-m-d'));
 
         return $query->exists();
     }

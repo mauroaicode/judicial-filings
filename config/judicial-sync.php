@@ -202,11 +202,19 @@ return [
     | fechaConsulta. When the lag exceeds stale_after_hours, the radicado is
     | queued for a Discord alert on CHANNEL_LATE_SYNC after the batch ends.
     |
+    | When exclude_weekends is true, only Monday–Friday hours count toward the
+    | lag (so a Friday→Monday gap does not look like ~70 calendar hours).
+    |
+    | When exclude_colombia_holidays is true, Colombian public holidays (via
+    | rmunate/calendario-colombia) are also excluded from the lag.
+    |
     | Costs one extra detail API call per radicado that reaches actuacion sync.
     |
     */
     'replication_staleness' => [
         'enabled' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALENESS_ENABLED', true),
         'stale_after_hours' => (int) env('JUDICIAL_SYNC_REPLICATION_STALE_HOURS', 24),
+        'exclude_weekends' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALE_EXCLUDE_WEEKENDS', true),
+        'exclude_colombia_holidays' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALE_EXCLUDE_HOLIDAYS', true),
     ],
 ];

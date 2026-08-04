@@ -138,7 +138,11 @@ readonly class JudicialSyncDiscordNotificationService
         }
 
         $thresholdHours = max(1, (int) config('judicial-sync.replication_staleness.stale_after_hours', 24));
-        $chunks = $this->chunkLateSyncDetalleLines($items);
+        $excludeWeekends = (bool) config('judicial-sync.replication_staleness.exclude_weekends', true);
+        $excludeHolidays = (bool) config('judicial-sync.replication_staleness.exclude_colombia_holidays', true);
+        $hourUnitLabel = $this->lateSyncHourUnitLabel($excludeWeekends, $excludeHolidays);
+        $lagNote = $this->lateSyncLagNote($excludeWeekends, $excludeHolidays);
+        $chunks = $this->chunkLateSyncDetalleLines($items, $excludeWeekends || $excludeHolidays);
         $totalChunks = count($chunks);
 
         foreach ($chunks as $index => $detalle) {
@@ -148,7 +152,7 @@ readonly class JudicialSyncDiscordNotificationService
             $fields = [];
             if ($isFirst) {
                 $fields[] = $this->field('Radicados afectados', (string) count($items), true);
-                $fields[] = $this->field('Umbral', $thresholdHours.' h', true);
+                $fields[] = $this->field('Umbral', $thresholdHours.' '.$hourUnitLabel, true);
                 $fields[] = $this->field('Ciclo sync', '`'.$run->id.'`', true);
             } else {
                 $fields[] = $this->field('Ciclo sync', '`'.$run->id.'`', true);
@@ -167,7 +171,8 @@ readonly class JudicialSyncDiscordNotificationService
                     : 'Replicación atrasada (continuación '.$part.'/'.$totalChunks.')',
                 'description' => $isFirst
                     ? 'La API de detalle reportó `ultimaActualizacion` (fecha de replicación) '
-                        .'con más de **'.$thresholdHours.'h** de diferencia frente a `fechaConsulta`.'
+                        .'con más de **'.$thresholdHours.' '.$hourUnitLabel.'** de diferencia frente a `fechaConsulta`'
+                        .$lagNote
                         ."\n\nRevisar manualmente estos radicados para no perder actuaciones/notificaciones."
                         ."\n_Lista compacta: radicado · atraso. Detalle fino en logs `StaleReplicationDetector`._"
                     : 'Continuación del listado de radicados con replicación atrasada.',
@@ -191,17 +196,52 @@ readonly class JudicialSyncDiscordNotificationService
         }
     }
 
+    private function lateSyncHourUnitLabel(bool $excludeWeekends, bool $excludeHolidays): string
+    {
+        if ($excludeWeekends && $excludeHolidays) {
+            return 'h hábiles (lun–vie, sin festivos CO)';
+        }
+
+        if ($excludeWeekends) {
+            return 'h hábiles (lun–vie)';
+        }
+
+        if ($excludeHolidays) {
+            return 'h (sin festivos CO)';
+        }
+
+        return 'h';
+    }
+
+    private function lateSyncLagNote(bool $excludeWeekends, bool $excludeHolidays): string
+    {
+        if ($excludeWeekends && $excludeHolidays) {
+            return ' (sábado, domingo y festivos de Colombia no cuentan).';
+        }
+
+        if ($excludeWeekends) {
+            return ' (sábado y domingo no cuentan).';
+        }
+
+        if ($excludeHolidays) {
+            return ' (festivos de Colombia no cuentan).';
+        }
+
+        return '.';
+    }
+
     /**
      * Compact one-liners packed into Discord-safe field chunks (≤1024 chars each).
      *
      * @param  list<array{process_number: string, consulted_at: string, replicated_at: string, lag_hours: int, court: string|null}>  $items
      * @return list<string>
      */
-    private function chunkLateSyncDetalleLines(array $items): array
+    private function chunkLateSyncDetalleLines(array $items, bool $useBusinessHoursLabel = true): array
     {
+        $suffix = $useBusinessHoursLabel ? 'h hábiles' : 'h';
         $lines = [];
         foreach ($items as $item) {
-            $lines[] = '`'.$item['process_number'].'` · **'.$item['lag_hours'].'h**';
+            $lines[] = '`'.$item['process_number'].'` · **'.$item['lag_hours'].$suffix.'**';
         }
 
         if ($lines === []) {

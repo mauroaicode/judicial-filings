@@ -64,7 +64,7 @@ class PreviewDigestPackageService
         return Organization::query()
             ->whereHas(
                 'notifications',
-                fn ($q) => $q
+                fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q
                     ->where('is_email_notified', false)
                     ->where('notifiable_type', $morphClass)
             )

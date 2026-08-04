@@ -26,6 +26,9 @@ class PrivateProcessExcelReader implements ToCollection
     /** @var array<string, int>|null canonical column key => 0-based index */
     private ?array $headerIndexMap = null;
 
+    /** Maatwebsite calls {@see collection()} once per worksheet; only the first matching sheet is imported. */
+    private bool $sheetAccepted = false;
+
     public function __construct(
         private readonly UploadedFile $file,
     ) {}
@@ -35,17 +38,39 @@ class PrivateProcessExcelReader implements ToCollection
         $this->rows = [];
         $this->rowErrors = [];
         $this->headerIndexMap = null;
+        $this->sheetAccepted = false;
 
         ExcelFacade::import($this, $this->file, null, $this->resolveFormat());
+
+        $this->recordMissingHeadersIfNoSheetMatched();
 
         return new PrivateProcessExcelParseResult($this->rows, $this->rowErrors);
     }
 
-    public function collection(Collection $rows): void
+    /**
+     * When every worksheet lacked the private-process header row, surface a single error.
+     * State is written by {@see collection()} during {@see ExcelFacade::import()}.
+     */
+    private function recordMissingHeadersIfNoSheetMatched(): void
     {
-        if ($rows->isEmpty()) {
+        if ($this->sheetAccepted) {
             return;
         }
+
+        if (count($this->rowErrors) > 0 || count($this->rows) > 0) {
+            return;
+        }
+
+        $this->rowErrors[1] = __('process.private_process_import_missing_headers');
+    }
+
+    public function collection(Collection $rows): void
+    {
+        if ($this->sheetAccepted || $rows->isEmpty()) {
+            return;
+        }
+
+        $pendingHeaderMap = null;
 
         foreach ($rows as $rowIndex => $row) {
             $excelRow = $rowIndex + 1;
@@ -54,25 +79,30 @@ class PrivateProcessExcelReader implements ToCollection
                 continue;
             }
 
-            if ($this->headerIndexMap === null) {
-                $this->headerIndexMap = $this->resolveHeaderRow($row);
-                if ($this->headerIndexMap === []) {
-                    $this->rowErrors[$excelRow] = __('process.private_process_import_missing_headers');
-
+            if ($pendingHeaderMap === null) {
+                $pendingHeaderMap = $this->resolveHeaderRow($row);
+                if ($pendingHeaderMap === []) {
+                    // Wrong / empty sheet (e.g. a second "Hoja1" with court names only) — try the next worksheet.
                     return;
                 }
 
-                $missing = $this->missingRequiredColumns($this->headerIndexMap);
+                $missing = $this->missingRequiredColumns($pendingHeaderMap);
                 if ($missing !== []) {
                     $this->rowErrors[$excelRow] = __('process.private_process_import_missing_columns', ['columns' => implode(', ', $missing)]);
 
                     return;
                 }
 
+                $this->headerIndexMap = $pendingHeaderMap;
+
                 continue;
             }
 
             $this->parseDataRow($row, $excelRow);
+        }
+
+        if ($this->headerIndexMap !== null) {
+            $this->sheetAccepted = true;
         }
     }
 

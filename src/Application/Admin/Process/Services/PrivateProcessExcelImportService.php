@@ -520,7 +520,11 @@ class PrivateProcessExcelImportService
 
         $currentLa = $process->last_activity_date?->format('Y-m-d');
         foreach ([$reg, $actDate, $row->endDate] as $candidate) {
-            if ($candidate === null || $candidate === '') {
+            if ($candidate === null) {
+                continue;
+            }
+
+            if ($candidate === '') {
                 continue;
             }
 

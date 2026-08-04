@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "784d6a6ec53852186d4996371895e648",
+    "content-hash": "f563d57eb82c29341328403881c97418",
     "packages": [
         {
             "name": "brick/math",
@@ -5718,6 +5718,70 @@
                 }
             ],
             "time": "2024-06-11T12:45:25+00:00"
+        },
+        {
+            "name": "rmunate/calendario-colombia",
+            "version": "v3.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/rmunate/ColombianHolidaysCalendar.git",
+                "reference": "0abd68c325269635c9a75a85661e11c6288b7aec"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/rmunate/ColombianHolidaysCalendar/zipball/0abd68c325269635c9a75a85661e11c6288b7aec",
+                "reference": "0abd68c325269635c9a75a85661e11c6288b7aec",
+                "shasum": ""
+            },
+            "require": {
+                "ext-pdo_sqlite": "*",
+                "ext-sqlite3": "*",
+                "illuminate/support": "^8.0|^9.0|^10.0|^11.0|^12.0",
+                "nesbot/carbon": "^2.72.2|^3.0",
+                "php": "^7.4|^8.0"
+            },
+            "require-dev": {
+                "phpstan/phpstan": "^1.10",
+                "phpunit/phpunit": "^10.4|^11.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "v2.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Rmunate\\Calendar\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Raul Mauricio Uñate Castro",
+                    "email": "raulmauriciounate@gmail.com",
+                    "homepage": "https://github.com/rmunate",
+                    "role": "owner"
+                }
+            ],
+            "description": "This package simplifies working with Colombian holidays. It provides an easy, reliable, and convenient way to query, manipulate, or retrieve data related to holidays in Colombia, including detailed information about the reasons for each holiday.",
+            "homepage": "https://github.com/rmunate/ColombianCalendar",
+            "keywords": [
+                "calendar",
+                "colombia",
+                "feriados",
+                "festivos",
+                "holidays",
+                "rmunate"
+            ],
+            "support": {
+                "issues": "https://github.com/rmunate/ColombianHolidaysCalendar/issues",
+                "source": "https://github.com/rmunate/ColombianHolidaysCalendar/tree/v3.1.0"
+            },
+            "time": "2025-06-10T14:08:29+00:00"
         },
         {
             "name": "spatie/laravel-data",
