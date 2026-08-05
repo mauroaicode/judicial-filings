@@ -259,6 +259,72 @@ it('adds actuaciones to an existing process found by radicado', function (): voi
     expect(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(2);
 });
 
+it('does not re-add sujetos when importing actuaciones for an existing linked process', function (): void {
+    Queue::fake();
+
+    $process = Process::query()->create([
+        'process_number' => '76233408900120240006900',
+        'court' => 'JUZGADO 001 PROMISCUO MUNICIPAL DE DAGUA',
+        'process_data_source_id' => $this->ppUuid,
+        'department' => 'Sin departamento',
+        'process_type' => 'Proceso privado',
+        'process_class' => 'EJECUTIVO SINGULAR',
+        'litigants' => 'Demandante: ORIGINAL PLAINTIFF | Demandado: ORIGINAL DEFENDANT',
+        'is_private' => true,
+        'is_manual_sync' => true,
+        'process_date' => '2024-05-03',
+        'status' => 'activo',
+    ]);
+    $process->organizations()->syncWithoutDetaching([
+        $this->organization->id => [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'status' => OrganizationProcessStatus::ACTIVE->value,
+        ],
+    ]);
+
+    $existingPlaintiff = \Src\Domain\Process\Models\ProcessSubject::query()->create([
+        'subject_registration_id' => null,
+        'subject_type' => \Src\Domain\Process\Models\ProcessSubject::TYPE_PLAINTIFF,
+        'is_cited' => false,
+        'identification' => null,
+        'name_or_business_name' => 'ORIGINAL PLAINTIFF',
+    ]);
+    $existingDefendant = \Src\Domain\Process\Models\ProcessSubject::query()->create([
+        'subject_registration_id' => null,
+        'subject_type' => \Src\Domain\Process\Models\ProcessSubject::TYPE_DEFENDANT,
+        'is_cited' => false,
+        'identification' => null,
+        'name_or_business_name' => 'ORIGINAL DEFENDANT',
+    ]);
+    $process->subjects()->attach([$existingPlaintiff->id, $existingDefendant->id]);
+
+    $spreadsheet = buildActuacionesSpreadsheet([
+        ['JUZGADO 001 PROMISCUO MUNICIPAL DE DAGUA', '76233408900120240006900', 'EJECUTIVO SINGULAR',
+            'NUEVO DEMANDANTE DISTINTO', 'NUEVO DEMANDADO DISTINTO',
+            'AUTO LIBRA MANDAMIENTO DE PAGO', '', '2024-05-03', '2024-05-03', '2024-05-02'],
+    ]);
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-no-subjects');
+    $this->tmpPaths[] = $path;
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/actuaciones-import', ['file' => makeUploadedFile($path)])
+        ->assertStatus(200)
+        ->assertJsonPath('actions_imported', 1)
+        ->assertJsonPath('processes_updated', 1);
+
+    $process->refresh();
+    $process->load('subjects');
+
+    expect($process->subjects)->toHaveCount(2)
+        ->and($process->subjects->pluck('name_or_business_name')->all())->toEqualCanonicalizing([
+            'ORIGINAL PLAINTIFF',
+            'ORIGINAL DEFENDANT',
+        ])
+        ->and($process->litigants)->toBe('Demandante: ORIGINAL PLAINTIFF | Demandado: ORIGINAL DEFENDANT')
+        ->and(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(1);
+});
+
 it('finds an existing process regardless of organization or data source', function (): void {
     Queue::fake();
 

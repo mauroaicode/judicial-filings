@@ -14,14 +14,14 @@ use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationServic
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessImportBatch;
-use Src\Domain\Process\Models\ProcessSubject;
 use Src\Domain\Process\Services\FijacionEstadoActionSplitter;
 use Throwable;
 
 /**
  * Imports actuaciones (movements) from the standard private-process Excel template.
  *
- * - If a Process already exists for the radicado → attach actuaciones (may feed digest).
+ * - If a Process already exists for the radicado → attach actuaciones only (may feed digest).
+ *   Subjects / litigants are left untouched: they were already loaded with the process history.
  * - If not → persist them in {@see UnassignedProcessAction} for later retroactive attach
  *   when the Process is created (no data loss for Publicaciones Procesales / small courts).
  *
@@ -127,9 +127,6 @@ class ProcessActuacionesExcelImportService
                 }
 
                 $processesUpdated++;
-
-                $this->syncSubjectsFromRows($process, $rows);
-                $this->extendLigigantsFromRows($process, $rows);
 
                 $result = $this->importActuaciones($process, $rows);
                 $actionsImported += $result['imported'];
@@ -358,85 +355,6 @@ class ProcessActuacionesExcelImportService
         if ($updates !== []) {
             $process->update($updates);
         }
-    }
-
-    // ─── Subjects / litigants ────────────────────────────────────────────────
-
-    /**
-     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
-     */
-    private function syncSubjectsFromRows(Process $process, array $rows): void
-    {
-        foreach ($rows as $row) {
-            $process->loadMissing('subjects');
-            foreach (PrivateImportSubjectNamesSplitter::split($row->plaintiffsRaw) as $name) {
-                $this->attachSubjectIfMissing($process, $name, ProcessSubject::TYPE_PLAINTIFF);
-            }
-
-            foreach (PrivateImportSubjectNamesSplitter::split($row->defendantsRaw) as $name) {
-                $this->attachSubjectIfMissing($process, $name, ProcessSubject::TYPE_DEFENDANT);
-            }
-        }
-    }
-
-    private function attachSubjectIfMissing(Process $process, string $name, string $type): void
-    {
-        $process->loadMissing('subjects');
-        foreach ($process->subjects as $existing) {
-            if (
-                $existing->subject_type === $type
-                && mb_strtolower(trim((string) $existing->name_or_business_name)) === mb_strtolower(trim($name))
-            ) {
-                return;
-            }
-        }
-
-        $subject = ProcessSubject::query()->create([
-            'subject_registration_id' => null,
-            'subject_type' => $type,
-            'is_cited' => false,
-            'identification' => null,
-            'name_or_business_name' => $name,
-        ]);
-
-        $process->subjects()->attach($subject->id);
-        $process->unsetRelation('subjects');
-    }
-
-    /**
-     * @param  list<PrivateProcessExcelImportedRowDTO>  $rows
-     */
-    private function extendLigigantsFromRows(Process $process, array $rows): void
-    {
-        foreach ($rows as $row) {
-            $this->extendLitigantsSummary($process, $row);
-        }
-    }
-
-    private function extendLitigantsSummary(Process $process, PrivateProcessExcelImportedRowDTO $row): void
-    {
-        $chunks = [];
-        foreach (PrivateImportSubjectNamesSplitter::split($row->plaintiffsRaw) as $name) {
-            $chunks[] = __('process.private_process_litigant_prefix_plaintiff').$name;
-        }
-
-        foreach (PrivateImportSubjectNamesSplitter::split($row->defendantsRaw) as $name) {
-            $chunks[] = __('process.private_process_litigant_prefix_defendant').$name;
-        }
-
-        $addition = implode(' | ', array_slice($chunks, 0, 12));
-        if ($addition === '') {
-            return;
-        }
-
-        $existing = trim((string) ($process->litigants ?? ''));
-        $merged = $existing === '' ? $addition : $existing.' | '.$addition;
-        if (strlen($merged) > 6000) {
-            $merged = mb_substr($merged, 0, 5997).'...';
-        }
-
-        $process->update(['litigants' => $merged]);
-        $process->refresh();
     }
 
     // ─── Grouping helpers ────────────────────────────────────────────────────
