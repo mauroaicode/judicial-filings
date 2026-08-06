@@ -139,7 +139,7 @@ readonly class RegisterSamaiProcessService
                 registeredCount: $attached->count(),
                 privateCount: $privateCount,
             );
-        });
+        }, $this->registrationTransactionAttempts());
     }
 
     // -------------------------------------------------------------------------
@@ -220,7 +220,7 @@ readonly class RegisterSamaiProcessService
                 registeredCount: $registeredProcesses->count(),
                 privateCount: 0,
             );
-        });
+        }, $this->registrationTransactionAttempts());
 
         foreach ($result->processes as $process) {
             $process->refresh();
@@ -570,5 +570,10 @@ readonly class RegisterSamaiProcessService
         }
 
         return null;
+    }
+
+    private function registrationTransactionAttempts(): int
+    {
+        return max(1, (int) config('judicial-branch.registration_db_transaction_attempts', 5));
     }
 }

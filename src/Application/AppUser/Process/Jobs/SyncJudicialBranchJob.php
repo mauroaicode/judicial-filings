@@ -24,6 +24,12 @@ class SyncJudicialBranchJob implements ShouldQueue
 
     public $timeout = 180;
 
+    /** Retries cover MySQL deadlocks when daily sync is also writing processes. */
+    public int $tries = 5;
+
+    /** @var list<int> */
+    public array $backoff = [5, 15, 30, 60];
+
     public function __construct(
         public string $processNumber,
         public string $organizationId,

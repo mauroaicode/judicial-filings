@@ -68,6 +68,16 @@ return [
     | de actuaciones en el Portal, el alta va en cola (SyncJudicialBranchJob).
     | Con cantidadPaginas <= este valor, el registro termina en la misma petición HTTP.
     |
+    | Si hay un sync diario activo (batch pending), el alta también se encola aunque
+    | el historial sea corto, para no pelear locks con el cron (deadlocks MySQL).
+    |
     */
     'registration_inline_max_actuacion_pages' => (int) env('JUDICIAL_BRANCH_REGISTRATION_INLINE_MAX_ACTUACION_PAGES', 2),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reintentos de transacción DB al registrar (deadlock 1213)
+    |--------------------------------------------------------------------------
+    */
+    'registration_db_transaction_attempts' => (int) env('JUDICIAL_BRANCH_REGISTRATION_DB_TRANSACTION_ATTEMPTS', 5),
 ];

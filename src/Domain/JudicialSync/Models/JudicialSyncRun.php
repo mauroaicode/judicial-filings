@@ -92,6 +92,26 @@ class JudicialSyncRun extends Model
         return new JudicialSyncRunQueryBuilder($query);
     }
 
+    /**
+     * Whether a sync batch is still writing (command started or Laravel batch pending).
+     * Used to avoid inline AppUser registration deadlocks against the daily cron.
+     */
+    public static function hasActiveBatch(?JudicialSyncDataSource $dataSource = null): bool
+    {
+        $query = self::query()
+            ->whereIn('status', [
+                JudicialSyncRunStatus::Started->value,
+                JudicialSyncRunStatus::BatchPending->value,
+            ])
+            ->where('started_at', '>=', now()->subHours(8));
+
+        if ($dataSource instanceof JudicialSyncDataSource) {
+            $query->where('data_source', $dataSource);
+        }
+
+        return $query->exists();
+    }
+
     public static function startRun(
         ?string $radicadoFilter,
         JudicialSyncDataSource $dataSource = JudicialSyncDataSource::JudicialBranch,

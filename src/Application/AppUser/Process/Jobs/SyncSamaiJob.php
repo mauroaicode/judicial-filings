@@ -30,15 +30,15 @@ class SyncSamaiJob implements ShouldQueue
 
     public int $timeout = 180;
 
+    /** Retries cover MySQL deadlocks when daily sync is also writing processes. */
+    public int $tries = 5;
+
     /**
-     * Espera entre reintentos: 60s → 120s → 300s.
+     * Espera entre reintentos: 5s → 15s → 30s → 60s (deadlock) / longer gaps for API timeouts.
      *
-     * @return list<int>
+     * @var list<int>
      */
-    public function backoff(): array
-    {
-        return [60, 120, 300];
-    }
+    public array $backoff = [5, 15, 30, 60];
 
     public function __construct(
         public string $processNumber,

@@ -151,7 +151,7 @@ readonly class RegisterProcessService
                 registeredCount: $attached->count(),
                 privateCount: $privateCount,
             );
-        });
+        }, $this->registrationTransactionAttempts());
 
         // Si ya migró a SAMAI, los datos vienen del backfill: la org registrante no recibe consolidado.
         // Si sigue en JB público, sync de registro como antes (digest opcional).
@@ -233,7 +233,7 @@ readonly class RegisterProcessService
                             actorType: 'system',
                             occurredAt: $occurredAt,
                         ));
-                    });
+                    }, $this->registrationTransactionAttempts());
 
                     $privateFlipDetected = true;
                 }
@@ -361,7 +361,7 @@ readonly class RegisterProcessService
                 registeredCount: $registeredProcesses->count(),
                 privateCount: $privateCount,
             );
-        });
+        }, $this->registrationTransactionAttempts());
 
         $this->processSyncService->syncForRegistration(
             $processNumber,
@@ -541,5 +541,10 @@ readonly class RegisterProcessService
             Date::parse($process->last_activity_date),
             $role,
         );
+    }
+
+    private function registrationTransactionAttempts(): int
+    {
+        return max(1, (int) config('judicial-branch.registration_db_transaction_attempts', 5));
     }
 }

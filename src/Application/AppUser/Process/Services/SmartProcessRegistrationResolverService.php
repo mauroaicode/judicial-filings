@@ -10,6 +10,8 @@ use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\SamaiConsultService;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
+use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 
@@ -70,7 +72,14 @@ readonly class SmartProcessRegistrationResolverService
             ? ProcessDataSourceSlug::Samai
             : ProcessDataSourceSlug::JudicialBranch;
 
-        return new SmartProcessRoutingDecision(source: $source, deferToQueue: false);
+        $syncSource = $source === ProcessDataSourceSlug::Samai
+            ? JudicialSyncDataSource::Samai
+            : JudicialSyncDataSource::JudicialBranch;
+
+        return new SmartProcessRoutingDecision(
+            source: $source,
+            deferToQueue: JudicialSyncRun::hasActiveBatch($syncSource),
+        );
     }
 
     private function tryJudicialBranch(string $processNumber): ?SmartProcessRoutingDecision
@@ -130,7 +139,8 @@ readonly class SmartProcessRegistrationResolverService
 
         return new SmartProcessRoutingDecision(
             source: ProcessDataSourceSlug::JudicialBranch,
-            deferToQueue: $maxPages > $inlineMaxPages,
+            deferToQueue: $maxPages > $inlineMaxPages
+                || JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch),
             prefetchedJbProcesses: $processesData,
         );
     }
@@ -177,7 +187,8 @@ readonly class SmartProcessRegistrationResolverService
 
         return new SmartProcessRoutingDecision(
             source: ProcessDataSourceSlug::Samai,
-            deferToQueue: $deferToQueue,
+            deferToQueue: $deferToQueue
+                || JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::Samai),
         );
     }
 

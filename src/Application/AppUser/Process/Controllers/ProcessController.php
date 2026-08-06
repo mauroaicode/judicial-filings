@@ -125,7 +125,7 @@ readonly class ProcessController
      * o no existe allí, intenta con SAMAI.
      *
      * En ambos casos el alta es inline si el historial es corto, o asíncrona
-     * (cola) si el historial es largo.
+     * (cola) si el historial es largo o hay un sync diario activo.
      *
      * @throws Throwable
      */
