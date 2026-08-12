@@ -33,3 +33,11 @@ it('does not split fijacion estado without a linked decision', function (): void
     expect($splitter->split('Fijacion Estado del proceso'))
         ->toBe(['Fijacion Estado del proceso']);
 });
+
+it('detects estado pair labels from a split', function (): void {
+    $splitter = new FijacionEstadoActionSplitter;
+
+    expect($splitter->isEstadoPairLabel('Fijación Estado'))->toBeTrue()
+        ->and($splitter->isEstadoPairLabel('Notificacion Estado'))->toBeTrue()
+        ->and($splitter->isEstadoPairLabel('Auto Medida Cautelar'))->toBeFalse();
+});

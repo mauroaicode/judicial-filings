@@ -11,6 +11,10 @@ use Src\Domain\Process\Services\FijacionEstadoActionSplitter;
 /**
  * Persists actuaciones from Excel when no Process exists yet for the radicado.
  * These rows are later attached via {@see AttachUnassignedProcessActionsService}.
+ *
+ * Combined titles like "Fijación Estado Auto …" are split into two rows. When the
+ * estado half already exists for that radicado/date, it is skipped silently if the
+ * Auto half is new — only true duplicates are reported to the user.
  */
 class PersistUnassignedProcessActionsService
 {
@@ -31,7 +35,8 @@ class PersistUnassignedProcessActionsService
      *         registration_date: string|null,
      *         court: string|null,
      *         excel_row: int,
-     *         reason: string
+     *         reason: string,
+     *         message: string
      *     }>
      * }
      */
@@ -44,7 +49,7 @@ class PersistUnassignedProcessActionsService
         $skipped = 0;
         /** @var array<string, true> $processNumbers */
         $processNumbers = [];
-        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string}> $skippedActions */
+        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string, message: string}> $skippedActions */
         $skippedActions = [];
 
         foreach ($rows as $row) {
@@ -58,6 +63,9 @@ class PersistUnassignedProcessActionsService
             }
 
             $registrationDate = $row->registrationDate ?? $row->startDate ?? now()->format('Y-m-d');
+            $isSplitPair = count($actionTitles) > 1;
+            $storedFromRow = 0;
+            $meaningfulSkips = 0;
 
             foreach ($actionTitles as $actionTitle) {
                 $hash = UnassignedProcessAction::makeDedupeHash(
@@ -74,16 +82,12 @@ class PersistUnassignedProcessActionsService
                     ->exists();
 
                 if ($exists) {
-                    $skipped++;
-                    $skippedActions[] = [
-                        'process_number' => $row->processNumber,
-                        'action' => $actionTitle,
-                        'annotation' => $row->annotation,
-                        'registration_date' => $registrationDate,
-                        'court' => $row->court !== '' ? $row->court : null,
-                        'excel_row' => $row->excelRowNumber,
-                        'reason' => 'duplicate',
-                    ];
+                    if ($isSplitPair && $this->fijacionEstadoActionSplitter->isEstadoPairLabel($actionTitle)) {
+                        // Estado half already paired with a prior Auto for this radicado/date.
+                        continue;
+                    }
+
+                    $meaningfulSkips++;
 
                     continue;
                 }
@@ -105,7 +109,22 @@ class PersistUnassignedProcessActionsService
                 ]);
 
                 $stored++;
+                $storedFromRow++;
                 $processNumbers[$row->processNumber] = true;
+            }
+
+            if ($storedFromRow === 0 && $meaningfulSkips > 0) {
+                $skipped++;
+                $skippedActions[] = [
+                    'process_number' => $row->processNumber,
+                    'action' => $row->actionText,
+                    'annotation' => $row->annotation,
+                    'registration_date' => $registrationDate,
+                    'court' => $row->court !== '' ? $row->court : null,
+                    'excel_row' => $row->excelRowNumber,
+                    'reason' => 'duplicate',
+                    'message' => __('process.actuaciones_import_skipped_duplicate'),
+                ];
             }
         }
 

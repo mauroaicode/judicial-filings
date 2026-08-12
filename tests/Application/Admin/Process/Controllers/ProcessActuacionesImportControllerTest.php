@@ -418,9 +418,42 @@ it('skips actuaciones that already exist (deduplication)', function (): void {
         ->and($response->json('skipped_actions.0.action'))->toBe('Auto Fija Fecha y Hora de Audiencia')
         ->and($response->json('skipped_actions.0.registration_date'))->toBe('2026-05-04')
         ->and($response->json('skipped_actions.0.reason'))->toBe('duplicate')
+        ->and($response->json('skipped_actions.0.message'))->not->toBe('')
         ->and($response->json('skipped_actions.0.excel_row'))->toBe(2);
 
     expect(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(2);
+});
+
+it('does not list repeated fijacion estado as omitted when a new auto is imported', function (): void {
+    Queue::fake();
+
+    $spreadsheet = buildActuacionesSpreadsheet([
+        ['Juzgado 002 Civil Municipal de Buga', '76111400300220240032200',
+            'Ejecutivo', 'A', 'B',
+            'Fijacion Estado Auto MEDIDA CAUTELAR', '', '2026-08-06', '2026-08-06', '2026-08-06'],
+        ['Juzgado 002 Civil Municipal de Buga', '76111400300220240032200',
+            'Ejecutivo', 'A', 'B',
+            'Fijacion Estado Auto RECONOCER PERSONERIA - REMITIR LINK', '', '2026-08-06', '2026-08-06', '2026-08-06'],
+    ]);
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-fijacion-pair');
+    $this->tmpPaths[] = $path;
+
+    $response = $this->actingAs($this->user)
+        ->post('/api/admin/processes/actuaciones-import', ['file' => makeUploadedFile($path)]);
+
+    $response->assertStatus(200);
+    expect($response->json('actions_stored_unassigned'))->toBe(3)
+        ->and($response->json('actions_skipped'))->toBe(0)
+        ->and($response->json('skipped_actions'))->toBe([]);
+
+    $actions = \Src\Domain\Process\Models\UnassignedProcessAction::query()
+        ->whereProcessNumber('76111400300220240032200')
+        ->pluck('action')
+        ->all();
+
+    expect($actions)->toContain('Fijación Estado')
+        ->and($actions)->toContain('Auto Medida Cautelar')
+        ->and($actions)->toContain('Auto Reconocer Personeria - Remitir Link');
 });
 
 // ─── Mixed: some found, some not ─────────────────────────────────────────────

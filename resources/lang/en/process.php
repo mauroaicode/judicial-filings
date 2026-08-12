@@ -128,6 +128,7 @@ return [
     'sync_source_not_implemented' => ':source sync is not available yet.',
 
     'actuaciones_import_success' => 'Actuaciones import completed.',
+    'actuaciones_import_skipped_duplicate' => 'Already registered (same filing number, date, proceeding and annotation). When Excel combines “Fijación Estado” + “Auto…”, the distinct Auto is still imported; only the repeated estado label is omitted.',
 
     'private_process_import_success' => 'Private import completed.',
     'private_process_import_invalid_data_source' => 'The requested data source is not valid for manual import.',

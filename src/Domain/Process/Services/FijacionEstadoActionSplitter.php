@@ -67,6 +67,24 @@ final class FijacionEstadoActionSplitter
         return false;
     }
 
+    /**
+     * True when the title is only the estado half of a split pair
+     * (Fijación / Notificación / Publicación Estado), not a decision Auto.
+     */
+    public function isEstadoPairLabel(string $actionText): bool
+    {
+        $normalized = mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $actionText)));
+
+        return in_array($normalized, [
+            'fijación estado',
+            'fijacion estado',
+            'notificación estado',
+            'notificacion estado',
+            'publicación estado',
+            'publicacion estado',
+        ], true);
+    }
+
     private function canonicalEstadoLabel(string $prefix): string
     {
         $lower = mb_strtolower($prefix);

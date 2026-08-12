@@ -27,6 +27,8 @@ use Throwable;
  *
  * Deduplication: an actuacion is skipped if a row already exists for that
  * process with the same registration_date + action text + annotation.
+ * Combined "Fijación Estado Auto …" titles are split; a repeated estado half
+ * is skipped silently when the Auto half is new (not listed as omitida).
  */
 class ProcessActuacionesExcelImportService
 {
@@ -86,7 +88,7 @@ class ProcessActuacionesExcelImportService
         $actionsStoredUnassigned = 0;
         $processesUpdated = 0;
         $unassignedProcessNumbers = [];
-        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string}> $skippedActions */
+        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string, message: string}> $skippedActions */
         $skippedActions = [];
 
         DB::transaction(function () use (
@@ -154,6 +156,7 @@ class ProcessActuacionesExcelImportService
                 court: $item['court'],
                 excel_row: $item['excel_row'],
                 reason: $item['reason'],
+                message: $item['message'] ?? __('process.actuaciones_import_skipped_duplicate'),
             ),
             $skippedActions,
         );
@@ -196,7 +199,8 @@ class ProcessActuacionesExcelImportService
      *         registration_date: string|null,
      *         court: string|null,
      *         excel_row: int,
-     *         reason: string
+     *         reason: string,
+     *         message: string
      *     }>
      * }
      */
@@ -207,7 +211,7 @@ class ProcessActuacionesExcelImportService
             ->max('cons_action') ?? 0);
 
         $imported = 0;
-        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string}> $skipped */
+        /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string, message: string}> $skipped */
         $skipped = [];
 
         foreach ($rows as $row) {
@@ -226,6 +230,7 @@ class ProcessActuacionesExcelImportService
                     'court' => $row->court !== '' ? $row->court : null,
                     'excel_row' => $row->excelRowNumber,
                     'reason' => 'duplicate',
+                    'message' => __('process.actuaciones_import_skipped_duplicate'),
                 ];
 
                 continue;
@@ -236,9 +241,22 @@ class ProcessActuacionesExcelImportService
                 continue;
             }
 
+            $isSplitPair = count($actionTitles) > 1;
+            $storedFromRow = 0;
+            $meaningfulSkips = 0;
             $processReloaded = null;
 
             foreach ($actionTitles as $actionTitle) {
+                if ($this->actionExistsWithText($process->id, $registrationDate, $actionTitle, $row->annotation)) {
+                    if ($isSplitPair && $this->fijacionEstadoActionSplitter->isEstadoPairLabel($actionTitle)) {
+                        continue;
+                    }
+
+                    $meaningfulSkips++;
+
+                    continue;
+                }
+
                 $nextCons++;
 
                 $action = ProcessAction::query()->create([
@@ -254,6 +272,7 @@ class ProcessActuacionesExcelImportService
                 ]);
 
                 $imported++;
+                $storedFromRow++;
 
                 $processReloaded ??= Process::query()->whereKey($process->id)->with('organizations')->first();
                 if ($processReloaded instanceof Process) {
@@ -261,7 +280,22 @@ class ProcessActuacionesExcelImportService
                 }
             }
 
-            $this->refreshActivityBoundaries($process, $row);
+            if ($storedFromRow === 0 && $meaningfulSkips > 0) {
+                $skipped[] = [
+                    'process_number' => $row->processNumber,
+                    'action' => $row->actionText,
+                    'annotation' => $row->annotation,
+                    'registration_date' => $registrationDate,
+                    'court' => $row->court !== '' ? $row->court : null,
+                    'excel_row' => $row->excelRowNumber,
+                    'reason' => 'duplicate',
+                    'message' => __('process.actuaciones_import_skipped_duplicate'),
+                ];
+            }
+
+            if ($storedFromRow > 0) {
+                $this->refreshActivityBoundaries($process, $row);
+            }
         }
 
         return [

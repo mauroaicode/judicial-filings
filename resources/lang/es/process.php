@@ -131,6 +131,7 @@ return [
     'sync_source_not_implemented' => 'La sincronización de :source aún no está disponible.',
 
     'actuaciones_import_success' => 'Importación de actuaciones completada.',
+    'actuaciones_import_skipped_duplicate' => 'Ya estaba registrada (mismo radicado, fecha, actuación y anotación). El detalle distinto del Auto sí se importa cuando el Excel une “Fijación Estado” + “Auto…”; solo se omite el “Fijación Estado” repetido.',
 
     'private_process_import_success' => 'Importación privada completada.',
     'private_process_import_invalid_data_source' => 'La fuente de datos indicada no es válida para importación manual.',
