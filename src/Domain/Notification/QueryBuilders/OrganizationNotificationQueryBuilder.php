@@ -84,21 +84,40 @@ class OrganizationNotificationQueryBuilder extends Builder
     }
 
     /**
-     * Actuaciones within the registration window, or first discovered today (Rama may
-     * return stale registration_date values for entries newly visible in the API).
+     * Actuaciones within the registration window, or first discovered today with a
+     * registration_date not older than the discovered-today max age.
      */
-    public function forActuacionVisibleByRegistrationOrDiscoveredToday(string $registrationFloorDate): self
-    {
+    public function forActuacionVisibleByRegistrationOrDiscoveredToday(
+        string $registrationFloorDate,
+        ?string $discoveredTodayMinRegistrationDate = null,
+    ): self {
         $morphClass = (new ProcessAction)->getMorphClass();
         $discoveredSince = today()->format('Y-m-d');
 
         return $this->where('organization_notifications.notifiable_type', $morphClass)
-            ->whereIn('organization_notifications.notifiable_id', function ($sub) use ($registrationFloorDate, $discoveredSince): void {
+            ->whereIn('organization_notifications.notifiable_id', function ($sub) use (
+                $registrationFloorDate,
+                $discoveredSince,
+                $discoveredTodayMinRegistrationDate,
+            ): void {
                 $sub->select('process_actions.id')
                     ->from('process_actions')
-                    ->where(function (\Illuminate\Contracts\Database\Query\Builder $query) use ($registrationFloorDate, $discoveredSince): void {
-                        $query->whereDate('registration_date', '>=', $registrationFloorDate)
-                            ->orWhereDate('created_at', '>=', $discoveredSince);
+                    ->where(function (\Illuminate\Contracts\Database\Query\Builder $query) use (
+                        $registrationFloorDate,
+                        $discoveredSince,
+                        $discoveredTodayMinRegistrationDate,
+                    ): void {
+                        $query->whereDate('registration_date', '>=', $registrationFloorDate);
+
+                        if ($discoveredTodayMinRegistrationDate !== null) {
+                            $query->orWhere(function (\Illuminate\Contracts\Database\Query\Builder $discovered) use (
+                                $discoveredSince,
+                                $discoveredTodayMinRegistrationDate,
+                            ): void {
+                                $discovered->whereDate('created_at', '>=', $discoveredSince)
+                                    ->whereDate('registration_date', '>=', $discoveredTodayMinRegistrationDate);
+                            });
+                        }
                     });
             });
     }

@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Src\Application\AppUser\Process\DTOs\SmartProcessRoutingDecision;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException;
+use Src\Application\Shared\Helpers\ProcessConsultationScopeHelper;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
@@ -21,7 +22,8 @@ use Src\Domain\Process\Models\Process;
  *
  * Orden de prioridad:
  *  1. Rama Judicial  → procesos públicos en el Portal CPNU.
- *  2. SAMAI          → Consejo de Estado, procesos privados/restringidos.
+ *  2. SAMAI          → solo juzgados/tribunales administrativos y Consejo de Estado
+ *                      (si Unificada no lo tiene o está privado).
  *  (3. TYBA          → pendiente de integración futura.)
  *
  * Si el radicado ya existe en la BD (de cualquier fuente), se usa el fast-path
@@ -50,7 +52,12 @@ readonly class SmartProcessRegistrationResolverService
             return $jbDecision;
         }
 
-        // Rama Judicial no lo encontró o todos los registros son privados → probar SAMAI.
+        // Rama Judicial no lo encontró o todos los registros son privados.
+        // SAMAI solo aplica a juzgados/tribunales administrativos y Consejo de Estado.
+        if (! ProcessConsultationScopeHelper::shouldConsultSamai($processNumber)) {
+            abort(404, __('process.not_found_in_any_source'));
+        }
+
         $samaiDecision = $this->trySamai($processNumber);
         if ($samaiDecision instanceof \Src\Application\AppUser\Process\DTOs\SmartProcessRoutingDecision) {
             return $samaiDecision;

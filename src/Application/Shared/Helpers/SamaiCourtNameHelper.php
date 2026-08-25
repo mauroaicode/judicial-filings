@@ -69,16 +69,17 @@ final class SamaiCourtNameHelper
      * - "JUZGADO 002 ADMINISTRATIVO DE GUADALAJARA DE BUGA" → igual
      * - "Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE AGUACHICA (CESAR)"
      *   → "JUZGADO 001 ADMINISTRATIVO DE AGUACHICA (CESAR)"
-     * - "Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE ARMENIA"
-     *   → "JUZGADO ADMINISTRATIVO DE ARMENIA" (000 no es número útil)
+     * - "ADMINISTRATIVO 007 JUZGADO ADMINISTRATIVO DE IBAGUE (TOLIMA)"
+     *   → "JUZGADO 007 ADMINISTRATIVO DE IBAGUE (TOLIMA)"
      */
     private static function normalizeOrigen(string $origen): string
     {
         $origen = trim((string) preg_replace('/\s+/u', ' ', $origen));
 
-        // Prefijo "Juzgado/Tribunal Administrativo NNN" + nombre completo en mayúsculas.
+        // Prefijo "Juzgado/Tribunal Administrativo NNN" o "ADMINISTRATIVO NNN"
+        // + nombre completo en mayúsculas (Ibagué omite "Juzgado" al inicio).
         if (preg_match(
-            '/\b(?:Juzgado|Tribunal)\s+Administrativo\s+(\d{1,3})\s+(JUZGADO|TRIBUNAL)\s+(.+)$/iu',
+            '/^(?:(?:Juzgado|Tribunal)\s+)?Administrativo\s+(\d{1,3})\s+(JUZGADO|TRIBUNAL)\s+(.+)$/iu',
             $origen,
             $matches
         ) === 1) {

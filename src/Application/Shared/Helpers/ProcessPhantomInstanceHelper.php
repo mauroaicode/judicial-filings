@@ -57,6 +57,47 @@ final class ProcessPhantomInstanceHelper
         );
     }
 
+    /**
+     * Prefer the folder that already holds the radicado history when importing
+     * actuaciones Excel (multi-instance / phantom siblings).
+     *
+     * @param  Collection<int, Process>  $processes
+     */
+    public static function pickPreferredInstanceForImport(Collection $processes): ?Process
+    {
+        if ($processes->isEmpty()) {
+            return null;
+        }
+
+        if ($processes->count() === 1) {
+            return $processes->first();
+        }
+
+        return $processes
+            ->sort(function (Process $left, Process $right): int {
+                $leftActions = (int) ($left->actions_count ?? $left->actions()->count());
+                $rightActions = (int) ($right->actions_count ?? $right->actions()->count());
+                if ($leftActions !== $rightActions) {
+                    return $rightActions <=> $leftActions;
+                }
+
+                $leftRich = self::isRichInstance($left) ? 1 : 0;
+                $rightRich = self::isRichInstance($right) ? 1 : 0;
+                if ($leftRich !== $rightRich) {
+                    return $rightRich <=> $leftRich;
+                }
+
+                $leftActivity = $left->last_activity_date?->format('Y-m-d') ?? '';
+                $rightActivity = $right->last_activity_date?->format('Y-m-d') ?? '';
+                if ($leftActivity !== $rightActivity) {
+                    return $rightActivity <=> $leftActivity;
+                }
+
+                return strcmp((string) $left->id, (string) $right->id);
+            })
+            ->first();
+    }
+
     private static function sameFolderMetadata(Process $left, Process $right): bool
     {
         return $left->court === $right->court

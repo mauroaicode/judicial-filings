@@ -26,6 +26,24 @@ it('allows actuaciones discovered today even with old registration_date', functi
     expect($service->isEligibleForAppActuacionNotification($action, $organization->id))->toBeTrue();
 });
 
+it('blocks year-old actuaciones even when discovered today', function (): void {
+    Carbon::setTestNow('2026-08-04 10:00:00');
+
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => Carbon::parse('2025-06-04'),
+        'action_date' => Carbon::parse('2025-06-04'),
+        'created_at' => now(),
+    ]);
+
+    $service = app(OrganizationNotificationRegistrationCutoffService::class);
+
+    expect($service->isNewlyDiscoveredActuacion($action))->toBeFalse()
+        ->and($service->isEligibleForAppActuacionNotification($action, $organization->id))->toBeFalse();
+});
+
 it('blocks stale actuaciones discovered before today', function (): void {
     Carbon::setTestNow('2026-06-24 16:39:14');
 
@@ -125,6 +143,81 @@ it('includes newly discovered actuaciones in digest pending filter', function ()
 
     expect($ids)->toContain($oldButNewToday->id);
     expect($ids)->not->toContain($stale->id);
+});
+
+it('excludes year-old discovered-today actuaciones from digest pending filter', function (): void {
+    Carbon::setTestNow('2026-08-04 10:00:00');
+
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $ancient = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => Carbon::parse('2025-06-04'),
+        'action_date' => Carbon::parse('2025-06-04'),
+        'created_at' => now(),
+    ]);
+
+    $recentLag = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => Carbon::parse('2026-07-20'),
+        'action_date' => Carbon::parse('2026-07-20'),
+        'created_at' => now(),
+    ]);
+
+    $morphClass = $ancient->getMorphClass();
+    $service = app(OrganizationNotificationRegistrationCutoffService::class);
+
+    $priorAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => Carbon::parse('2026-08-03'),
+        'action_date' => Carbon::parse('2026-08-03'),
+        'created_at' => Carbon::parse('2026-08-03'),
+    ]);
+
+    $digest = \Src\Domain\Notification\Models\NotificationDigest::query()->create([
+        'organization_id' => $organization->id,
+        'data' => [],
+        'email_sent_at' => Carbon::parse('2026-08-03'),
+    ]);
+
+    \Src\Domain\Notification\Models\OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $organization->id,
+        'notifiable_id' => $priorAction->id,
+        'notifiable_type' => $morphClass,
+        'notification_type' => 'actuacion',
+        'is_viewed' => true,
+        'is_notified' => true,
+        'is_email_notified' => true,
+        'notification_digest_id' => $digest->id,
+    ]);
+
+    foreach ([$ancient, $recentLag] as $action) {
+        \Src\Domain\Notification\Models\OrganizationNotification::query()->create([
+            'id' => (string) Str::uuid(),
+            'organization_id' => $organization->id,
+            'notifiable_id' => $action->id,
+            'notifiable_type' => $morphClass,
+            'notification_type' => 'actuacion',
+            'is_viewed' => false,
+            'is_notified' => false,
+            'is_email_notified' => false,
+        ]);
+    }
+
+    $ids = $organization->notifications()
+        ->forActiveOrganizationProcesses($organization->id)
+        ->where('is_email_notified', false)
+        ->tap(fn ($query) => $service->applyDigestPendingCutoff($query, $organization->id))
+        ->pluck('notifiable_id');
+
+    expect($ids)->toContain($recentLag->id)
+        ->and($ids)->not->toContain($ancient->id);
 });
 
 it('NotificationDigestService includes actions discovered today below registration cutoff', function (): void {

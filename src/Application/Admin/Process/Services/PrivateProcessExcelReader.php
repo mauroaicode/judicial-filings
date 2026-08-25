@@ -347,8 +347,34 @@ class PrivateProcessExcelReader implements ToCollection
             }
         }
 
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        // Colombia / Publicaciones Procesales: day-month-year (12/08/2026 = 12 de agosto).
+        // Carbon's default parse treats slash dates as US month-day and would yield 8 de diciembre.
+        foreach (['d/m/Y', 'd-m-Y', 'd/m/y', 'd-m-y', 'Y-m-d'] as $format) {
+            try {
+                $parsed = Date::createFromFormat('!'.$format, $raw);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($parsed === false) {
+                continue;
+            }
+
+            $errors = \DateTime::getLastErrors();
+            if (is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0)) {
+                continue;
+            }
+
+            return $parsed->format('Y-m-d');
+        }
+
         try {
-            return Date::parse(trim((string) $value))->format('Y-m-d');
+            return Date::parse($raw)->format('Y-m-d');
         } catch (\Throwable) {
             return null;
         }

@@ -132,6 +132,7 @@ class BackfillIncompleteSamaiProcessesService
                         $courtQ->where(function (Builder $pattern): void {
                             $pattern->where('court', 'like', 'Juzgado Administrativo -%')
                                 ->orWhere('court', 'like', 'Juzgado Administrativo de %')
+                                ->orWhere('court', 'like', 'JUZGADO ADMINISTRATIVO DE %')
                                 ->orWhere('court', 'like', 'Tribunal Administrativo -%');
                         })->where('court', 'not regexp', '[0-9]{2,3}');
                     })

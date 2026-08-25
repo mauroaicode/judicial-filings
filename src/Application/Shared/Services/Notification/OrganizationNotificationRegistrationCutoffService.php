@@ -71,11 +71,35 @@ readonly class OrganizationNotificationRegistrationCutoffService
 
     /**
      * Actuación first persisted during today's sync — notify even when Rama's
-     * registration_date is older than the rolling window.
+     * registration_date is older than the rolling window, unless it is older
+     * than {@see config('judicial-sync.discovered_today_max_age_days')}.
      */
     public function isNewlyDiscoveredActuacion(ProcessAction $action): bool
     {
-        return $action->created_at->greaterThanOrEqualTo(today()->startOfDay());
+        if ($action->created_at->lt(today()->startOfDay())) {
+            return false;
+        }
+
+        $minRegistration = $this->resolveDiscoveredTodayMinRegistrationDate();
+        if ($minRegistration === null) {
+            return false;
+        }
+
+        return $action->registration_date->format('Y-m-d') >= $minRegistration;
+    }
+
+    /**
+     * Oldest registration_date allowed for the discovered-today bypass.
+     * Null means the bypass is disabled.
+     */
+    public function resolveDiscoveredTodayMinRegistrationDate(): ?string
+    {
+        $days = max(0, (int) config('judicial-sync.discovered_today_max_age_days', 30));
+        if ($days === 0) {
+            return null;
+        }
+
+        return today()->subDays($days)->format('Y-m-d');
     }
 
     /**
@@ -96,7 +120,10 @@ readonly class OrganizationNotificationRegistrationCutoffService
         $cutoff = $this->resolveLastNotifiedRegistrationDate($organizationId);
 
         if ($cutoff !== null) {
-            $query->forActuacionVisibleByRegistrationOrDiscoveredToday($cutoff);
+            $query->forActuacionVisibleByRegistrationOrDiscoveredToday(
+                $cutoff,
+                $this->resolveDiscoveredTodayMinRegistrationDate(),
+            );
         }
 
         return $query;

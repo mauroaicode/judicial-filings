@@ -15,6 +15,16 @@ it('prefers SAMAI Origen field for despacho', function (): void {
     expect($court)->toBe('JUZGADO 002 ADMINISTRATIVO DE GUADALAJARA DE BUGA');
 });
 
+it('keeps the court number when Origen omits Juzgado before Administrativo', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'ADMINISTRATIVO 007 JUZGADO ADMINISTRATIVO DE IBAGUE (TOLIMA)',
+        'NombreSalaDecision' => 'Juzgado Administrativo',
+        'cityName' => 'TOLIMA',
+    ]);
+
+    expect($court)->toBe('JUZGADO 007 ADMINISTRATIVO DE IBAGUE (TOLIMA)');
+});
+
 it('keeps the court number from prefixed Origen labels', function (): void {
     $court = SamaiCourtNameHelper::build([
         'Origen' => 'Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE AGUACHICA (CESAR)',

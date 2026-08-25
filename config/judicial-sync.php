@@ -111,6 +111,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Discovered-today digest bypass (max age in days)
+    |--------------------------------------------------------------------------
+    |
+    | Rama sometimes publishes an actuación today with a slightly old
+    | registration_date. Those still enter the consolidado if first saved today.
+    |
+    | Age is measured from registration_date. Actuaciones older than this many
+    | days (e.g. a year-old PUBLICACIÓN ESTADO backfill) are stored but not
+    | notified. Set to 0 to disable the bypass entirely (strict cutoff only).
+    |
+    */
+    'discovered_today_max_age_days' => (int) env('JUDICIAL_SYNC_DISCOVERED_TODAY_MAX_AGE_DAYS', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Registration Alert Window (days forward)
     |--------------------------------------------------------------------------
     |

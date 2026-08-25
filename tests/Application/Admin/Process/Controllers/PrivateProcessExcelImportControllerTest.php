@@ -532,3 +532,163 @@ it('does not queue digest notifications when creating processes via private impo
     expect(ProcessAction::query()->whereHas('process', fn ($q) => $q->where('process_number', '08001418901234567890999'))->count())->toBe(1)
         ->and(\Src\Domain\Notification\Models\OrganizationNotification::query()->count())->toBe($before);
 });
+
+it('attaches publicaciones procesales actuaciones to an existing laboral from Unificada', function (): void {
+    Queue::fake();
+
+    $processNumber = '76520310500320260013300';
+    $existing = Process::factory()->create([
+        'process_number' => $processNumber,
+        'court' => 'Juzgado 003 Laboral del Circuito de Palmira',
+        'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
+        'is_manual_sync' => false,
+        'is_private' => false,
+    ]);
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $headers = [
+        'Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado',
+        'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro',
+    ];
+    foreach ($headers as $i => $title) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+    $sheet->setCellValue('A2', 'Juzgado 003 Laboral del Circuito de Palmira');
+    $sheet->setCellValueExplicit('B2', $processNumber, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+    $sheet->setCellValue('C2', 'Ordinario Laboral');
+    $sheet->setCellValue('D2', 'Demandante');
+    $sheet->setCellValue('E2', 'Demandado');
+    $sheet->setCellValue('F2', 'Constancia secretarial');
+    $sheet->setCellValue('H2', '2026-08-12');
+    $sheet->setCellValue('I2', '2026-08-12');
+    $sheet->setCellValue('J2', '2026-08-12');
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-laboral').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => new UploadedFile(
+                $this->privateImportSpreadsheetTmp,
+                'laboral.xlsx',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                null,
+                true
+            ),
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ])
+        ->assertStatus(200)
+        ->assertJsonPath('processes_created', 0)
+        ->assertJsonPath('processes_updated', 1)
+        ->assertJsonPath('actions_imported', 1);
+
+    expect(Process::query()->where('process_number', $processNumber)->count())->toBe(1)
+        ->and(Process::query()->find($existing->id)?->process_data_source_id)
+        ->toBe(ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch))
+        ->and(ProcessAction::query()->where('process_id', $existing->id)->count())->toBe(1)
+        ->and($existing->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue();
+});
+
+it('does not re-import sujetos when the radicado already exists in an organization', function (): void {
+    Queue::fake();
+
+    $sourceUuid = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::PublicacionesProcesales);
+    $processNumber = '76233408900120240007000';
+
+    $process = Process::query()->create([
+        'process_number' => $processNumber,
+        'court' => 'Juzgado 001 Promiscuo Municipal de Dagua',
+        'process_data_source_id' => $sourceUuid,
+        'department' => 'Sin departamento',
+        'process_type' => 'Proceso privado',
+        'process_class' => 'Ejecutivo Singular',
+        'litigants' => 'Demandante: ORIGINAL PLAINTIFF | Demandado: ORIGINAL DEFENDANT',
+        'is_private' => true,
+        'is_manual_sync' => true,
+        'process_date' => '2024-05-03',
+        'status' => 'activo',
+    ]);
+    $process->organizations()->syncWithoutDetaching([
+        $this->organization->id => [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+        ],
+    ]);
+
+    $existingPlaintiff = \Src\Domain\Process\Models\ProcessSubject::query()->create([
+        'subject_registration_id' => null,
+        'subject_type' => \Src\Domain\Process\Models\ProcessSubject::TYPE_PLAINTIFF,
+        'is_cited' => false,
+        'identification' => null,
+        'name_or_business_name' => 'ORIGINAL PLAINTIFF',
+    ]);
+    $existingDefendant = \Src\Domain\Process\Models\ProcessSubject::query()->create([
+        'subject_registration_id' => null,
+        'subject_type' => \Src\Domain\Process\Models\ProcessSubject::TYPE_DEFENDANT,
+        'is_cited' => false,
+        'identification' => null,
+        'name_or_business_name' => 'ORIGINAL DEFENDANT',
+    ]);
+    $process->subjects()->attach([$existingPlaintiff->id, $existingDefendant->id]);
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $headers = [
+        'Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado',
+        'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro',
+    ];
+    foreach ($headers as $i => $title) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $rows = [
+        ['AUTO UNO', 'OTRO DEMANDANTE 1', 'OTRO DEMANDADO 1'],
+        ['AUTO DOS', 'OTRO DEMANDANTE 2', 'OTRO DEMANDADO 2'],
+        ['AUTO TRES', 'OTRO DEMANDANTE 3', 'OTRO DEMANDADO 3'],
+    ];
+    foreach ($rows as $idx => [$action, $plaintiff, $defendant]) {
+        $excelRow = $idx + 2;
+        $sheet->setCellValue('A'.$excelRow, 'Juzgado 001 Promiscuo Municipal de Dagua');
+        $sheet->setCellValueExplicit('B'.$excelRow, $processNumber, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('C'.$excelRow, 'Ejecutivo Singular');
+        $sheet->setCellValue('D'.$excelRow, $plaintiff);
+        $sheet->setCellValue('E'.$excelRow, $defendant);
+        $sheet->setCellValue('F'.$excelRow, $action);
+        $sheet->setCellValue('H'.$excelRow, '2024-06-0'.($idx + 1));
+        $sheet->setCellValue('I'.$excelRow, '2024-06-0'.($idx + 1));
+        $sheet->setCellValue('J'.$excelRow, '2024-06-0'.($idx + 1));
+    }
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-no-subjects').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => new UploadedFile(
+                $this->privateImportSpreadsheetTmp,
+                'actuaciones.xlsx',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                null,
+                true
+            ),
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ])
+        ->assertStatus(200)
+        ->assertJsonPath('processes_created', 0)
+        ->assertJsonPath('processes_updated', 1)
+        ->assertJsonPath('actions_imported', 3);
+
+    $process->refresh()->load('subjects');
+
+    expect($process->subjects)->toHaveCount(2)
+        ->and($process->subjects->pluck('name_or_business_name')->all())->toEqualCanonicalizing([
+            'ORIGINAL PLAINTIFF',
+            'ORIGINAL DEFENDANT',
+        ])
+        ->and($process->litigants)->toBe('Demandante: ORIGINAL PLAINTIFF | Demandado: ORIGINAL DEFENDANT')
+        ->and(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(3);
+});

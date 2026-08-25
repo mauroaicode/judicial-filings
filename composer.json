@@ -88,7 +88,7 @@
         "pest-tests-type-coverage": "vendor/bin/pest",
         "pest-tests": [
             "Composer\\Config::disableProcessTimeout",
-            "vendor/bin/pest"
+            "php -d xdebug.mode=off vendor/bin/pest"
         ]
     },
     "extra": {

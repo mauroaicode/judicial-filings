@@ -10,6 +10,7 @@ use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
 use Src\Application\Admin\Process\Resources\ProcessActuacionesImportResource;
 use Src\Application\Admin\Process\Resources\ProcessActuacionesSkippedItemResource;
+use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Services\Process\ProcessActionAlertNotificationService;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
@@ -156,7 +157,7 @@ class ProcessActuacionesExcelImportService
                 court: $item['court'],
                 excel_row: $item['excel_row'],
                 reason: $item['reason'],
-                message: $item['message'] ?? __('process.actuaciones_import_skipped_duplicate'),
+                message: $item['message'],
             ),
             $skippedActions,
         );
@@ -180,10 +181,12 @@ class ProcessActuacionesExcelImportService
 
     private function findExistingProcess(string $processNumber): ?Process
     {
-        /** @var Process|null */
-        return Process::query()
+        $processes = Process::query()
             ->where('process_number', $processNumber)
-            ->first();
+            ->withCount('actions')
+            ->get();
+
+        return ProcessPhantomInstanceHelper::pickPreferredInstanceForImport($processes);
     }
 
     // ─── Actuaciones ─────────────────────────────────────────────────────────

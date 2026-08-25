@@ -99,3 +99,38 @@ it('defers attaching an existing process while its source sync batch is active',
     expect($decision->source)->toBe(ProcessDataSourceSlug::JudicialBranch)
         ->and($decision->deferToQueue)->toBeTrue();
 });
+
+it('does not consult SAMAI when Unificada misses a laboral radicado', function (): void {
+    $jb = Mockery::mock(JudicialBranchConsultService::class);
+    $jb->shouldReceive('withSeed')->once()->with($this->processNumber)->andReturnSelf();
+    $jb->shouldReceive('fetchProcesses')->once()->andReturn((object) [
+        'isSuccessful' => true,
+        'data' => [],
+    ]);
+
+    $samai = Mockery::mock(SamaiConsultService::class);
+    $samai->shouldNotReceive('buscarProceso');
+
+    expect(fn () => (new SmartProcessRegistrationResolverService($jb, $samai))
+        ->handle($this->processNumber, $this->organization->id))
+        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+});
+
+it('consults SAMAI when Unificada misses an administrative radicado', function (): void {
+    $adminNumber = '76001333301320160005700';
+
+    $jb = Mockery::mock(JudicialBranchConsultService::class);
+    $jb->shouldReceive('withSeed')->once()->with($adminNumber)->andReturnSelf();
+    $jb->shouldReceive('fetchProcesses')->once()->andReturn((object) [
+        'isSuccessful' => true,
+        'data' => [],
+    ]);
+
+    $samai = Mockery::mock(SamaiConsultService::class);
+    $samai->shouldReceive('withSeed')->once()->with($adminNumber)->andReturnSelf();
+    $samai->shouldReceive('buscarProceso')->once()->andReturn([]);
+
+    expect(fn () => (new SmartProcessRegistrationResolverService($jb, $samai))
+        ->handle($adminNumber, $this->organization->id))
+        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+});

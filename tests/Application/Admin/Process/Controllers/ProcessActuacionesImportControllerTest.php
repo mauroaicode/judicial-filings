@@ -368,6 +368,77 @@ it('finds an existing process regardless of organization or data source', functi
         ->and($response->json('unassigned_count'))->toBe(0);
 });
 
+it('imports actuaciones into the rich multi-instance folder not the empty sibling', function (): void {
+    Queue::fake();
+
+    $processNumber = '08001400301020230078300';
+    $judicialSourceId = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch);
+
+    $empty = Process::query()->create([
+        'process_number' => $processNumber,
+        'court' => 'Juzgado 007 Civil Municipal de Ejecucion de Sentencias de Barranquilla',
+        'process_data_source_id' => $judicialSourceId,
+        'department' => 'Atlantico',
+        'process_type' => 'Proceso',
+        'process_class' => 'Ejecutivo',
+        'litigants' => null,
+        'is_private' => false,
+        'is_manual_sync' => false,
+        'process_date' => '2024-07-16',
+        'last_activity_date' => '2025-05-23',
+        'status' => 'activo',
+    ]);
+
+    $rich = Process::query()->create([
+        'process_number' => $processNumber,
+        'court' => 'Juzgado 010 Civil Municipal de Barranquilla',
+        'process_data_source_id' => $judicialSourceId,
+        'department' => 'Atlantico',
+        'process_type' => 'Proceso',
+        'process_class' => 'Ejecutivo',
+        'litigants' => 'Demandante: Avanticoop | Demandado: Jesus David',
+        'is_private' => false,
+        'is_manual_sync' => false,
+        'process_date' => '2024-01-22',
+        'last_activity_date' => '2024-05-29',
+        'status' => 'activo',
+    ]);
+
+    // created_at is not fillable — set explicitly so empty would win a naive first() pick.
+    Process::query()->whereKey($empty->id)->update(['created_at' => now()->subMinute()]);
+    Process::query()->whereKey($rich->id)->update(['created_at' => now()]);
+
+    ProcessAction::query()->create([
+        'process_id' => $rich->id,
+        'action_registration_id' => -9001,
+        'cons_action' => 1,
+        'action_date' => '2024-01-22',
+        'action' => 'Auto Ordena Seguir Adelante',
+        'annotation' => null,
+        'registration_date' => '2024-01-22',
+    ]);
+
+    expect(Process::query()->where('process_number', $processNumber)->orderBy('created_at')->value('id'))
+        ->toBe($empty->id);
+
+    $spreadsheet = buildActuacionesSpreadsheet([
+        ['Juzgado 007 Civil Municipal de Ejecucion de Sentencias de Barranquilla', $processNumber, 'Ejecutivo',
+            'Avanticoop', 'Jesus David',
+            'Auto Decide Liquidacion de Credito', '', '2025-05-23', '2025-05-23', '2025-05-23'],
+    ]);
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-rich-instance');
+    $this->tmpPaths[] = $path;
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/actuaciones-import', ['file' => makeUploadedFile($path)])
+        ->assertStatus(200)
+        ->assertJsonPath('actions_imported', 1)
+        ->assertJsonPath('processes_updated', 1);
+
+    expect(ProcessAction::query()->where('process_id', $rich->id)->count())->toBe(2)
+        ->and(ProcessAction::query()->where('process_id', $empty->id)->count())->toBe(0);
+});
+
 // ─── Deduplication ───────────────────────────────────────────────────────────
 
 it('skips actuaciones that already exist (deduplication)', function (): void {

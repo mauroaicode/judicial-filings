@@ -148,6 +148,33 @@ it('notifies actuaciones discovered today even when registration_date is histori
         ->exists())->toBeTrue();
 });
 
+it('does not notify year-old actuaciones even when they are first saved today', function (): void {
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'PUBLICACIÓN ESTADO',
+        'action_date' => now()->subYear(),
+        'registration_date' => now()->subYear(),
+        'created_at' => now(),
+    ]);
+
+    $service = app(ProcessActionAlertNotificationService::class);
+    $service->handle($action, $process);
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $organization->id)
+        ->where('notifiable_id', $action->id)
+        ->where('notification_type', 'actuacion')
+        ->exists())->toBeFalse();
+});
+
 it('skips duplicate notifications for the same actuacion content across instances', function (): void {
     $organization = Organization::factory()->create();
     $processNumber = '76001400303420230073500';

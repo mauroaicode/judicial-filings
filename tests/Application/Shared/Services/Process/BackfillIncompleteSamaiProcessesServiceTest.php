@@ -89,7 +89,7 @@ it('selects SAMAI processes with incomplete history or truncated annotations', f
         'process_number' => '73001333300720210004100',
         'process_data_source_id' => $samaiId,
         'samai_corporacion' => '7300133',
-        'court' => 'Juzgado Administrativo - Ibague (tolima)',
+        'court' => 'JUZGADO ADMINISTRATIVO DE IBAGUE (TOLIMA)',
         'process_class' => 'NULIDAD',
         'is_manual_sync' => false,
     ]);

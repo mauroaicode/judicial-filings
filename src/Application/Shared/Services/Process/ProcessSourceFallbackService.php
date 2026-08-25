@@ -8,6 +8,7 @@ use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessConsultationScopeHelper;
 use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
@@ -81,6 +82,16 @@ readonly class ProcessSourceFallbackService
         if ($privateProcesses->isEmpty()) {
             Log::channel($channel)->info('ProcessSourceFallbackService: no private JB processes to migrate', [
                 'process_number' => $processNumber,
+            ]);
+
+            return false;
+        }
+
+        $courtHint = (string) $privateProcesses->first()->court;
+        if (! ProcessConsultationScopeHelper::shouldConsultSamai($processNumber, $courtHint !== '' ? $courtHint : null)) {
+            Log::channel($channel)->info('ProcessSourceFallbackService: skipped SAMAI — radicado is not administrative or Consejo de Estado', [
+                'process_number' => $processNumber,
+                'court' => $courtHint,
             ]);
 
             return false;

@@ -59,9 +59,12 @@ class NotificationDigestService
         }
 
         // Prior digest cutoff: include actuaciones on/after that registration_date OR
-        // first discovered today (Rama may publish stale registration_date values).
+        // first discovered today if registration_date is within the max-age window.
         if ($lastNotifiedRegistrationDate !== null) {
-            $query->forActuacionVisibleByRegistrationOrDiscoveredToday($lastNotifiedRegistrationDate);
+            $query->forActuacionVisibleByRegistrationOrDiscoveredToday(
+                $lastNotifiedRegistrationDate,
+                $this->registrationCutoffService->resolveDiscoveredTodayMinRegistrationDate(),
+            );
         }
 
         $notifications = $query->get();

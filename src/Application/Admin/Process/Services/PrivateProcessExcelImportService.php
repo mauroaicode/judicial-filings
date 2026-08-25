@@ -9,6 +9,8 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
+use Src\Application\Shared\Helpers\ProcessConsultationScopeHelper;
+use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
@@ -113,41 +115,19 @@ class PrivateProcessExcelImportService
                 /** @var list<PrivateProcessExcelImportedRowDTO> $rows */
                 $first = $rows[0];
 
-                /** @var Process|null $process */
-                $process = Process::query()
-                    ->where('process_number', $first->processNumber)
-                    ->where('court', $first->court)
-                    ->where('process_data_source_id', $privateSourceUuid)
-                    ->whereHas('organizations', fn (Builder $q) => $q->where('organizations.id', $organizationId))
-                    ->first();
+                $process = $this->resolveProcessForImport($first, $organizationId, $privateSourceUuid);
 
-                if ($process === null) {
+                if (! $process instanceof Process) {
                     $process = Process::query()->create($this->newPrivateProcessAttributes($first, $privateSourceUuid));
-                    $process->organizations()->syncWithoutDetaching([
-                        $organizationId => [
-                            'interest_date' => now()->toDateString(),
-                            'is_active' => true,
-                            'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
-                        ],
-                    ]);
-                    foreach ($rows as $rowToMerge) {
-                        $this->syncSubjectsFromRow($process, $rowToMerge);
-                    }
-
-                    foreach ($rows as $rowToMerge) {
-                        $this->extendLitigantsSummaryFromRow($process, $rowToMerge);
-                    }
-
+                    $this->attachOrganization($process, $organizationId);
+                    // Alta del radicado: sujetos una sola vez (primera fila), no por cada actuación.
+                    $this->syncSubjectsFromRow($process, $first);
+                    $this->extendLitigantsSummaryFromRow($process, $first);
                     $createdProcesses++;
                 } else {
-                    foreach ($rows as $rowToMerge) {
-                        $this->syncSubjectsFromRow($process, $rowToMerge);
-                    }
-
-                    foreach ($rows as $rowToMerge) {
-                        $this->extendLitigantsSummaryFromRow($process, $rowToMerge);
-                    }
-
+                    $this->attachOrganization($process, $organizationId);
+                    // El radicado ya existe: solo actuaciones. Releer demandante/demandado
+                    // duplicaría sujetos (una vez por movimiento del Excel).
                     $updatedProcesses++;
                 }
 
@@ -365,6 +345,49 @@ class PrivateProcessExcelImportService
         $this->actionRegistrationSeed--;
 
         return $id;
+    }
+
+    /**
+     * Laborales already followed in Unificada: reuse that process instead of creating
+     * a second publicaciones_procesales instance. Other small courts keep the PP path.
+     */
+    private function resolveProcessForImport(
+        PrivateProcessExcelImportedRowDTO $first,
+        string $organizationId,
+        string $privateSourceUuid,
+    ): ?Process {
+        $existingPrivate = Process::query()
+            ->where('process_number', $first->processNumber)
+            ->where('court', $first->court)
+            ->where('process_data_source_id', $privateSourceUuid)
+            ->whereHas('organizations', fn (Builder $q) => $q->where('organizations.id', $organizationId))
+            ->first();
+
+        if ($existingPrivate instanceof Process) {
+            return $existingPrivate;
+        }
+
+        if (! ProcessConsultationScopeHelper::isLaboral($first->processNumber, $first->court)) {
+            return null;
+        }
+
+        $processes = Process::query()
+            ->where('process_number', $first->processNumber)
+            ->withCount('actions')
+            ->get();
+
+        return ProcessPhantomInstanceHelper::pickPreferredInstanceForImport($processes);
+    }
+
+    private function attachOrganization(Process $process, string $organizationId): void
+    {
+        $process->organizations()->syncWithoutDetaching([
+            $organizationId => [
+                'interest_date' => now()->toDateString(),
+                'is_active' => true,
+                'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
+            ],
+        ]);
     }
 
     /**

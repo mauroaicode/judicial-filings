@@ -75,6 +75,45 @@ it('ignores secondary sheets without process headers so they do not fail validat
         ->and($parsed->rows[0]->processNumber)->toBe('76364400300120260040900');
 });
 
+it('parses Colombian day-month slash dates as August not December', function (): void {
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $headers = [
+        'Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado',
+        'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro',
+    ];
+    foreach ($headers as $i => $title) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+    $sheet->setCellValue('A2', 'Juzgado Test');
+    $sheet->setCellValueExplicit('B2', '76001333300920200017100', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+    $sheet->setCellValue('C2', 'Nulidad');
+    $sheet->setCellValue('D2', 'A');
+    $sheet->setCellValue('E2', 'B');
+    $sheet->setCellValue('F2', 'Constancia secretarial');
+    $sheet->setCellValue('H2', '12/08/2026');
+    $sheet->setCellValue('I2', '12/08/2026');
+    $sheet->setCellValue('J2', '12/08/2026');
+
+    $tmp = tempnam(sys_get_temp_dir(), 'private-reader-dmy-').'.xlsx';
+    (new Xlsx($spreadsheet))->save($tmp);
+    test()->privateReaderSpreadsheetTmp = $tmp;
+
+    $parsed = (new PrivateProcessExcelReader(new UploadedFile(
+        $tmp,
+        'fechas.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        null,
+        true,
+    )))->parse();
+
+    expect($parsed->rowErrors)->toBe([])
+        ->and($parsed->rows)->toHaveCount(1)
+        ->and($parsed->rows[0]->registrationDate)->toBe('2026-08-12')
+        ->and($parsed->rows[0]->startDate)->toBe('2026-08-12')
+        ->and($parsed->rows[0]->endDate)->toBe('2026-08-12');
+});
+
 it('parses the real publicaciones workbook that includes an unused Hoja1', function (): void {
     $path = base_path('docs/Libro 1 2026-08-03.xlsx');
     if (! is_file($path)) {
