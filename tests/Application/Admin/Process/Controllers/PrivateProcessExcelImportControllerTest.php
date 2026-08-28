@@ -645,9 +645,9 @@ it('does not re-import sujetos when the radicado already exists in an organizati
     }
 
     $rows = [
-        ['AUTO UNO', 'OTRO DEMANDANTE 1', 'OTRO DEMANDADO 1'],
-        ['AUTO DOS', 'OTRO DEMANDANTE 2', 'OTRO DEMANDADO 2'],
-        ['AUTO TRES', 'OTRO DEMANDANTE 3', 'OTRO DEMANDADO 3'],
+        ['Libra mandamiento de pago', 'ORIGINAL PLAINTIFF', 'ORIGINAL DEFENDANT'],
+        ['Decreta medida cautelar', 'ORIGINAL PLAINTIFF', 'ORIGINAL DEFENDANT'],
+        ['Auto extra', 'ORIGINAL PLAINTIFF', 'ORIGINAL DEFENDANT'],
     ];
     foreach ($rows as $idx => [$action, $plaintiff, $defendant]) {
         $excelRow = $idx + 2;
@@ -691,4 +691,82 @@ it('does not re-import sujetos when the radicado already exists in an organizati
         ])
         ->and($process->litigants)->toBe('Demandante: ORIGINAL PLAINTIFF | Demandado: ORIGINAL DEFENDANT')
         ->and(ProcessAction::query()->where('process_id', $process->id)->count())->toBe(3);
+});
+
+it('creates separate processes when the same radicado and court have different parties in one upload', function (): void {
+    Queue::fake();
+
+    $processNumber = '19743408900220250003300';
+    $court = 'Juzgado 002 Promiscuo Municipal de Sutatenza';
+    $defendant = 'PARROCO CEMENTERIO MUNICIPIO SUTATENZA';
+
+    $spreadsheet = new Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $headers = [
+        'Despacho', 'Radicación', 'Clase Proceso', 'Demandante', 'Demandado',
+        'Actuación', 'Anotación', 'Fecha Inicial', 'Fecha Finalización', 'Fecha Registro',
+    ];
+    foreach ($headers as $i => $title) {
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($i + 1).'1', $title);
+    }
+
+    $dataRows = [
+        [$court, $processNumber, 'Ejecutivo a continuación', 'GERARDO HERRERA', $defendant, 'Libra mandamiento de pago', '', '2026-08-27', '2026-08-27', '2026-08-27'],
+        [$court, $processNumber, 'Ejecutivo a continuación', 'GERARDO HERRERA', $defendant, 'Decreta medida cautelar', '', '2026-08-27', '2026-08-27', '2026-08-27'],
+        [$court, $processNumber, 'Ejecutivo a continuación', 'WILLMAR ARIEL PERALTA MORENO', $defendant, 'Libra mandamiento de pago', '', '2026-08-27', '2026-08-27', '2026-08-27'],
+        [$court, $processNumber, 'Ejecutivo a continuación', 'WILLMAR ARIEL PERALTA MORENO', $defendant, 'Decreta medida cautelar', '', '2026-08-27', '2026-08-27', '2026-08-27'],
+    ];
+
+    foreach ($dataRows as $rowIdx => $row) {
+        $excelRow = $rowIdx + 2;
+        foreach ($row as $colIdx => $val) {
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex($colIdx + 1).$excelRow, $val);
+        }
+    }
+
+    $this->privateImportSpreadsheetTmp = tempnam(sys_get_temp_dir(), 'private-import-same-rad-parties').'.xlsx';
+    (new Xlsx($spreadsheet))->save($this->privateImportSpreadsheetTmp);
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/private-import', [
+            'organization_id' => $this->organization->id,
+            'file' => new UploadedFile(
+                $this->privateImportSpreadsheetTmp,
+                'same-rad-parties.xlsx',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                null,
+                true
+            ),
+            'data_source_slug' => ProcessDataSourceSlug::PublicacionesProcesales->value,
+        ])
+        ->assertStatus(200)
+        ->assertJsonPath('processes_created', 2)
+        ->assertJsonPath('processes_updated', 0)
+        ->assertJsonPath('actions_imported', 4);
+
+    $processes = Process::query()
+        ->where('process_number', $processNumber)
+        ->where('court', $court)
+        ->with('subjects')
+        ->get();
+
+    expect($processes)->toHaveCount(2);
+
+    $gerardo = $processes->first(
+        fn (Process $process): bool => $process->subjects->contains(
+            fn ($subject): bool => $subject->name_or_business_name === 'GERARDO HERRERA'
+        )
+    );
+    $wilmar = $processes->first(
+        fn (Process $process): bool => $process->subjects->contains(
+            fn ($subject): bool => $subject->name_or_business_name === 'WILLMAR ARIEL PERALTA MORENO'
+        )
+    );
+
+    expect($gerardo)->not->toBeNull()
+        ->and($wilmar)->not->toBeNull()
+        ->and(ProcessAction::query()->where('process_id', $gerardo->id)->pluck('action')->all())
+        ->toEqualCanonicalizing(['Libra mandamiento de pago', 'Decreta medida cautelar'])
+        ->and(ProcessAction::query()->where('process_id', $wilmar->id)->pluck('action')->all())
+        ->toEqualCanonicalizing(['Libra mandamiento de pago', 'Decreta medida cautelar']);
 });

@@ -279,7 +279,8 @@ class ProcessActuacionesExcelImportService
 
                 $processReloaded ??= Process::query()->whereKey($process->id)->with('organizations')->first();
                 if ($processReloaded instanceof Process) {
-                    $this->processActionAlertNotificationService->handle($action, $processReloaded);
+                    // Manual Excel import: always queue digest rows even when registration_date is old.
+                    $this->processActionAlertNotificationService->handle($action, $processReloaded, forceIncludeHistorical: true);
                 }
             }
 

@@ -26,7 +26,7 @@ readonly class ProcessActionAlertNotificationService
     /**
      * Entry point to process notifications and alerts for a new judicial action.
      */
-    public function handle(ProcessAction $action, Process $process): void
+    public function handle(ProcessAction $action, Process $process, bool $forceIncludeHistorical = false): void
     {
         $organizations = $this->getInterestedOrganizations($process);
 
@@ -34,10 +34,11 @@ readonly class ProcessActionAlertNotificationService
             ->info('ProcessActionAlertNotificationService: checking interested organizations', [
                 'process_id' => $process->id,
                 'organizations_count' => $organizations->count(),
+                'force_include_historical' => $forceIncludeHistorical,
             ]);
 
         foreach ($organizations as $organization) {
-            $this->handleForOrganization($action, $process, $organization->id, 'actuacion');
+            $this->handleForOrganization($action, $process, $organization->id, 'actuacion', $forceIncludeHistorical);
         }
     }
 

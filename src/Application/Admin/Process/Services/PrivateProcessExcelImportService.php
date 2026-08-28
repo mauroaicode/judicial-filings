@@ -115,7 +115,7 @@ class PrivateProcessExcelImportService
                 /** @var list<PrivateProcessExcelImportedRowDTO> $rows */
                 $first = $rows[0];
 
-                $process = $this->resolveProcessForImport($first, $organizationId, $privateSourceUuid);
+                $process = $this->resolveProcessForImport($first, $organizationId, $privateSourceUuid, $grouped);
 
                 if (! $process instanceof Process) {
                     $process = Process::query()->create($this->newPrivateProcessAttributes($first, $privateSourceUuid));
@@ -313,25 +313,24 @@ class PrivateProcessExcelImportService
     }
 
     /**
-     * Radicados with more than one distinct court (same number, several despachos) within this upload.
+     * Radicados with more than one distinct folder (despacho and/or partes) within this upload.
      *
      * @param  array<string, list<PrivateProcessExcelImportedRowDTO>>  $grouped
      */
     private function multipleCourtInstanceRadicadoCount(array $grouped): int
     {
-        $courtsByRadi = [];
+        $foldersByRadi = [];
         foreach ($grouped as $rows) {
             /** @var PrivateProcessExcelImportedRowDTO $first */
             $first = $rows[0];
             $radi = $first->processNumber;
-            $courtKey = $this->courtKey($first->court);
-            $courtsByRadi[$radi] ??= [];
-            $courtsByRadi[$radi][$courtKey] = true;
+            $foldersByRadi[$radi] ??= [];
+            $foldersByRadi[$radi][$this->importGroupKey($first)] = true;
         }
 
         $n = 0;
-        foreach ($courtsByRadi as $courts) {
-            if (count($courts) > 1) {
+        foreach ($foldersByRadi as $folders) {
+            if (count($folders) > 1) {
                 $n++;
             }
         }
@@ -350,21 +349,33 @@ class PrivateProcessExcelImportService
     /**
      * Laborales already followed in Unificada: reuse that process instead of creating
      * a second publicaciones_procesales instance. Other small courts keep the PP path.
+     *
+     * @param  array<string, list<PrivateProcessExcelImportedRowDTO>>  $grouped
      */
     private function resolveProcessForImport(
         PrivateProcessExcelImportedRowDTO $first,
         string $organizationId,
         string $privateSourceUuid,
+        array $grouped,
     ): ?Process {
+        $courtKey = $this->courtKey($first->court);
+        $strictParties = $this->distinctImportGroupsForRadicadoCourt($grouped, $first->processNumber, $courtKey) > 1;
+
         $existingPrivate = Process::query()
             ->where('process_number', $first->processNumber)
-            ->where('court', $first->court)
             ->where('process_data_source_id', $privateSourceUuid)
             ->whereHas('organizations', fn (Builder $q) => $q->where('organizations.id', $organizationId))
-            ->first();
+            ->get()
+            ->filter(fn (Process $process): bool => $this->courtKey($process->court) === $courtKey);
 
-        if ($existingPrivate instanceof Process) {
-            return $existingPrivate;
+        foreach ($existingPrivate as $candidate) {
+            if ($this->processMatchesImportParties($candidate, $first)) {
+                return $candidate;
+            }
+        }
+
+        if (! $strictParties && $existingPrivate->count() === 1) {
+            return $existingPrivate->first();
         }
 
         if (! ProcessConsultationScopeHelper::isLaboral($first->processNumber, $first->court)) {
@@ -399,12 +410,143 @@ class PrivateProcessExcelImportService
         /** @var array<string, list<PrivateProcessExcelImportedRowDTO>> $grouped */
         $grouped = [];
         foreach ($rows as $row) {
-            $key = $row->processNumber.'|'.$this->courtKey($row->court);
+            $key = $this->importGroupKey($row);
             $grouped[$key] ??= [];
             $grouped[$key][] = $row;
         }
 
         return $grouped;
+    }
+
+    private function importGroupKey(PrivateProcessExcelImportedRowDTO $row): string
+    {
+        return $row->processNumber.'|'.$this->courtKey($row->court).'|'.$this->partiesImportKey($row);
+    }
+
+    /**
+     * @param  array<string, list<PrivateProcessExcelImportedRowDTO>>  $grouped
+     */
+    private function distinctImportGroupsForRadicadoCourt(array $grouped, string $processNumber, string $courtKey): int
+    {
+        $keys = [];
+        foreach ($grouped as $groupRows) {
+            $first = $groupRows[0];
+            if ($first->processNumber !== $processNumber) {
+                continue;
+            }
+
+            if ($this->courtKey($first->court) !== $courtKey) {
+                continue;
+            }
+
+            $keys[$this->partiesImportKey($first)] = true;
+        }
+
+        return count($keys);
+    }
+
+    private function partiesImportKey(PrivateProcessExcelImportedRowDTO $row): string
+    {
+        return $this->partiesImportKeyFromNames(
+            PrivateImportSubjectNamesSplitter::split($row->plaintiffsRaw),
+            PrivateImportSubjectNamesSplitter::split($row->defendantsRaw),
+        );
+    }
+
+    /**
+     * @param  list<string>  $plaintiffs
+     * @param  list<string>  $defendants
+     */
+    private function partiesImportKeyFromNames(array $plaintiffs, array $defendants): string
+    {
+        $normalize = static function (array $names): array {
+            $out = [];
+            foreach ($names as $name) {
+                $trimmed = mb_strtolower(trim($name));
+                if ($trimmed !== '') {
+                    $out[] = $trimmed;
+                }
+            }
+
+            sort($out);
+
+            return $out;
+        };
+
+        $plaintiffKey = $normalize($plaintiffs);
+        $defendantKey = $normalize($defendants);
+
+        if ($plaintiffKey === [] && $defendantKey === []) {
+            return '';
+        }
+
+        return 'p:'.implode("\x1e", $plaintiffKey).'|d:'.implode("\x1e", $defendantKey);
+    }
+
+    private function processMatchesImportParties(Process $process, PrivateProcessExcelImportedRowDTO $row): bool
+    {
+        return $this->partiesImportKeyFromProcess($process) === $this->partiesImportKey($row);
+    }
+
+    private function partiesImportKeyFromProcess(Process $process): string
+    {
+        $process->loadMissing('subjects');
+
+        if ($process->subjects->isNotEmpty()) {
+            $plaintiffs = [];
+            $defendants = [];
+
+            foreach ($process->subjects as $subject) {
+                $name = trim((string) $subject->name_or_business_name);
+                if ($name === '') {
+                    continue;
+                }
+
+                if ($subject->subject_type === ProcessSubject::TYPE_PLAINTIFF) {
+                    $plaintiffs[] = $name;
+                }
+
+                if ($subject->subject_type === ProcessSubject::TYPE_DEFENDANT) {
+                    $defendants[] = $name;
+                }
+            }
+
+            return $this->partiesImportKeyFromNames($plaintiffs, $defendants);
+        }
+
+        return $this->partiesImportKeyFromLitigantsSummary((string) ($process->litigants ?? ''));
+    }
+
+    private function partiesImportKeyFromLitigantsSummary(string $litigants): string
+    {
+        if (trim($litigants) === '') {
+            return '';
+        }
+
+        $plaintiffPrefix = mb_strtolower(__('process.private_process_litigant_prefix_plaintiff'));
+        $defendantPrefix = mb_strtolower(__('process.private_process_litigant_prefix_defendant'));
+        $plaintiffs = [];
+        $defendants = [];
+
+        foreach (explode('|', $litigants) as $chunk) {
+            $chunk = trim($chunk);
+            if ($chunk === '') {
+                continue;
+            }
+
+            $lower = mb_strtolower($chunk);
+            if (str_starts_with($lower, $plaintiffPrefix)) {
+                $plaintiffs[] = trim(mb_substr($chunk, mb_strlen($plaintiffPrefix)));
+
+                continue;
+            }
+
+            if (str_starts_with($lower, $defendantPrefix)) {
+                $defendants[] = trim(mb_substr($chunk, mb_strlen($defendantPrefix)));
+            }
+        }
+
+        return $this->partiesImportKeyFromNames($plaintiffs, $defendants);
     }
 
     private function courtKey(string $court): string

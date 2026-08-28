@@ -704,3 +704,48 @@ it('queues digest notifications when importing actuaciones for an existing proce
 
     expect($after)->toBeGreaterThan($before);
 });
+
+it('queues digest notifications for excel import even when registration_date is older than sync window', function (): void {
+    Queue::fake();
+
+    $process = Process::query()->create([
+        'process_number' => '11001310501020220038202',
+        'court' => 'DESPACHO 003 DE LA SALA DE CASACION LABORAL DE LA CORTE SUPREMA DE JUSTICIA',
+        'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::JudicialBranch),
+        'department' => 'Cundinamarca',
+        'process_type' => 'Proceso',
+        'process_class' => 'Laboral',
+        'is_private' => false,
+        'is_manual_sync' => false,
+        'process_date' => '2022-02-03',
+        'status' => 'activo',
+    ]);
+    $process->organizations()->syncWithoutDetaching([
+        $this->organization->id => [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'status' => OrganizationProcessStatus::ACTIVE->value,
+        ],
+    ]);
+
+    $spreadsheet = buildActuacionesSpreadsheet([
+        ['DESPACHO 003 DE LA SALA DE CASACION LABORAL DE LA CORTE SUPREMA DE JUSTICIA', '11001310501020220038202', 'Laboral', 'A', 'B',
+            'Fijacion Estado Auto Estado', '', '2026-07-15', '2026-07-15', '2026-07-15'],
+    ]);
+    $path = saveSpreadsheetToTmp($spreadsheet, 'act-old-registration');
+    $this->tmpPaths[] = $path;
+
+    $this->actingAs($this->user)
+        ->post('/api/admin/processes/actuaciones-import', ['file' => makeUploadedFile($path)])
+        ->assertStatus(200)
+        ->assertJsonPath('actions_imported', 2);
+
+    expect(
+        \Src\Domain\Notification\Models\OrganizationNotification::query()
+            ->where('organization_id', $this->organization->id)
+            ->where('notification_type', 'actuacion')
+            ->whereNull('notification_digest_id')
+            ->whereIn('notifiable_id', ProcessAction::query()->where('process_id', $process->id)->pluck('id'))
+            ->count()
+    )->toBe(2);
+});
