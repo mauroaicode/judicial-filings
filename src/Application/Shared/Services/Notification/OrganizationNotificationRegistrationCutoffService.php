@@ -120,7 +120,7 @@ readonly class OrganizationNotificationRegistrationCutoffService
         $cutoff = $this->resolveLastNotifiedRegistrationDate($organizationId);
 
         if ($cutoff !== null) {
-            $query->forActuacionVisibleByRegistrationOrDiscoveredToday(
+            $query->forPendingDigestEligibleActuaciones(
                 $cutoff,
                 $this->resolveDiscoveredTodayMinRegistrationDate(),
             );

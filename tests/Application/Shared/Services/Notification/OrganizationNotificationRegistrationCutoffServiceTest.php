@@ -220,6 +220,72 @@ it('excludes year-old discovered-today actuaciones from digest pending filter', 
         ->and($ids)->not->toContain($ancient->id);
 });
 
+it('includes manual Excel import actuaciones in digest pending despite old registration date', function (): void {
+    Carbon::setTestNow('2026-08-28 10:00:00');
+
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $priorAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => Carbon::parse('2026-08-21'),
+        'action_date' => Carbon::parse('2026-08-21'),
+        'created_at' => Carbon::parse('2026-08-21'),
+    ]);
+
+    $manualImport = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => Carbon::parse('2026-07-08'),
+        'action_date' => Carbon::parse('2026-07-08'),
+        'action_registration_id' => -12345,
+        'created_at' => Carbon::parse('2026-08-27'),
+    ]);
+
+    $morphClass = $manualImport->getMorphClass();
+    $service = app(OrganizationNotificationRegistrationCutoffService::class);
+
+    $digest = \Src\Domain\Notification\Models\NotificationDigest::query()->create([
+        'organization_id' => $organization->id,
+        'data' => [],
+        'email_sent_at' => Carbon::parse('2026-08-21'),
+    ]);
+
+    \Src\Domain\Notification\Models\OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $organization->id,
+        'notifiable_id' => $priorAction->id,
+        'notifiable_type' => $morphClass,
+        'notification_type' => 'actuacion',
+        'is_viewed' => true,
+        'is_notified' => true,
+        'is_email_notified' => true,
+        'notification_digest_id' => $digest->id,
+    ]);
+
+    \Src\Domain\Notification\Models\OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $organization->id,
+        'notifiable_id' => $manualImport->id,
+        'notifiable_type' => $morphClass,
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'is_email_notified' => false,
+    ]);
+
+    $ids = $organization->notifications()
+        ->forActiveOrganizationProcesses($organization->id)
+        ->where('is_email_notified', false)
+        ->tap(fn ($query) => $service->applyDigestPendingCutoff($query, $organization->id))
+        ->pluck('notifiable_id');
+
+    expect($ids)->toContain($manualImport->id);
+});
+
 it('NotificationDigestService includes actions discovered today below registration cutoff', function (): void {
     Carbon::setTestNow('2026-07-09 17:11:00');
 

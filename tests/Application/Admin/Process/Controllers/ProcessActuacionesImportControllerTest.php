@@ -137,6 +137,7 @@ it('stores actuaciones in unassigned repository when radicado does not exist in 
     $response->assertStatus(200);
     expect($response->json('unassigned_count'))->toBe(1)
         ->and($response->json('unassigned_process_numbers'))->toBe(['99999999900000000000001'])
+        ->and($response->json('processes_updated_numbers'))->toBe([])
         ->and($response->json('actions_stored_unassigned'))->toBe(1)
         ->and($response->json('actions_imported'))->toBe(0)
         ->and($response->json('processes_updated'))->toBe(0);
@@ -251,6 +252,7 @@ it('adds actuaciones to an existing process found by radicado', function (): voi
 
     $response->assertStatus(200);
     expect($response->json('processes_updated'))->toBe(1)
+        ->and($response->json('processes_updated_numbers'))->toBe(['76233408900120240006800'])
         ->and($response->json('actions_imported'))->toBe(2)
         ->and($response->json('unassigned_count'))->toBe(0)
         ->and($response->json('unassigned_process_numbers'))->toBe([]);

@@ -61,7 +61,7 @@ class NotificationDigestService
         // Prior digest cutoff: include actuaciones on/after that registration_date OR
         // first discovered today if registration_date is within the max-age window.
         if ($lastNotifiedRegistrationDate !== null) {
-            $query->forActuacionVisibleByRegistrationOrDiscoveredToday(
+            $query->forPendingDigestEligibleActuaciones(
                 $lastNotifiedRegistrationDate,
                 $this->registrationCutoffService->resolveDiscoveredTodayMinRegistrationDate(),
             );

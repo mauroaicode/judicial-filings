@@ -89,6 +89,8 @@ class ProcessActuacionesExcelImportService
         $actionsStoredUnassigned = 0;
         $processesUpdated = 0;
         $unassignedProcessNumbers = [];
+        /** @var list<string> $processesUpdatedNumbers */
+        $processesUpdatedNumbers = [];
         /** @var list<array{process_number: string, action: string, annotation: string|null, registration_date: string|null, court: string|null, excel_row: int, reason: string, message: string}> $skippedActions */
         $skippedActions = [];
 
@@ -100,6 +102,7 @@ class ProcessActuacionesExcelImportService
             &$actionsStoredUnassigned,
             &$processesUpdated,
             &$unassignedProcessNumbers,
+            &$processesUpdatedNumbers,
             &$skippedActions,
         ): void {
             foreach ($grouped as $rows) {
@@ -130,6 +133,10 @@ class ProcessActuacionesExcelImportService
                 }
 
                 $processesUpdated++;
+
+                if (! in_array($first->processNumber, $processesUpdatedNumbers, true)) {
+                    $processesUpdatedNumbers[] = $first->processNumber;
+                }
 
                 $result = $this->importActuaciones($process, $rows);
                 $actionsImported += $result['imported'];
@@ -169,6 +176,7 @@ class ProcessActuacionesExcelImportService
                 actions_skipped: $actionsSkipped,
                 actions_stored_unassigned: $actionsStoredUnassigned,
                 processes_updated: $processesUpdated,
+                processes_updated_numbers: $processesUpdatedNumbers,
                 unassigned_count: count($unassignedProcessNumbers),
                 unassigned_process_numbers: $unassignedProcessNumbers,
                 skipped_actions: $skippedResources,

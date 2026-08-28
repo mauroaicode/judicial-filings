@@ -84,6 +84,39 @@ class OrganizationNotificationQueryBuilder extends Builder
     }
 
     /**
+     * Digest pending queue: sync cutoff, plus manual Excel imports (negative action_registration_id).
+     */
+    public function forPendingDigestEligibleActuaciones(
+        string $registrationFloorDate,
+        ?string $discoveredTodayMinRegistrationDate = null,
+    ): self {
+        $morphClass = (new ProcessAction)->getMorphClass();
+
+        return $this->where(function (OrganizationNotificationQueryBuilder $query) use (
+            $registrationFloorDate,
+            $discoveredTodayMinRegistrationDate,
+            $morphClass,
+        ): void {
+            $query->where(function (OrganizationNotificationQueryBuilder $standard) use (
+                $registrationFloorDate,
+                $discoveredTodayMinRegistrationDate,
+            ): void {
+                $standard->forActuacionVisibleByRegistrationOrDiscoveredToday(
+                    $registrationFloorDate,
+                    $discoveredTodayMinRegistrationDate,
+                );
+            })->orWhere(function (OrganizationNotificationQueryBuilder $manual) use ($morphClass): void {
+                $manual->where('organization_notifications.notifiable_type', $morphClass)
+                    ->whereIn('organization_notifications.notifiable_id', function ($sub): void {
+                        $sub->select('process_actions.id')
+                            ->from('process_actions')
+                            ->where('action_registration_id', '<', 0);
+                    });
+            });
+        });
+    }
+
+    /**
      * Actuaciones within the registration window, or first discovered today with a
      * registration_date not older than the discovered-today max age.
      */
