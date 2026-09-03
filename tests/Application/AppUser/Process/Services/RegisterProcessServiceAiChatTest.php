@@ -54,6 +54,7 @@ class RegisterProcessServiceAiChatTest extends TestCase
             $syncMock,
             app(ProcessSourceFallbackService::class),
             app(ProcessTimelineRecorder::class),
+            app(\Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService::class),
         );
     }
 
@@ -135,6 +136,7 @@ class RegisterProcessServiceAiChatTest extends TestCase
             $sync,
             $fallback,
             app(ProcessTimelineRecorder::class),
+            app(\Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService::class),
         );
 
         try {

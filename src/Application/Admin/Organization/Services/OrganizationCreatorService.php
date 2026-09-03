@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Src\Application\Admin\Organization\Data\StoreOrganizationData;
 use Src\Application\Shared\Notifications\AccountCreatedNotification;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Throwable;
@@ -16,6 +17,10 @@ use Throwable;
 class OrganizationCreatorService
 {
     private const PHONE_PREFIX = '+57';
+
+    public function __construct(
+        private readonly OrganizationProcessQuotaService $organizationProcessQuotaService,
+    ) {}
 
     /**
      * Create a new organization and its first owner (AppUser), then send account email.
@@ -55,6 +60,8 @@ class OrganizationCreatorService
             ]);
 
             $organization->appUsers()->attach($appUser->id, ['is_owner' => true]);
+
+            $this->organizationProcessQuotaService->ensureSettings($organization);
 
             $this->createDefaultNotificationChannel($organization, $appUser);
 

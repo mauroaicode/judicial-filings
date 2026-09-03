@@ -15,6 +15,7 @@ return [
         'process_resumed' => 'El proceso fue reanudado',
         'tracking_activated' => 'Se activó el seguimiento',
         'tracking_deactivated' => 'Se desactivó el seguimiento',
+        'tracking_trashed' => 'Se envió el proceso a la papelera',
         'semaphore_changed' => 'Cambió el semáforo',
         'speaker_changed' => 'Cambió el ponente',
         'unknown' => 'Actualización del proceso',

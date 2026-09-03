@@ -8,10 +8,12 @@ use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Organization\QueryBuilders\OrganizationQueryBuilder;
+use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Traits\Uuid;
 
@@ -29,6 +31,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read bool $is_ai_enabled
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
+ * @property-read OrganizationSetting|null $settings
  *
  * @method static OrganizationQueryBuilder query()
  * @method OrganizationQueryBuilder withRelations()
@@ -127,7 +130,21 @@ class Organization extends Model
             'organization_processes',
             'organization_id',
             'process_id'
-        )->withPivot(['interest_date', 'is_active', 'status', 'lawyer_role', 'inactivity_alert_level'])->withTimestamps();
+        )
+            ->using(OrganizationProcess::class)
+            ->withPivot(['interest_date', 'is_active', 'status', 'lawyer_role', 'inactivity_alert_level', 'deleted_at', 'deleted_by'])
+            ->withTimestamps()
+            ->wherePivotNull('deleted_at');
+    }
+
+    /**
+     * Product/commercial settings for this organization.
+     *
+     * @return HasOne<OrganizationSetting, $this>
+     */
+    public function settings(): HasOne
+    {
+        return $this->hasOne(OrganizationSetting::class);
     }
 
     /**

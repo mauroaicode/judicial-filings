@@ -69,8 +69,7 @@ class ProcessQueryBuilder extends Builder
      */
     public function forJudicialDailySync(?string $radicadoFilter = null): self
     {
-        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
-            ->where('organization_processes.is_active', true);
+        $this->joinActiveOrganizationTracking();
 
         $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
             ->where('process_data_sources.slug', ProcessDataSourceSlug::JudicialBranch->value)
@@ -106,8 +105,7 @@ class ProcessQueryBuilder extends Builder
      */
     public function forPendingPrivateMigration(): self
     {
-        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
-            ->where('organization_processes.is_active', true);
+        $this->joinActiveOrganizationTracking();
 
         $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
             ->where('process_data_sources.slug', ProcessDataSourceSlug::JudicialBranch->value)
@@ -135,8 +133,7 @@ class ProcessQueryBuilder extends Builder
      */
     public function forSamaiDailySync(?string $radicadoFilter = null): self
     {
-        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
-            ->where('organization_processes.is_active', true);
+        $this->joinActiveOrganizationTracking();
 
         $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
             ->where('process_data_sources.slug', ProcessDataSourceSlug::Samai->value)
@@ -148,6 +145,23 @@ class ProcessQueryBuilder extends Builder
         }
 
         $this->distinct()->select('processes.process_number');
+
+        return $this;
+    }
+
+    /**
+     * Al menos un vínculo org↔proceso activo en una organización activa.
+     * Evita sync/migración para orgs desactivadas (aunque el pivot siga is_active).
+     *
+     * @return $this
+     */
+    private function joinActiveOrganizationTracking(): self
+    {
+        $this->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
+            ->where('organization_processes.is_active', true)
+            ->whereNull('organization_processes.deleted_at')
+            ->join('organizations', 'organization_processes.organization_id', '=', 'organizations.id')
+            ->where('organizations.is_active', true);
 
         return $this;
     }
@@ -248,6 +262,7 @@ class ProcessQueryBuilder extends Builder
             SELECT COALESCE(MIN(organization_processes.created_at), processes.created_at)
             FROM organization_processes
             WHERE organization_processes.process_id = processes.id
+              AND organization_processes.deleted_at IS NULL
         ) DESC');
 
         return $this;

@@ -54,7 +54,7 @@ readonly class ProcessActionAlertNotificationService
     ): void {
         $organization = Organization::query()->find($organizationId);
 
-        if ($organization === null) {
+        if ($organization === null || ! $organization->is_active) {
             return;
         }
 
@@ -74,7 +74,7 @@ readonly class ProcessActionAlertNotificationService
     ): void {
         $organization = Organization::query()->find($organizationId);
 
-        if ($organization === null) {
+        if ($organization === null || ! $organization->is_active) {
             return;
         }
 
@@ -93,6 +93,7 @@ readonly class ProcessActionAlertNotificationService
     private function getInterestedOrganizations(Process $process): Collection
     {
         return $process->organizations()
+            ->where('organizations.is_active', true)
             ->wherePivot('is_active', true)
             ->with(['keywords' => fn ($q) => $q->where('status', KeywordStatus::ACTIVE)])
             ->get();

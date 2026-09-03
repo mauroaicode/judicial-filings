@@ -26,16 +26,17 @@ readonly class AdminProcessFinderService
     {
         $filteredIdsQuery = Process::query()
             ->filters($filters)
-            ->select('id');
+            ->select('processes.id');
 
         $total = Process::query()
-            ->whereIn('id', $filteredIdsQuery)
+            ->whereIn('processes.id', $filteredIdsQuery)
             ->selectRaw('COUNT(DISTINCT process_number) as total')
             ->value('total') ?? 0;
 
         $processNumbers = Process::query()
-            ->whereIn('id', (clone $filteredIdsQuery))
+            ->whereIn('processes.id', (clone $filteredIdsQuery))
             ->join('organization_processes', 'processes.id', '=', 'organization_processes.process_id')
+            ->whereNull('organization_processes.deleted_at')
             ->selectRaw('processes.process_number, MAX(organization_processes.created_at) as max_reg')
             ->groupBy('processes.process_number')
             ->orderByDesc('max_reg')

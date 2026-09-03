@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Src\Application\AppUser\Organization\Controllers\GetOrganizationProcessQuotaController;
 use Src\Application\AppUser\Process\Controllers\ProcessConfigController;
 use Src\Application\AppUser\Process\Controllers\ProcessController;
 use Src\Application\AppUser\Process\Controllers\ProcessImportHistoryController;
@@ -9,6 +10,7 @@ use Src\Application\Shared\Process\Timeline\Controllers\ProcessTimelineControlle
 use Src\Application\Shared\Task\Controllers\ProcessTaskController;
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('process-quota', GetOrganizationProcessQuotaController::class);
     Route::get('processes', [ProcessController::class, 'index']);
     Route::post('processes', [ProcessController::class, 'store']);
 

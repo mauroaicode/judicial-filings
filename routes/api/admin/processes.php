@@ -8,6 +8,7 @@ use Src\Application\Admin\Process\Controllers\AdminProcessImportHistoryControlle
 use Src\Application\Admin\Process\Controllers\AdminProcessInstancesController;
 use Src\Application\Admin\Process\Controllers\AdminProcessStatusController;
 use Src\Application\Admin\Process\Controllers\AdminProcessSubjectController;
+use Src\Application\Admin\Process\Controllers\AdminTrashOrganizationProcessesController;
 use Src\Application\Admin\Process\Controllers\PrivateProcessExcelImportController;
 use Src\Application\Admin\Process\Controllers\ProcessActuacionesImportController;
 use Src\Application\Admin\Process\Controllers\ProcessController;
@@ -19,6 +20,8 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
         ->whereUuid(['processId', 'organizationId']);
     Route::patch('processes/{processId}/organizations/{organizationId}/status', [AdminProcessStatusController::class, 'update'])
         ->whereUuid(['processId', 'organizationId']);
+    Route::delete('processes', [AdminTrashOrganizationProcessesController::class, 'destroyMany']);
+    Route::delete('processes/{id}', [AdminTrashOrganizationProcessesController::class, 'destroy'])->whereUuid('id');
     Route::put('processes/{processId}/subjects', [AdminProcessSubjectController::class, 'sync'])
         ->whereUuid('processId');
     Route::delete('processes/{processId}/subjects/{subjectId}', [AdminProcessSubjectController::class, 'destroy'])

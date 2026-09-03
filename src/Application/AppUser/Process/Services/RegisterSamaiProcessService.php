@@ -12,6 +12,7 @@ use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Application\Shared\Traits\MapsSamaiActuacionTrait;
@@ -19,6 +20,8 @@ use Src\Application\Shared\Traits\MapsSamaiSujetoTrait;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
@@ -50,6 +53,7 @@ readonly class RegisterSamaiProcessService
     public function __construct(
         private SamaiConsultService $samaiService,
         private ProcessSyncService $processSyncService,
+        private OrganizationProcessQuotaService $organizationProcessQuotaService,
     ) {}
 
     /**
@@ -71,6 +75,7 @@ readonly class RegisterSamaiProcessService
         }
 
         $this->validateProcessNotAlreadyRegistered($processNumber, $organizationId);
+        $this->organizationProcessQuotaService->assertCanAddProcesses($organizationId);
 
         $existingProcesses = Process::query()->whereProcessNumber($processNumber)->get();
 
@@ -462,14 +467,12 @@ readonly class RegisterSamaiProcessService
     {
         $alertLevel = $this->calculateInitialAlertLevel($process, $lawyerRole);
 
-        $process->organizations()->syncWithoutDetaching([
-            $organizationId => [
-                'interest_date' => now()->toDateString(),
-                'is_active' => true,
-                'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
-                'lawyer_role' => $lawyerRole?->value,
-                'inactivity_alert_level' => $alertLevel,
-            ],
+        OrganizationProcess::syncActiveLink($organizationId, $process->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'status' => OrganizationProcessStatus::ACTIVE,
+            'lawyer_role' => $lawyerRole,
+            'inactivity_alert_level' => $alertLevel,
         ]);
 
         if ($appUserId !== null && AppUser::query()->whereKey($appUserId)->exists()) {

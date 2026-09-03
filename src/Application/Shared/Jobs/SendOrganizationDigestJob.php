@@ -27,6 +27,10 @@ class SendOrganizationDigestJob implements ShouldQueue
 
     public function handle(NotificationDigestService $digestService): void
     {
+        if (! $this->organization->is_active) {
+            return;
+        }
+
         $digestService->sendDigest($this->organization);
     }
 }

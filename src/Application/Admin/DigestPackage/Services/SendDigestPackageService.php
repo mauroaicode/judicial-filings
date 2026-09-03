@@ -55,6 +55,7 @@ class SendDigestPackageService
         $morphClass = (new ProcessAction)->getMorphClass();
 
         $candidates = Organization::query()
+            ->whereActive()
             ->whereHas(
                 'notifications',
                 fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q

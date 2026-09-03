@@ -337,3 +337,26 @@ it('does not dispatch jobs for already notified organizations', function (): voi
     expect($response->json('organizations_queued'))->toBe(0);
     Queue::assertNothingPushed();
 });
+
+it('does not dispatch digest jobs for inactive organizations', function (): void {
+    Queue::fake();
+
+    $inactiveOrg = Organization::factory()->create([
+        'name' => 'Bufete Inactivo',
+        'is_active' => false,
+    ]);
+
+    $process = attachActiveProcess($inactiveOrg);
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now()->toDateString(),
+    ]);
+    createPendingActuacionNotification($inactiveOrg, $action);
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/admin/digest-packages/send');
+
+    $response->assertStatus(200);
+    expect($response->json('organizations_queued'))->toBe(0);
+    Queue::assertNothingPushed();
+});

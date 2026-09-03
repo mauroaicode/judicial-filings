@@ -280,8 +280,10 @@ readonly class ProcessSourceFallbackService
     {
         $rows = OrganizationProcess::query()
             ->join('processes', 'organization_processes.process_id', '=', 'processes.id')
+            ->join('organizations', 'organization_processes.organization_id', '=', 'organizations.id')
             ->where('processes.process_number', $processNumber)
             ->where('organization_processes.is_active', true)
+            ->where('organizations.is_active', true)
             ->select('organization_processes.organization_id', 'organization_processes.lawyer_role')
             ->get();
 

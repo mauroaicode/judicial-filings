@@ -15,6 +15,7 @@ return [
         'process_resumed' => 'The process was resumed',
         'tracking_activated' => 'Tracking was enabled',
         'tracking_deactivated' => 'Tracking was disabled',
+        'tracking_trashed' => 'The process was moved to trash',
         'semaphore_changed' => 'The semaphore changed',
         'speaker_changed' => 'The reporting judge changed',
         'unknown' => 'Process update',

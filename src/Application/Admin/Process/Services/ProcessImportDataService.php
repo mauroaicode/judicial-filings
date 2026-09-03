@@ -10,10 +10,15 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Admin\Process\DTOs\ProcessImportDataResult;
 use Src\Application\Admin\Process\DTOs\ProcessImportParseResult;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\Process\Models\Process;
 
 readonly class ProcessImportDataService
 {
+    public function __construct(
+        private OrganizationProcessQuotaService $organizationProcessQuotaService,
+    ) {}
+
     /**
      * Parses the Excel, filters already registered radicados and returns the result ready to enqueue.
      *
@@ -64,15 +69,46 @@ readonly class ProcessImportDataService
             ], toEnqueue: [], skippedAlreadyRegistered: count($parsed->validNumbers));
         }
 
+        $quotaPartition = $this->organizationProcessQuotaService->partitionProcessNumbersByQuota(
+            $organizationId,
+            $processToEnqueue,
+        );
+        $processToEnqueue = $quotaPartition['allowed'];
+        $quotaErrors = $quotaPartition['rejected'];
+
+        if ($processToEnqueue === [] && $quotaErrors !== []) {
+            return new ProcessImportDataResult(
+                status: 422,
+                body: [
+                    'message' => __('process.import_quota_limit_blocked'),
+                    'skipped_quota_limit' => count($quotaErrors),
+                ],
+                toEnqueue: [],
+                organizationId: $organizationId,
+                fileName: $fileName,
+                skippedAlreadyRegistered: $skippedAlreadyRegistered,
+                requestedById: $requestedById,
+                source: $source,
+                initialErrors: $quotaErrors,
+                requiresQuotaFailureBatch: true,
+            );
+        }
+
+        $body = [];
+        if ($quotaErrors !== []) {
+            $body['skipped_quota_limit'] = count($quotaErrors);
+        }
+
         return new ProcessImportDataResult(
             status: 202,
-            body: [],
+            body: $body,
             toEnqueue: $processToEnqueue,
             organizationId: $organizationId,
             fileName: $fileName,
             skippedAlreadyRegistered: $skippedAlreadyRegistered,
             requestedById: $requestedById,
             source: $source,
+            initialErrors: $quotaErrors,
         );
     }
 

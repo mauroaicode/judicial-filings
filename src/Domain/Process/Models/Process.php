@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Application\Shared\Services\Process\AttachUnassignedProcessActionsService;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\QueryBuilders\ProcessQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 use Src\Domain\Task\Models\Task;
@@ -193,7 +194,11 @@ class Process extends Model
             'organization_processes',
             'process_id',
             'organization_id'
-        )->withPivot(['interest_date', 'is_active', 'status', 'lawyer_role', 'inactivity_alert_level'])->withTimestamps();
+        )
+            ->using(OrganizationProcess::class)
+            ->withPivot(['interest_date', 'is_active', 'status', 'lawyer_role', 'inactivity_alert_level', 'deleted_at', 'deleted_by'])
+            ->withTimestamps()
+            ->wherePivotNull('deleted_at');
     }
 
     /**

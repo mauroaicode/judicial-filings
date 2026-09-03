@@ -22,6 +22,7 @@ readonly class OrganizationFinderService
     {
         $query = Organization::query()
             ->withRelations()
+            ->with('settings')
             ->filters($filters)
             ->orderedByCreatedAt();
 

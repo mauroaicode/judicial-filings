@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Admin\Organization\Resources;
 
 use Spatie\LaravelData\Resource;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\Organization\Models\Organization;
 
 class OrganizationResource extends Resource
@@ -24,6 +25,8 @@ class OrganizationResource extends Resource
         public ?string $updated_at,
         public ?string $password = null,
         public bool $is_receiving_notifications = false,
+        public ?int $max_active_processes = null,
+        public int $active_processes_count = 0,
     ) {}
 
     public static function fromModel(Organization $organization): self
@@ -37,6 +40,9 @@ class OrganizationResource extends Resource
                 ->where('is_active', true)
                 ->isNotEmpty();
         }
+
+        /** @var OrganizationProcessQuotaService $quota */
+        $quota = app(OrganizationProcessQuotaService::class);
 
         return new self(
             id: $organization->id,
@@ -53,6 +59,8 @@ class OrganizationResource extends Resource
             updated_at: $organization->updated_at->format('Y-m-d H:i:s'),
             password: $organization->createdPassword ?? null,
             is_receiving_notifications: $isReceiving,
+            max_active_processes: $quota->resolveLimit($organization->id),
+            active_processes_count: $quota->countActiveProcesses($organization->id),
         );
     }
 }

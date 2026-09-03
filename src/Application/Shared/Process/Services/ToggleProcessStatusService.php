@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessTimelineEventSource;
@@ -18,6 +19,7 @@ readonly class ToggleProcessStatusService
 {
     public function __construct(
         private ProcessTimelineRecorder $timelineRecorder,
+        private OrganizationProcessQuotaService $organizationProcessQuotaService,
     ) {}
 
     /**
@@ -42,6 +44,10 @@ readonly class ToggleProcessStatusService
 
         if ($previousStatus === $targetStatus && $previousIsActive === $isActive) {
             return;
+        }
+
+        if ($isActive) {
+            $this->organizationProcessQuotaService->assertCanActivateProcess($organizationId, $processId);
         }
 
         DB::transaction(function () use ($process, $organizationProcess, $organizationId, $isActive, $previousStatus, $previousIsActive, $targetStatus): void {

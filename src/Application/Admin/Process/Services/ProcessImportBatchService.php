@@ -23,6 +23,65 @@ readonly class ProcessImportBatchService
     ) {}
 
     /**
+     * Creates a failed batch when every new radicado was rejected by quota, then notifies.
+     *
+     * @return array{message: string, import_batch_id: string, skipped_quota_limit: int}
+     */
+    public function createQuotaBlockedBatch(ProcessImportDataResult $data): array
+    {
+        $quotaRejected = $data->quotaRejectedCount();
+        $excelTotal = $quotaRejected + $data->skippedAlreadyRegistered;
+
+        $batch = ProcessImportBatch::query()->create([
+            'organization_id' => $data->organizationId,
+            'requested_by' => $data->requestedById,
+            'file_name' => $data->fileName,
+            'excel_total_count' => $excelTotal,
+            'total_count' => $quotaRejected,
+            'enqueued_process_numbers' => [],
+            'success_count' => 0,
+            'failed_count' => $quotaRejected,
+            'multiple_instances_count' => 0,
+            'status' => ProcessImportBatch::STATUS_FAILED,
+            'errors' => $data->initialErrors,
+            'laravel_batch_id' => null,
+            'completed_at' => now(),
+        ]);
+
+        $this->sendImportReport($batch);
+
+        return [
+            'message' => (string) ($data->body['message'] ?? __('process.import_quota_limit_blocked')),
+            'import_batch_id' => $batch->id,
+            'skipped_quota_limit' => $quotaRejected,
+        ];
+    }
+
+    /**
+     * Sends import report notifications for a completed or failed batch (sync imports, quota blocks).
+     */
+    public function sendImportReport(ProcessImportBatch $importBatch): void
+    {
+        $importBatch->loadMissing('organization', 'requestedByUser');
+
+        $report = $this->buildReport($importBatch);
+
+        try {
+            $this->notificationService->notifyAdmin($report);
+
+            if ($importBatch->organization_id !== null) {
+                $this->notificationService->notifyOrganization($report, $importBatch->organization_id);
+            }
+        } catch (\Throwable $e) {
+            Log::channel(config('process-import.log_channel', 'process_import'))
+                ->error('Import batch notification dispatch failed', [
+                    'batch_id' => $importBatch->id,
+                    'error' => $e->getMessage(),
+                ]);
+        }
+    }
+
+    /**
      * Creates the batch record, builds staggered jobs and dispatches the Laravel batch.
      *
      * @param  ProcessImportDataResult  $data  Validated import data ready to enqueue
@@ -74,18 +133,7 @@ readonly class ProcessImportBatchService
 
         $this->markBatchCompleted($importBatch);
 
-        $report = $this->buildReport($importBatch);
-
-        try {
-            $this->notificationService->notifyAdmin($report);
-            $this->notificationService->notifyOrganization($report, $importBatch->organization_id);
-        } catch (\Throwable $e) {
-            Log::channel(config('process-import.log_channel', 'process_import'))
-                ->error('Import batch notification dispatch failed', [
-                    'batch_id' => $importBatch->id,
-                    'error' => $e->getMessage(),
-                ]);
-        }
+        $this->sendImportReport($importBatch);
     }
 
     /**
@@ -117,13 +165,19 @@ readonly class ProcessImportBatchService
      */
     private function createBatchRecord(ProcessImportDataResult $data): ProcessImportBatch
     {
+        $quotaRejected = $data->quotaRejectedCount();
+        $enqueuedCount = count($data->toEnqueue ?? []);
+
         return ProcessImportBatch::query()->create([
             'organization_id' => $data->organizationId,
             'requested_by' => $data->requestedById,
             'file_name' => $data->fileName,
-            'excel_total_count' => count($data->toEnqueue) + $data->skippedAlreadyRegistered,
-            'total_count' => count($data->toEnqueue),
+            'excel_total_count' => $enqueuedCount + $data->skippedAlreadyRegistered + $quotaRejected,
+            'total_count' => $enqueuedCount + $quotaRejected,
             'enqueued_process_numbers' => $data->toEnqueue,
+            'success_count' => 0,
+            'failed_count' => $quotaRejected,
+            'errors' => $data->initialErrors,
             'status' => ProcessImportBatch::STATUS_PROCESSING,
         ]);
     }
@@ -229,6 +283,11 @@ readonly class ProcessImportBatchService
 
         if ($skipped > 0) {
             $body['skipped_already_registered'] = $skipped;
+        }
+
+        $quotaSkipped = count($batch->errors ?? []);
+        if ($quotaSkipped > 0) {
+            $body['skipped_quota_limit'] = $quotaSkipped;
         }
 
         return $body;

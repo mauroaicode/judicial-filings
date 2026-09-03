@@ -7,6 +7,7 @@ namespace Src\Application\Shared\Process\Services;
 use Illuminate\Validation\ValidationException;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessTimelineEventSource;
@@ -17,6 +18,7 @@ readonly class ActivateOrganizationProcessService
 {
     public function __construct(
         private ProcessTimelineRecorder $timelineRecorder,
+        private OrganizationProcessQuotaService $organizationProcessQuotaService,
     ) {}
 
     /**
@@ -40,6 +42,10 @@ readonly class ActivateOrganizationProcessService
         }
 
         $previousStatus = OrganizationProcessStatus::fromPivot($organizationProcess);
+
+        if ($previousStatus !== OrganizationProcessStatus::ACTIVE) {
+            $this->organizationProcessQuotaService->assertCanActivateProcess($organizationId, $processId);
+        }
 
         OrganizationProcess::query()
             ->where('organization_id', $organizationId)

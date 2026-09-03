@@ -529,7 +529,12 @@ class ProcessSyncService
             ->where('process_number', $processNumber)
             ->where('is_manual_sync', false)
             ->whereNotNull('samai_corporacion')
-            ->whereHas('organizations', fn (Builder $q) => $q->where('organization_processes.is_active', true))
+            ->whereHas(
+                'organizations',
+                fn (Builder $q) => $q
+                    ->where('organizations.is_active', true)
+                    ->where('organization_processes.is_active', true)
+            )
             ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::Samai->value))
             ->get();
 
@@ -907,7 +912,12 @@ class ProcessSyncService
             ->where('process_number', $processNumber)
             ->where('is_manual_sync', false)
             ->whereNotNull('process_id')
-            ->whereHas('organizations', fn (Builder $q) => $q->where('organization_processes.is_active', true))
+            ->whereHas(
+                'organizations',
+                fn (Builder $q) => $q
+                    ->where('organizations.is_active', true)
+                    ->where('organization_processes.is_active', true)
+            )
             ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value))
             ->get();
 

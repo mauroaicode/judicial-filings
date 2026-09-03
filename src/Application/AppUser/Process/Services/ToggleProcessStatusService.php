@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Process\Services;
 
 use Illuminate\Validation\ValidationException;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\Process;
 
 readonly class ToggleProcessStatusService
 {
+    public function __construct(
+        private OrganizationProcessQuotaService $organizationProcessQuotaService,
+    ) {}
+
     /**
      * Toggle the active status of a process for the given organization.
      *
@@ -27,6 +32,10 @@ readonly class ToggleProcessStatusService
         }
 
         $this->ensureNotSuspendedByAgenda($organizationId, $processId);
+
+        if ($isActive) {
+            $this->organizationProcessQuotaService->assertCanActivateProcess($organizationId, $processId);
+        }
 
         $this->updatePivotStatus($process, $organizationId, $isActive);
     }

@@ -17,6 +17,7 @@ enum ProcessTimelineEventType: string
     case PROCESS_RESUMED = 'process_resumed';
     case TRACKING_ACTIVATED = 'tracking_activated';
     case TRACKING_DEACTIVATED = 'tracking_deactivated';
+    case TRACKING_TRASHED = 'tracking_trashed';
     case SEMAPHORE_CHANGED = 'semaphore_changed';
     case SPEAKER_CHANGED = 'speaker_changed';
 }

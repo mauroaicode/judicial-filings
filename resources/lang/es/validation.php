@@ -58,6 +58,11 @@ return [
             'unique_cedula' => 'Ya existe una organización registrada con este número de identificación.',
             'unique_nit' => 'Ya existe una organización registrada con este NIT.',
         ],
+        'max_active_processes' => [
+            'present' => 'Debe indicar el límite de radicados activos (o null para ilimitado).',
+            'integer' => 'El límite de radicados activos debe ser un número entero.',
+            'min' => 'El límite de radicados activos no puede ser negativo.',
+        ],
     ],
     'custom' => [
         'alert_slug_only_for_alerta' => 'El filtro por tipo de alerta (alert_slug) solo aplica cuando type es actuacion_alerta.',

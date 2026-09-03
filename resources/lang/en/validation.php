@@ -45,6 +45,11 @@ return [
             'unique_cedula' => 'An organization with this identification number is already registered.',
             'unique_nit' => 'An organization with this NIT is already registered.',
         ],
+        'max_active_processes' => [
+            'present' => 'You must provide the active filings limit (or null for unlimited).',
+            'integer' => 'The active filings limit must be an integer.',
+            'min' => 'The active filings limit cannot be negative.',
+        ],
     ],
     'custom' => [
         'alert_slug_only_for_alerta' => 'The alert type filter (alert_slug) only applies when type is actuacion_alerta.',

@@ -11,7 +11,10 @@ use Src\Application\Admin\Process\DTOs\PrivateProcessExcelImportedRowDTO;
 use Src\Application\Admin\Process\DTOs\PrivateProcessExcelParseResult;
 use Src\Application\Shared\Helpers\ProcessConsultationScopeHelper;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
+use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
@@ -27,6 +30,8 @@ class PrivateProcessExcelImportService
 
     public function __construct(
         private readonly FijacionEstadoActionSplitter $fijacionEstadoActionSplitter,
+        private readonly OrganizationProcessQuotaService $organizationProcessQuotaService,
+        private readonly ProcessImportBatchService $processImportBatchService,
     ) {
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
         $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
@@ -109,8 +114,10 @@ class PrivateProcessExcelImportService
         $createdProcesses = 0;
         $updatedProcesses = 0;
         $actionsImported = 0;
+        /** @var list<array{process_number: string, reason: string}> $quotaErrors */
+        $quotaErrors = [];
 
-        DB::transaction(function () use ($organizationId, $privateSourceUuid, $grouped, &$createdProcesses, &$updatedProcesses, &$actionsImported): void {
+        DB::transaction(function () use ($organizationId, $privateSourceUuid, $grouped, &$createdProcesses, &$updatedProcesses, &$actionsImported, &$quotaErrors): void {
             foreach ($grouped as $rows) {
                 /** @var list<PrivateProcessExcelImportedRowDTO> $rows */
                 $first = $rows[0];
@@ -118,6 +125,18 @@ class PrivateProcessExcelImportService
                 $process = $this->resolveProcessForImport($first, $organizationId, $privateSourceUuid, $grouped);
 
                 if (! $process instanceof Process) {
+                    if (
+                        $this->organizationProcessQuotaService->wouldConsumeNewActiveSlot($organizationId, $first->processNumber)
+                        && ! $this->organizationProcessQuotaService->canAddProcesses($organizationId)
+                    ) {
+                        $quotaErrors[] = [
+                            'process_number' => $first->processNumber,
+                            'reason' => $this->organizationProcessQuotaService->quotaLimitReason($organizationId),
+                        ];
+
+                        continue;
+                    }
+
                     $process = Process::query()->create($this->newPrivateProcessAttributes($first, $privateSourceUuid));
                     $this->attachOrganization($process, $organizationId);
                     // Alta del radicado: sujetos una sola vez (primera fila), no por cada actuación.
@@ -177,6 +196,27 @@ class PrivateProcessExcelImportService
             }
         });
 
+        if ($createdProcesses === 0 && $updatedProcesses === 0 && $actionsImported === 0 && $quotaErrors !== []) {
+            $batch = $this->persistPrivateImportBatchFailed(
+                $organizationId,
+                $requestedByUserId,
+                $fileName,
+                count($parsed->rows),
+                count($quotaErrors),
+                $quotaErrors,
+            );
+            $this->processImportBatchService->sendImportReport($batch);
+
+            return [
+                'status' => 422,
+                'body' => [
+                    'message' => __('process.import_quota_limit_blocked'),
+                    'import_batch_id' => $batch->id,
+                    'skipped_quota_limit' => count($quotaErrors),
+                ],
+            ];
+        }
+
         $batch = $this->persistPrivateImportBatchCompleted(
             $organizationId,
             $requestedByUserId,
@@ -184,17 +224,23 @@ class PrivateProcessExcelImportService
             $parsed,
             $grouped,
             $actionsImported,
+            $quotaErrors,
         );
+
+        if ($quotaErrors !== []) {
+            $this->processImportBatchService->sendImportReport($batch);
+        }
 
         return [
             'status' => 200,
-            'body' => [
+            'body' => array_filter([
                 'message' => __('process.private_process_import_success'),
                 'processes_created' => $createdProcesses,
                 'processes_updated' => $updatedProcesses,
                 'actions_imported' => $actionsImported,
                 'import_batch_id' => $batch->id,
-            ],
+                'skipped_quota_limit' => $quotaErrors !== [] ? count($quotaErrors) : null,
+            ], static fn ($value) => $value !== null),
         ];
     }
 
@@ -208,6 +254,7 @@ class PrivateProcessExcelImportService
         PrivateProcessExcelParseResult $parsed,
         array $grouped,
         int $actionsImported,
+        array $quotaErrors = [],
     ): ProcessImportBatch {
         $excelRows = count($parsed->rows);
         $rowsWithoutAction = count(array_filter(
@@ -216,6 +263,9 @@ class PrivateProcessExcelImportService
         ));
         $rowsWithAction = $excelRows - $rowsWithoutAction;
         $skippedDuplicateActions = max(0, $rowsWithAction - $actionsImported);
+        $quotaRejectedCount = count($quotaErrors);
+        $failedCount = $skippedDuplicateActions + $quotaRejectedCount;
+        $errors = $quotaErrors;
 
         return ProcessImportBatch::query()->create([
             'organization_id' => $organizationId,
@@ -226,10 +276,10 @@ class PrivateProcessExcelImportService
             'total_count' => count($grouped),
             'enqueued_process_numbers' => $this->orderedUniqueRadicados($parsed->rows),
             'success_count' => $actionsImported + $rowsWithoutAction,
-            'failed_count' => $skippedDuplicateActions,
+            'failed_count' => $failedCount,
             'multiple_instances_count' => $this->multipleCourtInstanceRadicadoCount($grouped),
             'status' => ProcessImportBatch::STATUS_COMPLETED,
-            'errors' => [],
+            'errors' => $errors,
             'laravel_batch_id' => null,
             'completed_at' => now(),
         ]);
@@ -392,12 +442,10 @@ class PrivateProcessExcelImportService
 
     private function attachOrganization(Process $process, string $organizationId): void
     {
-        $process->organizations()->syncWithoutDetaching([
-            $organizationId => [
-                'interest_date' => now()->toDateString(),
-                'is_active' => true,
-                'status' => \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::ACTIVE->value,
-            ],
+        OrganizationProcess::syncActiveLink($organizationId, $process->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+            'status' => OrganizationProcessStatus::ACTIVE,
         ]);
     }
 

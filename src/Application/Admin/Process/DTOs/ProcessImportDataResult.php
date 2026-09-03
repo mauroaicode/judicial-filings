@@ -15,6 +15,8 @@ readonly class ProcessImportDataResult
      * @param  int  $skippedAlreadyRegistered  Cuántos ya estaban registrados.
      * @param  string|int|null  $requestedById  User id que solicitó la importación.
      * @param  string  $source  Fuente de los procesos: 'judicial_branch' | 'samai'.
+     * @param  array<int, array{process_number: string, reason: string}>  $initialErrors  Errores previos (p. ej. cupo).
+     * @param  bool  $requiresQuotaFailureBatch  Crear lote fallido + notificar cuando todo fue rechazado por cupo.
      */
     public function __construct(
         public int $status,
@@ -25,10 +27,17 @@ readonly class ProcessImportDataResult
         public int $skippedAlreadyRegistered = 0,
         public mixed $requestedById = null,
         public string $source = 'judicial_branch',
+        public array $initialErrors = [],
+        public bool $requiresQuotaFailureBatch = false,
     ) {}
 
     public function isReadyToEnqueue(): bool
     {
         return $this->toEnqueue !== null && $this->toEnqueue !== [] && $this->organizationId !== null;
+    }
+
+    public function quotaRejectedCount(): int
+    {
+        return count($this->initialErrors);
     }
 }

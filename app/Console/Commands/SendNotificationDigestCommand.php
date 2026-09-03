@@ -36,6 +36,7 @@ class SendNotificationDigestCommand extends Command
         $organizationId = $this->option('organization');
 
         $organizations = Organization::query()
+            ->whereActive()
             ->when($organizationId, fn ($q) => $q->where('id', $organizationId))
             ->get();
 

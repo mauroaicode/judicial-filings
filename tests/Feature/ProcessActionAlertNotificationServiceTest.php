@@ -219,3 +219,26 @@ it('skips duplicate notifications for the same actuacion content across instance
         ->where('notification_type', 'actuacion')
         ->count())->toBe(1);
 });
+
+it('does not create notifications for inactive organizations', function (): void {
+    $organization = Organization::factory()->create(['is_active' => false]);
+    $process = Process::factory()->create();
+
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'annotation' => 'Se ordena el traslado de la liquidación',
+        'action_date' => now(),
+        'registration_date' => now(),
+    ]);
+
+    app(ProcessActionAlertNotificationService::class)->handle($action, $process);
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $organization->id)
+        ->count())->toBe(0);
+});

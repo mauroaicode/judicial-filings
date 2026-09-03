@@ -57,7 +57,8 @@ class OrganizationNotificationQueryBuilder extends Builder
                     ->join('processes', 'processes.id', '=', 'process_actions.process_id')
                     ->join('organization_processes', 'organization_processes.process_id', '=', 'processes.id')
                     ->where('organization_processes.organization_id', $organizationId)
-                    ->where('organization_processes.is_active', true);
+                    ->where('organization_processes.is_active', true)
+                    ->whereNull('organization_processes.deleted_at');
             });
     }
 

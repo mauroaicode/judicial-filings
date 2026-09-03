@@ -32,6 +32,15 @@ class NotificationDigestService
         ?array $limitToProcessNumbers = null,
         bool $skipRegistrationCutoff = false,
     ): void {
+        if (! $organization->is_active) {
+            Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                ->info('NotificationDigestService: Skipping digest for inactive organization', [
+                    'organization_id' => $organization->id,
+                ]);
+
+            return;
+        }
+
         $morphClass = (new ProcessAction)->getMorphClass();
 
         $lastNotifiedRegistrationDate = $skipRegistrationCutoff

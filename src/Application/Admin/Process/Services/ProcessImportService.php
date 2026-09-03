@@ -34,6 +34,15 @@ readonly class ProcessImportService
             source: $source,
         );
 
+        if ($dataResult->requiresQuotaFailureBatch) {
+            $body = $this->batchService->createQuotaBlockedBatch($dataResult);
+
+            return [
+                'status' => 422,
+                'body' => $body,
+            ];
+        }
+
         if (! $dataResult->isReadyToEnqueue()) {
             return [
                 'status' => $dataResult->status,

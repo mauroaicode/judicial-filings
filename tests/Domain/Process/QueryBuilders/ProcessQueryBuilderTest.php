@@ -124,3 +124,63 @@ it('includes all relationships', function (): void {
     expect($result->relationLoaded('subjects'))->toBeTrue();
     expect($result->relationLoaded('organizations'))->toBeTrue();
 });
+
+it('excludes radicados linked only to inactive organizations from judicial daily sync', function (): void {
+    $inactiveOrg = Organization::factory()->create(['is_active' => false]);
+    $activeOrg = Organization::factory()->create(['is_active' => true]);
+
+    $onlyInactive = Process::factory()->create([
+        'process_number' => '76001333301320170001100',
+        'process_id' => 1111111111,
+        'is_manual_sync' => false,
+    ]);
+    $onlyInactive->organizations()->attach($inactiveOrg->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $withActive = Process::factory()->create([
+        'process_number' => '76001333301320170002200',
+        'process_id' => 2222222222,
+        'is_manual_sync' => false,
+    ]);
+    $withActive->organizations()->attach($activeOrg->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $numbers = Process::query()
+        ->forJudicialDailySync()
+        ->pluck('process_number')
+        ->all();
+
+    expect($numbers)
+        ->toContain('76001333301320170002200')
+        ->not->toContain('76001333301320170001100');
+});
+
+it('includes radicado when at least one linked organization is active for daily sync', function (): void {
+    $inactiveOrg = Organization::factory()->create(['is_active' => false]);
+    $activeOrg = Organization::factory()->create(['is_active' => true]);
+
+    $shared = Process::factory()->create([
+        'process_number' => '76001333301320170003300',
+        'process_id' => 3333333333,
+        'is_manual_sync' => false,
+    ]);
+    $shared->organizations()->attach($inactiveOrg->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $shared->organizations()->attach($activeOrg->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $numbers = Process::query()
+        ->forJudicialDailySync()
+        ->pluck('process_number')
+        ->all();
+
+    expect($numbers)->toContain('76001333301320170003300');
+});

@@ -9,11 +9,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Src\Application\Admin\Organization\Data\OrganizationFilterData;
 use Src\Application\Admin\Organization\Data\StoreOrganizationData;
+use Src\Application\Admin\Organization\Resources\OrganizationDetailResource;
 use Src\Application\Admin\Organization\Resources\OrganizationResource;
 use Src\Application\Admin\Organization\Resources\OrganizationStatsResource;
 use Src\Application\Admin\Organization\Services\OrganizationCreatorService;
+use Src\Application\Admin\Organization\Services\OrganizationDetailService;
 use Src\Application\Admin\Organization\Services\OrganizationFinderService;
 use Src\Application\Admin\Organization\Services\OrganizationStatsService;
+use Src\Domain\Organization\Models\Organization;
 use Throwable;
 
 readonly class OrganizationController
@@ -28,6 +31,16 @@ readonly class OrganizationController
         $page = (int) $request->query('page', 1);
 
         return $organizationFinderService->handle($filters, $perPage, $page);
+    }
+
+    /**
+     * Organization detail for admin modal/tabs (info + settings).
+     */
+    public function show(
+        Organization $organization,
+        OrganizationDetailService $organizationDetailService,
+    ): OrganizationDetailResource {
+        return $organizationDetailService->handle($organization);
     }
 
     /**
