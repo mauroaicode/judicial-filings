@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\Admin\Process\Services;
+namespace Src\Application\Shared\Process\Services;
 
 use Illuminate\Support\Facades\DB;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
@@ -28,11 +28,15 @@ readonly class TrashOrganizationProcessesService
      *     skipped: list<array{process_id: string, reason: string}>
      * }
      */
-    public function handle(string $organizationId, array $processIds, ?string $deletedBy = null): array
-    {
+    public function handle(
+        string $organizationId,
+        array $processIds,
+        ?string $deletedBy = null,
+        string $actorType = 'admin',
+    ): array {
         $uniqueIds = array_values(array_unique($processIds));
 
-        return DB::transaction(function () use ($organizationId, $uniqueIds, $deletedBy): array {
+        return DB::transaction(function () use ($organizationId, $uniqueIds, $deletedBy, $actorType): array {
             $links = OrganizationProcess::query()
                 ->with('process')
                 ->where('organization_id', $organizationId)
@@ -60,7 +64,7 @@ readonly class TrashOrganizationProcessesService
                     continue;
                 }
 
-                $this->trashLink($link, $organizationId, $deletedBy);
+                $this->trashLink($link, $organizationId, $deletedBy, $actorType);
                 $trashedIds[] = $processId;
             }
 
@@ -72,8 +76,12 @@ readonly class TrashOrganizationProcessesService
         });
     }
 
-    private function trashLink(OrganizationProcess $link, string $organizationId, ?string $deletedBy): void
-    {
+    private function trashLink(
+        OrganizationProcess $link,
+        string $organizationId,
+        ?string $deletedBy,
+        string $actorType,
+    ): void {
         $previousStatus = OrganizationProcessStatus::fromPivot($link);
         $previousIsActive = $link->is_active;
         $occurredAt = now();
@@ -103,7 +111,7 @@ readonly class TrashOrganizationProcessesService
             organizationId: $organizationId,
             subjectType: 'process',
             subjectId: $process->id,
-            actorType: 'admin',
+            actorType: $actorType,
             actorId: $deletedBy,
             occurredAt: $occurredAt,
         ));

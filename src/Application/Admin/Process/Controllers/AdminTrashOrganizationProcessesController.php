@@ -7,7 +7,7 @@ namespace Src\Application\Admin\Process\Controllers;
 use Illuminate\Http\JsonResponse;
 use Src\Application\Admin\Process\Data\TrashOrganizationProcessData;
 use Src\Application\Admin\Process\Data\TrashOrganizationProcessesData;
-use Src\Application\Admin\Process\Services\TrashOrganizationProcessesService;
+use Src\Application\Shared\Process\Services\TrashOrganizationProcessesService;
 
 readonly class AdminTrashOrganizationProcessesController
 {

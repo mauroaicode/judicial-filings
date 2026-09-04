@@ -6,6 +6,7 @@ use Src\Application\AppUser\Process\Controllers\ProcessConfigController;
 use Src\Application\AppUser\Process\Controllers\ProcessController;
 use Src\Application\AppUser\Process\Controllers\ProcessImportHistoryController;
 use Src\Application\AppUser\Process\Controllers\ProcessInstancesController;
+use Src\Application\AppUser\Process\Controllers\TrashOrganizationProcessesController;
 use Src\Application\Shared\Process\Timeline\Controllers\ProcessTimelineController;
 use Src\Application\Shared\Task\Controllers\ProcessTaskController;
 
@@ -13,11 +14,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('process-quota', GetOrganizationProcessQuotaController::class);
     Route::get('processes', [ProcessController::class, 'index']);
     Route::post('processes', [ProcessController::class, 'store']);
+    Route::delete('processes', [TrashOrganizationProcessesController::class, 'destroyMany']);
 
     // Specific named routes must come before wildcard {id} routes
     Route::get('processes/import-history', [ProcessImportHistoryController::class, 'index']);
 
     Route::get('processes/{id}', [ProcessController::class, 'show']);
+    Route::delete('processes/{id}', [TrashOrganizationProcessesController::class, 'destroy'])->whereUuid('id');
     Route::patch('processes/{id}/status', [ProcessController::class, 'toggleStatus']);
     Route::get('processes/{id}/instances', [ProcessInstancesController::class, 'index']);
     Route::get('processes/{processId}/tasks', [ProcessTaskController::class, 'index'])->whereUuid('processId');
