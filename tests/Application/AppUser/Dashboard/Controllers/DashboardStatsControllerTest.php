@@ -187,6 +187,7 @@ it('returns semaphore counts by color respecting plaintiff and defendant rules',
         $process->organizations()->attach($this->organization->id, [
             'interest_date' => now()->toDateString(),
             'is_active' => true,
+            'status' => 'active',
             'lawyer_role' => $role,
             'inactivity_alert_level' => null,
         ]);
@@ -199,6 +200,10 @@ it('returns semaphore counts by color respecting plaintiff and defendant rules',
     $response->assertJsonPath('semaphores.green', 2);
     $response->assertJsonPath('semaphores.yellow', 1);
     $response->assertJsonPath('semaphores.red', 2);
+
+    // Pivot casts lawyer_role to enum; filter/stats must still resolve colors (not all zeros).
+    expect($response->json('semaphores.red') + $response->json('semaphores.yellow') + $response->json('semaphores.green'))
+        ->toBeGreaterThan(0);
 });
 
 it('updates semaphore counts when lawyer_role filter is applied', function (): void {

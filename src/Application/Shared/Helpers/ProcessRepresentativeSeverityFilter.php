@@ -89,7 +89,9 @@ final class ProcessRepresentativeSeverityFilter
         }
 
         $role = $organization->pivot->lawyer_role;
-        $lawyerRole = is_string($role) ? ProcessLawyerRole::tryFrom($role) : null;
+        $lawyerRole = $role instanceof ProcessLawyerRole
+            ? $role
+            : (is_string($role) ? ProcessLawyerRole::tryFrom($role) : null);
 
         return ProcessAlertLevelHelper::resolve(
             $organization->pivot->inactivity_alert_level,
