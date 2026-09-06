@@ -754,19 +754,19 @@ it('creates separate processes when the same radicado and court have different p
 
     $gerardo = $processes->first(
         fn (Process $process): bool => $process->subjects->contains(
-            fn ($subject): bool => $subject->name_or_business_name === 'GERARDO HERRERA'
+            fn ($subject): bool => mb_strtoupper((string) $subject->name_or_business_name) === 'GERARDO HERRERA'
         )
     );
     $wilmar = $processes->first(
         fn (Process $process): bool => $process->subjects->contains(
-            fn ($subject): bool => $subject->name_or_business_name === 'WILLMAR ARIEL PERALTA MORENO'
+            fn ($subject): bool => mb_strtoupper((string) $subject->name_or_business_name) === 'WILLMAR ARIEL PERALTA MORENO'
         )
     );
 
     expect($gerardo)->not->toBeNull()
         ->and($wilmar)->not->toBeNull()
         ->and(ProcessAction::query()->where('process_id', $gerardo->id)->pluck('action')->all())
-        ->toEqualCanonicalizing(['Libra mandamiento de pago', 'Decreta medida cautelar'])
+        ->toEqualCanonicalizing(['Libra Mandamiento de Pago', 'Decreta Medida Cautelar'])
         ->and(ProcessAction::query()->where('process_id', $wilmar->id)->pluck('action')->all())
-        ->toEqualCanonicalizing(['Libra mandamiento de pago', 'Decreta medida cautelar']);
+        ->toEqualCanonicalizing(['Libra Mandamiento de Pago', 'Decreta Medida Cautelar']);
 });

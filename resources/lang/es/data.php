@@ -90,4 +90,6 @@ return [
     'due_date' => 'Fecha de vencimiento',
     'reminder_days' => 'Días de recordatorio',
     'type' => 'Tipo',
+    'all' => 'Todos',
+    'process_ids' => 'IDs de procesos',
 ];

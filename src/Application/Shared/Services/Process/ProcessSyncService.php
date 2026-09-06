@@ -21,6 +21,7 @@ use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
 use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
+use Src\Application\Shared\Process\Timeline\Services\RecordSpeakerChangedTimelineEventService;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Notification\NotificationDigestService;
 use Src\Application\Shared\Services\SamaiConsultService;
@@ -53,6 +54,7 @@ class ProcessSyncService
         private readonly NotificationDigestService $notificationDigestService,
         private readonly ProcessTimelineRecorder $timelineRecorder,
         private readonly RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
+        private readonly RecordSpeakerChangedTimelineEventService $recordSpeakerChangedTimelineEventService,
         private readonly StaleReplicationDetector $staleReplicationDetector,
     ) {}
 
@@ -433,13 +435,13 @@ class ProcessSyncService
             $update['court'] = $court;
         }
 
-        if ($force || trim((string) ($process->speaker ?? '')) === '') {
-            $speaker = $this->buildSamaiSpeakerName($processData);
-            if ($speaker !== null && $speaker !== '') {
-                $update['speaker'] = $speaker;
-            } elseif ($force && $this->buildSamaiSpeakerName($processData) === null) {
-                $update['speaker'] = null;
-            }
+        $newSpeaker = $this->buildSamaiSpeakerName($processData);
+        $currentSpeaker = trim((string) ($process->speaker ?? ''));
+
+        if (! in_array($newSpeaker, [null, '', $currentSpeaker], true)) {
+            $update['speaker'] = $newSpeaker;
+        } elseif ($force && ($newSpeaker === null || $newSpeaker === '') && $currentSpeaker !== '') {
+            $update['speaker'] = null;
         }
 
         $processClass = trim((string) ($processData['claseProceso'] ?? $processData['ClaseProceso'] ?? ''));
@@ -473,8 +475,19 @@ class ProcessSyncService
             return false;
         }
 
+        $previousSpeaker = $process->speaker;
         $update['last_api_update'] = now();
         $process->update($update);
+
+        if (array_key_exists('speaker', $update)) {
+            $newSpeaker = $update['speaker'];
+            $this->recordSpeakerChangedTimelineEventService->handle(
+                $process,
+                filled($previousSpeaker) ? (string) $previousSpeaker : null,
+                is_string($newSpeaker) ? $newSpeaker : null,
+                ProcessTimelineEventSource::SAMAI,
+            );
+        }
 
         return true;
     }
@@ -1190,8 +1203,20 @@ class ProcessSyncService
                     $privateFlipDetected = true;
                 }
 
-                DB::transaction(function () use ($process, $updateData, $privacyOccurredAt): void {
+                $previousSpeaker = $process->speaker;
+                $speakerChanged = array_key_exists('speaker', $updateData);
+
+                DB::transaction(function () use ($process, $updateData, $privacyOccurredAt, $previousSpeaker, $speakerChanged): void {
                     $process->update($updateData);
+
+                    if ($speakerChanged) {
+                        $this->recordSpeakerChangedTimelineEventService->handle(
+                            $process,
+                            filled($previousSpeaker) ? (string) $previousSpeaker : null,
+                            $updateData['speaker'],
+                            ProcessTimelineEventSource::JUDICIAL_BRANCH,
+                        );
+                    }
 
                     if ($privacyOccurredAt === null) {
                         return;

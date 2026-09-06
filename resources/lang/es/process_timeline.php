@@ -37,6 +37,7 @@ return [
         'inactividad_verde' => 'Inactividad favorable',
         'actividad_roja' => 'Actividad reciente que requiere atención',
         'actividad_amarilla' => 'Actividad moderada',
+        'speaker_updated_from_sync' => 'El ponente se actualizó desde la consulta oficial',
         'unknown' => 'Actualización del proceso',
     ],
 
@@ -66,6 +67,7 @@ return [
     'summaries' => [
         'semaphore_changed' => 'El semáforo cambió de :from a :to.',
         'task_status_changed' => 'El estado cambió de :from a :to.',
+        'speaker_changed' => 'El ponente cambió de :from a :to.',
     ],
 
     'date_labels' => [

@@ -91,4 +91,6 @@ return [
     'due_date' => 'Due Date',
     'reminder_days' => 'Reminder Days',
     'type' => 'Type',
+    'all' => 'All',
+    'process_ids' => 'Process IDs',
 ];

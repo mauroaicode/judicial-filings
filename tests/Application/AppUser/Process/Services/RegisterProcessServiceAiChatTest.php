@@ -102,8 +102,11 @@ class RegisterProcessServiceAiChatTest extends TestCase
     public function test_it_records_privacy_detected_while_registering_an_existing_process(): void
     {
         // Deterministic administrativo radicado so SAMAI fallback is always consulted.
+        $processNumber = '76001333309920259999900';
+        Process::query()->where('process_number', $processNumber)->delete();
+
         $process = Process::factory()->public()->create([
-            'process_number' => '76001333302020250025700',
+            'process_number' => $processNumber,
             'court' => 'JUZGADO 020 ADMINISTRATIVO DE CALI',
         ]);
 
@@ -118,6 +121,7 @@ class RegisterProcessServiceAiChatTest extends TestCase
         ]);
 
         $sync = Mockery::mock(ProcessSyncService::class);
+        $sync->shouldReceive('syncForRegistration')->byDefault();
         $sync->shouldReceive('notifyPrivacyTransitionForAdmin')->once();
 
         $samai = Mockery::mock(SamaiConsultService::class);

@@ -16,6 +16,10 @@ beforeEach(function (): void {
     JudicialSyncRun::query()->delete();
     $this->organization = Organization::factory()->create();
     $this->processNumber = '76520310500320260013300';
+    Process::query()->whereIn('process_number', [
+        $this->processNumber,
+        '76001333301320160005700',
+    ])->delete();
 });
 
 afterEach(function (): void {

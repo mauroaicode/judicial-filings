@@ -56,6 +56,8 @@ class OrganizationProcess extends Pivot
         'lawyer_role',
         'inactivity_alert_level',
         'deleted_by',
+        'created_at',
+        'updated_at',
     ];
 
     /**

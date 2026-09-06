@@ -240,7 +240,7 @@ class PrivateProcessExcelImportService
                 'actions_imported' => $actionsImported,
                 'import_batch_id' => $batch->id,
                 'skipped_quota_limit' => $quotaErrors !== [] ? count($quotaErrors) : null,
-            ], static fn ($value) => $value !== null),
+            ], static fn (string|int|array|null $value): bool => $value !== null),
         ];
     }
 

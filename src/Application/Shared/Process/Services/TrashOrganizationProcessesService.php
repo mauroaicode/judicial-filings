@@ -95,9 +95,6 @@ readonly class TrashOrganizationProcessesService
         $link->delete();
 
         $process = $link->process;
-        if ($process === null) {
-            return;
-        }
 
         $this->timelineRecorder->handle($process, new RecordProcessTimelineEventData(
             eventType: ProcessTimelineEventType::TRACKING_TRASHED,

@@ -37,6 +37,7 @@ return [
         'inactividad_verde' => 'Favorable inactivity',
         'actividad_roja' => 'Recent activity requires attention',
         'actividad_amarilla' => 'Moderate activity',
+        'speaker_updated_from_sync' => 'The reporting judge was updated from the official consultation',
         'unknown' => 'Process update',
     ],
 
@@ -66,6 +67,7 @@ return [
     'summaries' => [
         'semaphore_changed' => 'The semaphore changed from :from to :to.',
         'task_status_changed' => 'The status changed from :from to :to.',
+        'speaker_changed' => 'The reporting judge changed from :from to :to.',
     ],
 
     'date_labels' => [

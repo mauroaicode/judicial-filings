@@ -95,7 +95,7 @@ readonly class TrashAppUserOrganizationProcessesService
 
         return OrganizationProcess::query()
             ->where('organization_id', $organizationId)
-            ->whereHas('process', function ($query) use ($processNumbers): void {
+            ->whereHas('process', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($processNumbers): void {
                 $query->whereIn('process_number', $processNumbers);
             })
             ->pluck('process_id')

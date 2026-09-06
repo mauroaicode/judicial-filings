@@ -42,7 +42,7 @@ class OrganizationResource extends Resource
         }
 
         /** @var OrganizationProcessQuotaService $quota */
-        $quota = app(OrganizationProcessQuotaService::class);
+        $quota = resolve(OrganizationProcessQuotaService::class);
 
         return new self(
             id: $organization->id,

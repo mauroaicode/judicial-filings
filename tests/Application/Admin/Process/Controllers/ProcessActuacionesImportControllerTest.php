@@ -500,11 +500,19 @@ it('skips actuaciones that already exist (deduplication)', function (): void {
 it('does not list repeated fijacion estado as omitted when a new auto is imported', function (): void {
     Queue::fake();
 
+    $processNumber = '76111400300220240032200';
+    \Src\Domain\Process\Models\UnassignedProcessAction::query()
+        ->where('process_number', $processNumber)
+        ->delete();
+    \Src\Domain\Process\Models\Process::query()
+        ->where('process_number', $processNumber)
+        ->delete();
+
     $spreadsheet = buildActuacionesSpreadsheet([
-        ['Juzgado 002 Civil Municipal de Buga', '76111400300220240032200',
+        ['Juzgado 002 Civil Municipal de Buga', $processNumber,
             'Ejecutivo', 'A', 'B',
             'Fijacion Estado Auto MEDIDA CAUTELAR', '', '2026-08-06', '2026-08-06', '2026-08-06'],
-        ['Juzgado 002 Civil Municipal de Buga', '76111400300220240032200',
+        ['Juzgado 002 Civil Municipal de Buga', $processNumber,
             'Ejecutivo', 'A', 'B',
             'Fijacion Estado Auto RECONOCER PERSONERIA - REMITIR LINK', '', '2026-08-06', '2026-08-06', '2026-08-06'],
     ]);
@@ -520,7 +528,7 @@ it('does not list repeated fijacion estado as omitted when a new auto is importe
         ->and($response->json('skipped_actions'))->toBe([]);
 
     $actions = \Src\Domain\Process\Models\UnassignedProcessAction::query()
-        ->whereProcessNumber('76111400300220240032200')
+        ->whereProcessNumber($processNumber)
         ->pluck('action')
         ->all();
 

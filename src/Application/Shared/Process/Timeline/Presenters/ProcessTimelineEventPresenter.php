@@ -24,14 +24,17 @@ final class ProcessTimelineEventPresenter
         $eventType = $event->event_type->value;
         $isSemaphore = $event->event_type === ProcessTimelineEventType::SEMAPHORE_CHANGED;
         $isTaskStatus = $event->event_type === ProcessTimelineEventType::TASK_STATUS_CHANGED;
+        $isSpeaker = $event->event_type === ProcessTimelineEventType::SPEAKER_CHANGED;
         $fromLabel = match (true) {
             $isSemaphore => self::colorLabel($payload['from'] ?? null),
             $isTaskStatus => self::taskStatusLabel($payload['from'] ?? null, true),
+            $isSpeaker => self::speakerLabel($payload['from'] ?? null),
             default => null,
         };
         $toLabel = match (true) {
             $isSemaphore => self::colorLabel($payload['to'] ?? null),
             $isTaskStatus => self::taskStatusLabel($payload['to'] ?? null),
+            $isSpeaker => self::speakerLabel($payload['to'] ?? null),
             default => null,
         };
 
@@ -108,12 +111,16 @@ final class ProcessTimelineEventPresenter
         }
 
         if ($items === []) {
+            $fallbackKey = $event->event_type === ProcessTimelineEventType::SPEAKER_CHANGED
+                ? 'speaker_changed_at'
+                : 'semaphore_recorded_at';
+
             $items[] = self::dateItem(
-                'semaphore_recorded_at',
+                $fallbackKey,
                 'occurred_at',
                 $event->occurred_at->toDateTimeString(),
             );
-            $seenKeys['semaphore_recorded_at'] = true;
+            $seenKeys[$fallbackKey] = true;
 
             $legacyLastActivity = is_string($payload['last_activity_date'] ?? null)
                 ? $payload['last_activity_date']
@@ -228,6 +235,13 @@ final class ProcessTimelineEventPresenter
                     'to' => $to,
                 ]);
             }
+
+            if ($eventType === ProcessTimelineEventType::SPEAKER_CHANGED) {
+                return __('process_timeline.summaries.speaker_changed', [
+                    'from' => $from,
+                    'to' => $to,
+                ]);
+            }
         }
 
         if ($eventType === ProcessTimelineEventType::TASK_CREATED && is_string($payload['title'] ?? null)) {
@@ -235,6 +249,17 @@ final class ProcessTimelineEventPresenter
         }
 
         return null;
+    }
+
+    private static function speakerLabel(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed !== '' ? $trimmed : null;
     }
 
     private static function translate(string $group, ?string $value, string $fallback): string

@@ -33,7 +33,7 @@ class OrganizationIndexResource extends Resource
     public static function fromModel(Organization $organization, int $index = 0): self
     {
         /** @var OrganizationProcessQuotaService $quota */
-        $quota = app(OrganizationProcessQuotaService::class);
+        $quota = resolve(OrganizationProcessQuotaService::class);
 
         return new self(
             index: $index,

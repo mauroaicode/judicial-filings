@@ -56,33 +56,36 @@ it('does not treat real multi-instance radicados as phantom when all instances a
 });
 
 it('prefers the instance with historical actuaciones for Excel import', function (): void {
+    $processNumber = '08001400301020998888300';
+    Process::query()->where('process_number', $processNumber)->delete();
+
     $phantom = Process::factory()->create([
-        'process_number' => '08001400301020230078300',
+        'process_number' => $processNumber,
         'court' => 'Juzgado 007 Civil Municipal de Ejecucion',
         'litigants' => null,
         'last_activity_date' => '2025-05-23',
     ]);
 
     $rich = Process::factory()->create([
-        'process_number' => '08001400301020230078300',
+        'process_number' => $processNumber,
         'court' => 'Juzgado 010 Civil Municipal de Barranquilla',
         'litigants' => 'Demandante: Avanticoop',
         'last_activity_date' => '2024-05-29',
     ]);
 
-    Process::query()->whereKey($phantom->id)->update(['created_at' => now()->subMinute()]);
-    Process::query()->whereKey($rich->id)->update(['created_at' => now()]);
+    Process::query()->whereKey($phantom->id)->update(['created_at' => now()->subDays(2)]);
+    Process::query()->whereKey($rich->id)->update(['created_at' => now()->subDay()]);
 
     \Src\Domain\Process\Models\ProcessAction::factory()->count(3)->create([
         'process_id' => $rich->id,
     ]);
 
     $siblings = Process::query()
-        ->where('process_number', '08001400301020230078300')
+        ->where('process_number', $processNumber)
         ->withCount('actions')
         ->orderBy('created_at')
         ->get();
 
-    expect($siblings->first()?->id)->toBe($phantom->id)
+    expect($siblings)->toHaveCount(2)
         ->and(ProcessPhantomInstanceHelper::pickPreferredInstanceForImport($siblings)?->id)->toBe($rich->id);
 });
