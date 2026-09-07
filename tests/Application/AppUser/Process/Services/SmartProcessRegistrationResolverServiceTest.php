@@ -34,26 +34,43 @@ it('defers judicial branch registration to the queue while a sync batch is activ
     ]);
 
     $jb = Mockery::mock(JudicialBranchConsultService::class);
-    $jb->shouldReceive('withSeed')->once()->with($this->processNumber)->andReturnSelf();
-    $jb->shouldReceive('fetchProcesses')->once()->andReturn((object) [
-        'isSuccessful' => true,
-        'data' => [[
-            'idProceso' => 999001,
-            'esPrivado' => false,
-            'llaveProceso' => $this->processNumber,
-        ]],
-    ]);
-    $jb->shouldReceive('peekActuacionesPagination')->once()->with(999001)->andReturn((object) [
-        'isSuccessful' => true,
-        'totalPages' => 1,
-    ]);
+    $jb->shouldNotReceive('withSeed');
+    $jb->shouldNotReceive('fetchProcesses');
+    $jb->shouldNotReceive('peekActuacionesPagination');
 
     $samai = Mockery::mock(SamaiConsultService::class);
+    $samai->shouldNotReceive('buscarProceso');
 
     $decision = (new SmartProcessRegistrationResolverService($jb, $samai))
         ->handle($this->processNumber, $this->organization->id);
 
     expect($decision->source)->toBe(ProcessDataSourceSlug::JudicialBranch)
+        ->and($decision->deferToQueue)->toBeTrue();
+});
+
+it('defers SAMAI registration without probing while a SAMAI sync batch is active', function (): void {
+    $adminNumber = '76001333301320160005700';
+
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::Started,
+        'started_at' => now()->subMinutes(5),
+        'data_source' => JudicialSyncDataSource::Samai,
+    ]);
+
+    $jb = Mockery::mock(JudicialBranchConsultService::class);
+    $jb->shouldReceive('withSeed')->once()->with($adminNumber)->andReturnSelf();
+    $jb->shouldReceive('fetchProcesses')->once()->andReturn((object) [
+        'isSuccessful' => true,
+        'data' => [],
+    ]);
+
+    $samai = Mockery::mock(SamaiConsultService::class);
+    $samai->shouldNotReceive('buscarProceso');
+
+    $decision = (new SmartProcessRegistrationResolverService($jb, $samai))
+        ->handle($adminNumber, $this->organization->id);
+
+    expect($decision->source)->toBe(ProcessDataSourceSlug::Samai)
         ->and($decision->deferToQueue)->toBeTrue();
 });
 

@@ -34,7 +34,8 @@ class DispatchProcessRegistrationService
                 'status' => 'pending',
             ]);
 
-            dispatch(new \Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob($data->process_number, $organization->id, $appUser, $data->lawyer_role))->onQueue(config('judicial-sync.jobs.sync_process.queue'));
+            dispatch(new \Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob($data->process_number, $organization->id, $appUser, $data->lawyer_role))
+                ->onQueue(config('process-import.jobs.import_radicado.queue'));
         });
     }
 }

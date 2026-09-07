@@ -41,7 +41,7 @@ class DispatchSamaiProcessRegistrationService
                 $organization->id,
                 $appUser,
                 $data->lawyer_role,
-            ))->onQueue(config('judicial-sync.jobs.sync_process.queue'));
+            ))->onQueue(config('process-import.jobs.import_radicado.queue'));
         });
     }
 }

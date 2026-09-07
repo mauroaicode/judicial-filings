@@ -10,12 +10,14 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Src\Application\AppUser\Process\Services\RegisterSamaiProcessService;
+use Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
 /**
@@ -23,6 +25,7 @@ use Throwable;
  * supera el umbral de registro inline (SAMAI_REGISTRATION_INLINE_MAX_ACTUACIONES).
  *
  * Espejo de SyncJudicialBranchJob pero usando RegisterSamaiProcessService.
+ * Comparte la cola process-import con el alta admin para no competir con judicial-sync.
  */
 class SyncSamaiJob implements ShouldQueue
 {
@@ -30,7 +33,7 @@ class SyncSamaiJob implements ShouldQueue
 
     public int $timeout = 180;
 
-    /** Retries cover MySQL deadlocks when daily sync is also writing processes. */
+    /** Retries cover SAMAI discovery timeouts; same door as admin ImportRadicadoSamaiJob. */
     public int $tries = 5;
 
     /**
@@ -45,7 +48,11 @@ class SyncSamaiJob implements ShouldQueue
         public string $organizationId,
         public AppUser $appUser,
         public ?ProcessLawyerRole $lawyerRole = null,
-    ) {}
+    ) {
+        $config = config('process-import.jobs.import_radicado', []);
+        $this->tries = (int) ($config['tries'] ?? 30);
+        $this->timeout = (int) ($config['timeout'] ?? 600);
+    }
 
     /**
      * @throws Throwable
@@ -53,11 +60,13 @@ class SyncSamaiJob implements ShouldQueue
     public function handle(RegisterSamaiProcessService $registerSamaiProcessService): void
     {
         try {
+            $seed = $this->processNumber.':'.$this->attempts();
+
             $result = $registerSamaiProcessService->handle(
                 $this->processNumber,
                 $this->organizationId,
                 $this->lawyerRole,
-                $this->processNumber,
+                $seed,
                 $this->appUser->id,
             );
 
@@ -68,13 +77,49 @@ class SyncSamaiJob implements ShouldQueue
                 $this->appUser->notify(new ProcessDataImportedNotification($process));
             } else {
                 $this->updateLogStatus('failed', 'No process was imported from SAMAI.');
+                $this->appUser->notify(new ProcessImportFailedNotification(
+                    $this->processNumber,
+                    'No process was imported from SAMAI.'
+                ));
             }
         } catch (Throwable $e) {
-            $this->updateLogStatus('failed', $e->getMessage());
-            $this->appUser->notify(new ProcessImportFailedNotification($this->processNumber, $e->getMessage()));
-
-            throw $e;
+            $this->handleException($e);
         }
+    }
+
+    public function failed(?Throwable $e = null): void
+    {
+        $message = $e instanceof Throwable
+            ? $e->getMessage()
+            : __('process.import_job_max_attempts_exceeded');
+
+        $this->updateLogStatus('failed', $message);
+        $this->appUser->notify(new ProcessImportFailedNotification($this->processNumber, $message));
+    }
+
+    /**
+     * @throws Throwable
+     */
+    private function handleException(Throwable $e): void
+    {
+        if ($e instanceof SamaiDiscoveryTimeoutException) {
+            $maxAttempts = (int) config('process-import.retry_max_attempts_for_samai_discovery_timeout', 5);
+            $releaseSeconds = (int) config('process-import.retry_release_seconds_for_samai_discovery_timeout', 180);
+        } elseif ($e instanceof NotFoundHttpException) {
+            $maxAttempts = (int) config('process-import.retry_max_attempts_for_not_found', 3);
+            $releaseSeconds = (int) config('process-import.retry_release_seconds_for_not_found', 120);
+        } else {
+            $maxAttempts = (int) config('process-import.retry_max_attempts', 2);
+            $releaseSeconds = (int) config('process-import.retry_release_seconds', 60);
+        }
+
+        if ($this->attempts() <= $maxAttempts) {
+            $this->release($releaseSeconds);
+
+            return;
+        }
+
+        throw $e;
     }
 
     private function updateLogStatus(string $status, ?string $error = null): void

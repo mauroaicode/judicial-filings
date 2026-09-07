@@ -11,6 +11,9 @@ use Src\Application\AppUser\Process\Jobs\GenerateProcessAiSummaryJob;
 use Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob;
 use Src\Application\Shared\Services\AiRagService;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
+use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
+use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Notification\Notifications\ProcessAiSummaryReadyNotification;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
@@ -68,12 +71,13 @@ it('dispatches the process registration flow asynchronously without placeholders
     $response->assertStatus(201);
     $response->assertJsonFragment(['message' => __('process.registration_dispatched')]);
 
-    // Verify Job was dispatched with the number
+    // Verify Job was dispatched with the number on the process-import door
     Queue::assertPushed(SyncJudicialBranchJob::class, function ($job) use ($processNumber) {
         return $job->processNumber === $processNumber
             && $job->organizationId === $this->organization->id
             && $job->appUser->id === $this->appUser->id
-            && $job->lawyerRole === ProcessLawyerRole::PLAINTIFF;
+            && $job->lawyerRole === ProcessLawyerRole::PLAINTIFF
+            && $job->queue === config('process-import.jobs.import_radicado.queue');
     });
 
     // Verify Log was created
@@ -153,6 +157,9 @@ it('successfully runs SyncJudicialBranchJob, creates process and dispatches AI j
 
 it('notifies failure when SyncJudicialBranchJob fails', function (): void {
     Notification::fake();
+    Config::set('process-import.retry_max_attempts_for_not_found', 0);
+    Config::set('process-import.retry_max_attempts_for_empty', 0);
+    Config::set('process-import.retry_max_attempts', 0);
 
     $processNumber = '76001333301320170000000'; // Fake non-existent
 
@@ -171,10 +178,15 @@ it('notifies failure when SyncJudicialBranchJob fails', function (): void {
 
     $job = new SyncJudicialBranchJob($processNumber, $this->organization->id, $this->appUser);
 
+    $caught = null;
     try {
         app()->call([$job, 'handle']);
     } catch (\Throwable $e) {
+        $caught = $e;
+        $job->failed($e);
     }
+
+    expect($caught)->not->toBeNull();
 
     // Verify Log updated to failed
     $log = ProcessRegistrationLog::where('process_number', $processNumber)->first();
@@ -185,6 +197,36 @@ it('notifies failure when SyncJudicialBranchJob fails', function (): void {
         $this->appUser,
         ProcessImportFailedNotification::class
     );
+});
+
+it('dispatches SyncJudicialBranchJob to process-import while a judicial sync batch is active', function (): void {
+    Queue::fake();
+
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subMinutes(10),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    $processNumber = '76520310500320260013300';
+
+    Http::fake(); // must not hit Portal while JB sync is active
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
+        ]);
+
+    $response->assertStatus(201);
+    $response->assertJsonFragment(['message' => __('process.registration_dispatched')]);
+
+    Queue::assertPushed(SyncJudicialBranchJob::class, function ($job) use ($processNumber) {
+        return $job->processNumber === $processNumber
+            && $job->queue === config('process-import.jobs.import_radicado.queue');
+    });
+
+    Http::assertNothingSent();
 });
 
 it('successfully runs GenerateProcessAiSummaryJob and saves summary', function (): void {

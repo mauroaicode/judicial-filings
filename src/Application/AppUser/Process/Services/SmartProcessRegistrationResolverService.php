@@ -46,9 +46,25 @@ readonly class SmartProcessRegistrationResolverService
             return $this->fastPathDecision($existing);
         }
 
+        // Mientras el sync masivo de Rama Judicial ocupa los proxies del Portal,
+        // no sondear en request: diferir a la cola process-import (misma puerta que admin).
+        if (JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch)) {
+            if (ProcessConsultationScopeHelper::shouldConsultSamai($processNumber)) {
+                $samaiWhileJbBusy = $this->trySamai($processNumber);
+                if ($samaiWhileJbBusy instanceof SmartProcessRoutingDecision) {
+                    return $samaiWhileJbBusy;
+                }
+            }
+
+            return new SmartProcessRoutingDecision(
+                source: ProcessDataSourceSlug::JudicialBranch,
+                deferToQueue: true,
+            );
+        }
+
         // Intentar Rama Judicial primero (procesos públicos).
         $jbDecision = $this->tryJudicialBranch($processNumber);
-        if ($jbDecision instanceof \Src\Application\AppUser\Process\DTOs\SmartProcessRoutingDecision) {
+        if ($jbDecision instanceof SmartProcessRoutingDecision) {
             return $jbDecision;
         }
 
@@ -59,7 +75,7 @@ readonly class SmartProcessRegistrationResolverService
         }
 
         $samaiDecision = $this->trySamai($processNumber);
-        if ($samaiDecision instanceof \Src\Application\AppUser\Process\DTOs\SmartProcessRoutingDecision) {
+        if ($samaiDecision instanceof SmartProcessRoutingDecision) {
             return $samaiDecision;
         }
 
@@ -146,14 +162,21 @@ readonly class SmartProcessRegistrationResolverService
 
         return new SmartProcessRoutingDecision(
             source: ProcessDataSourceSlug::JudicialBranch,
-            deferToQueue: $maxPages > $inlineMaxPages
-                || JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch),
+            deferToQueue: $maxPages > $inlineMaxPages,
             prefetchedJbProcesses: $processesData,
         );
     }
 
     private function trySamai(string $processNumber): ?SmartProcessRoutingDecision
     {
+        // Sync masivo SAMAI activo: no sondear; diferir a process-import.
+        if (JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::Samai)) {
+            return new SmartProcessRoutingDecision(
+                source: ProcessDataSourceSlug::Samai,
+                deferToQueue: true,
+            );
+        }
+
         $this->samaiService->withSeed($processNumber);
 
         try {
@@ -194,8 +217,7 @@ readonly class SmartProcessRegistrationResolverService
 
         return new SmartProcessRoutingDecision(
             source: ProcessDataSourceSlug::Samai,
-            deferToQueue: $deferToQueue
-                || JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::Samai),
+            deferToQueue: $deferToQueue,
         );
     }
 
