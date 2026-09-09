@@ -6,6 +6,8 @@ namespace Src\Application\AppUser\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessSemaphoreHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
@@ -26,22 +28,32 @@ class ProcessInstanceResource extends Resource
 
     public static function fromModel(Process $process, string $organizationId): self
     {
-        $lawyerRole = null;
-        $alertLevel = null;
+        $lawyerRoleValue = null;
+        $lawyerRoleEnum = null;
+        $storedAlertLevel = null;
         $organization = null;
 
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
             if ($organization && $organization->pivot) {
                 $rawRole = $organization->pivot->lawyer_role;
-                $lawyerRole = $rawRole instanceof ProcessLawyerRole
-                    ? $rawRole->value
-                    : (is_string($rawRole) ? $rawRole : null);
-                $alertLevel = $organization->pivot->inactivity_alert_level;
+                $lawyerRoleEnum = $rawRole instanceof ProcessLawyerRole
+                    ? $rawRole
+                    : (is_string($rawRole) ? ProcessLawyerRole::tryFrom($rawRole) : null);
+                $lawyerRoleValue = $lawyerRoleEnum?->value;
+                $storedAlertLevel = $organization->pivot->inactivity_alert_level;
             }
         }
 
         $status = OrganizationProcessStatus::fromPivot($organization?->pivot);
+
+        // Same calculated alert as ProcessDetailResource (header), so cards and header match.
+        $calculatedAlertLevel = ProcessAlertLevelHelper::resolve(
+            $storedAlertLevel,
+            $process->last_activity_date,
+            $lawyerRoleEnum,
+        );
+        $alertLevel = ProcessSemaphoreHelper::resolveAlertLevel($status, $calculatedAlertLevel);
 
         return new self(
             id: $process->id,
@@ -54,7 +66,7 @@ class ProcessInstanceResource extends Resource
                 ? DateFormatHelper::formatDateTime($process->last_api_update)
                 : null,
             status_label: $status->getLabel(),
-            lawyer_role: $lawyerRole,
+            lawyer_role: $lawyerRoleValue,
             inactivity_alert_level: $alertLevel,
         );
     }
