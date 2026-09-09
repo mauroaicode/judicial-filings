@@ -8,6 +8,7 @@ use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 
 class ProcessInstanceResource extends Resource
@@ -32,7 +33,10 @@ class ProcessInstanceResource extends Resource
         if ($process->relationLoaded('organizations')) {
             $organization = $process->organizations->firstWhere('id', $organizationId);
             if ($organization && $organization->pivot) {
-                $lawyerRole = $organization->pivot->lawyer_role;
+                $rawRole = $organization->pivot->lawyer_role;
+                $lawyerRole = $rawRole instanceof ProcessLawyerRole
+                    ? $rawRole->value
+                    : (is_string($rawRole) ? $rawRole : null);
                 $alertLevel = $organization->pivot->inactivity_alert_level;
             }
         }
