@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
@@ -23,6 +24,7 @@ use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Enums\ProcessTimelineEventSource;
@@ -125,7 +127,7 @@ readonly class RegisterProcessService
         // Recargar por si la fuente cambió a SAMAI.
         $processes = Process::query()->whereProcessNumber($processNumber)->get();
 
-        $result = DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId): RegisterProcessResult {
+        $result = DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId, $processNumber): RegisterProcessResult {
             /** @var Collection<int, Process> $attached */
             $attached = collect();
             $privateCount = 0;
@@ -146,7 +148,13 @@ readonly class RegisterProcessService
             }
 
             if ($attached->isEmpty()) {
-                abort(422, __('process.all_instances_are_private'));
+                throw new ManualRegistrationRequiredException(
+                    $processNumber,
+                    $processes->count() === 1
+                        ? ManualRegistrationRequestReason::Private
+                        : ManualRegistrationRequestReason::AllPrivate,
+                    $lawyerRole,
+                );
             }
 
             return new RegisterProcessResult(
@@ -353,10 +361,18 @@ readonly class RegisterProcessService
 
             if ($registeredProcesses->isEmpty()) {
                 if ($totalProcesses === 1 && $privateCount === 1) {
-                    abort(422, __('process.is_private'));
+                    throw new ManualRegistrationRequiredException(
+                        $processNumber,
+                        ManualRegistrationRequestReason::Private,
+                        $lawyerRole,
+                    );
                 }
 
-                abort(422, __('process.all_instances_are_private'));
+                throw new ManualRegistrationRequiredException(
+                    $processNumber,
+                    ManualRegistrationRequestReason::AllPrivate,
+                    $lawyerRole,
+                );
             }
 
             return new RegisterProcessResult(

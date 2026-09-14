@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Src\Application\AppUser\Organization\Controllers\GetOrganizationProcessQuotaController;
+use Src\Application\AppUser\Process\Controllers\ManualRegistrationRequestController;
 use Src\Application\AppUser\Process\Controllers\ProcessConfigController;
 use Src\Application\AppUser\Process\Controllers\ProcessController;
 use Src\Application\AppUser\Process\Controllers\ProcessImportHistoryController;
@@ -18,6 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Specific named routes must come before wildcard {id} routes
     Route::get('processes/import-history', [ProcessImportHistoryController::class, 'index']);
+    Route::get('processes/manual-registration-requests', [ManualRegistrationRequestController::class, 'index']);
 
     Route::get('processes/{id}', [ProcessController::class, 'show']);
     Route::delete('processes/{id}', [TrashOrganizationProcessesController::class, 'destroy'])->whereUuid('id');

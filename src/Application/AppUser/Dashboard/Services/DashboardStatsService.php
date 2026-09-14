@@ -12,6 +12,8 @@ use Src\Application\Shared\Helpers\ProcessRepresentativeSeverityFilter;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
+use Src\Domain\Process\Models\ManualRegistrationRequest;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Shared\Enums\SeverityColor;
 
@@ -30,12 +32,17 @@ readonly class DashboardStatsService
         $processCounts = $this->getProcessCounts($organizationId, $filters);
         $notificationCountsByType = $this->getNotificationCountsByType($organizationId);
         $semaphoreCounts = $this->getSemaphoreCounts($organizationId, $filters);
+        $pendingManualRegistrations = ManualRegistrationRequest::query()
+            ->where('organization_id', $organizationId)
+            ->where('status', ManualRegistrationRequestStatus::Pending->value)
+            ->count();
 
         return DashboardStatsResource::fromCounts(
             totalProcesses: $processCounts['total'],
             activeProcesses: $processCounts['active'],
             inactiveProcesses: $processCounts['inactive'],
             processesWithMultipleInstances: $processCounts['multiple_instances'],
+            pendingManualRegistrations: $pendingManualRegistrations,
             notificationsByType: $notificationCountsByType,
             semaphoreCounts: $semaphoreCounts,
         );

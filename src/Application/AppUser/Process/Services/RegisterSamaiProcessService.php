@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
@@ -22,6 +23,7 @@ use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
@@ -134,7 +136,15 @@ readonly class RegisterSamaiProcessService
             }
 
             if ($attached->isEmpty()) {
-                abort(422, __('process.all_instances_are_private'));
+                $processNumber = (string) $processes->first()->process_number;
+
+                throw new ManualRegistrationRequiredException(
+                    $processNumber,
+                    $processes->count() === 1
+                        ? ManualRegistrationRequestReason::Private
+                        : ManualRegistrationRequestReason::AllPrivate,
+                    $lawyerRole,
+                );
             }
 
             return new RegisterProcessResult(

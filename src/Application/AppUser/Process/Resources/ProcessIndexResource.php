@@ -26,6 +26,8 @@ class ProcessIndexResource extends Resource
         public ?string $last_activity_date,
         public bool $is_private,
         public bool $has_multiple_instances,
+        /** True when process data was loaded outside automatic Rama/SAMAI sync (e.g. private Excel). */
+        public bool $is_manual_sync,
         public string $status,
         public string $status_label,
         /** @var array{paused: bool, reason: string|null, message: string|null} */
@@ -101,6 +103,7 @@ class ProcessIndexResource extends Resource
             last_activity_date: $process->last_activity_date ? DateFormatHelper::formatDate($process->last_activity_date) : null,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
+            is_manual_sync: (bool) $process->is_manual_sync,
             status: $status->value,
             status_label: $status->getLabel(),
             semaphore: $semaphore,

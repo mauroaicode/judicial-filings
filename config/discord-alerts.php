@@ -10,6 +10,8 @@ return [
         'log_sync_daily' => env('DISCORD_ALERT_WEBHOOK_LOG_SYNC_DAILY'),
         /** #sincronizacion-tardia — Rama data-replication lag (fecha de replicación vs consulta). */
         'late_sync' => env('DISCORD_ALERT_WEBHOOK_LATE_SYNC'),
+        /** #crear-procesos-privados — solicitudes de alta manual (privado / no consultable). */
+        'manual_registration' => env('DISCORD_ALERT_WEBHOOK_MANUAL_REGISTRATION'),
     ],
 
     /*

@@ -64,6 +64,7 @@ return [
     'total_recent_actions' => 'Total de Actuaciones Recientes',
     'severity_color' => 'Color del Semáforo',
     'privacy' => 'Privacidad (filtro de listado)',
+    'reason' => 'Motivo',
     'id' => 'ID',
     'is_ai_enabled' => 'IA Habilitada',
     'max_active_processes' => 'Límite de radicados activos',

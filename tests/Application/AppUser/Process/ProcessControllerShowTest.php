@@ -50,7 +50,8 @@ it('returns process detail when judicial process_id is null (private import)', f
         ->getJson("/api/app-user/processes/{$process->id}");
 
     $response->assertStatus(200);
-    expect($response->json('process.process_id'))->toBeNull();
+    expect($response->json('process.process_id'))->toBeNull()
+        ->and($response->json('process.is_manual_sync'))->toBeTrue();
 });
 
 it('returns process detail with subjects', function (): void {
@@ -111,6 +112,7 @@ it('returns process detail with subjects', function (): void {
             'filing_content',
             'is_private',
             'has_multiple_instances',
+            'is_manual_sync',
             'last_api_update',
             'status',
             'status_label',

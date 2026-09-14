@@ -7,12 +7,16 @@ namespace Src\Application\AppUser\Process\Services;
 use Illuminate\Contracts\Database\Query\Builder;
 use Src\Application\AppUser\Process\DTOs\SmartProcessRoutingDecision;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
+use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Exceptions\ApiProxyFailureException;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException;
 use Src\Application\Shared\Helpers\ProcessConsultationScopeHelper;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 
@@ -71,7 +75,10 @@ readonly class SmartProcessRegistrationResolverService
         // Rama Judicial no lo encontró o todos los registros son privados.
         // SAMAI solo aplica a juzgados/tribunales administrativos y Consejo de Estado.
         if (! ProcessConsultationScopeHelper::shouldConsultSamai($processNumber)) {
-            abort(404, __('process.not_found_in_any_source'));
+            throw new ManualRegistrationRequiredException(
+                $processNumber,
+                ManualRegistrationRequestReason::NotFound,
+            );
         }
 
         $samaiDecision = $this->trySamai($processNumber);
@@ -79,7 +86,10 @@ readonly class SmartProcessRegistrationResolverService
             return $samaiDecision;
         }
 
-        abort(404, __('process.not_found_in_any_source'));
+        throw new ManualRegistrationRequiredException(
+            $processNumber,
+            ManualRegistrationRequestReason::NotFound,
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -113,6 +123,13 @@ readonly class SmartProcessRegistrationResolverService
             $response = $this->judicialBranchService->fetchProcesses($processNumber);
         } catch (ApiEmptyProcessesException) {
             return null;
+        } catch (ApiProxyFailureException|ApiForbiddenOrRateLimitException) {
+            // Portal/proxy no disponible en el request: no bloquear al abogado.
+            // Misma puerta que SAMAI timeout → cola process-import reintenta.
+            return new SmartProcessRoutingDecision(
+                source: ProcessDataSourceSlug::JudicialBranch,
+                deferToQueue: true,
+            );
         }
 
         if (! $response->isSuccessful || $response->data === []) {

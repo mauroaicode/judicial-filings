@@ -17,8 +17,10 @@ use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\AppUser\Process\Services\RegisterSamaiProcessService;
+use Src\Application\AppUser\Process\Services\RequestManualProcessRegistrationService;
 use Src\Application\AppUser\Process\Services\SmartProcessRegistrationResolverService;
 use Src\Application\Shared\Data\ProcessFilterData;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Data\ToggleProcessStatusData;
@@ -41,6 +43,7 @@ readonly class ProcessController
         private RegisterProcessService $registerProcessService,
         private DispatchSamaiProcessRegistrationService $dispatchSamaiProcessRegistrationService,
         private RegisterSamaiProcessService $registerSamaiProcessService,
+        private RequestManualProcessRegistrationService $requestManualProcessRegistrationService,
     ) {}
 
     /**
@@ -140,37 +143,55 @@ readonly class ProcessController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        $routing = $this->smartProcessRegistrationResolverService->handle($data->process_number, $organization->id);
+        try {
+            $routing = $this->smartProcessRegistrationResolverService->handle($data->process_number, $organization->id);
 
-        // Alta asíncrona (historial largo → encolar).
-        if ($routing->deferToQueue) {
-            if ($routing->source === ProcessDataSourceSlug::Samai) {
-                $this->dispatchSamaiProcessRegistrationService->handle($data, $organization, $appUser);
-            } else {
-                $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);
+            // Alta asíncrona (historial largo → encolar).
+            if ($routing->deferToQueue) {
+                if ($routing->source === ProcessDataSourceSlug::Samai) {
+                    $this->dispatchSamaiProcessRegistrationService->handle($data, $organization, $appUser);
+                } else {
+                    $this->dispatchProcessRegistrationService->handle($data, $organization, $appUser);
+                }
+
+                return response()->json(['message' => __('process.registration_dispatched')], 201);
             }
 
-            return response()->json(['message' => __('process.registration_dispatched')], 201);
-        }
+            // Alta inline.
+            if ($routing->source === ProcessDataSourceSlug::Samai) {
+                $result = $this->registerSamaiProcessService->handle(
+                    $data->process_number,
+                    $organization->id,
+                    $data->lawyer_role,
+                    '',
+                    $appUser->id,
+                );
+            } else {
+                $result = $this->registerProcessService->handle(
+                    $data->process_number,
+                    $organization->id,
+                    $data->lawyer_role,
+                    '',
+                    $appUser->id,
+                    $routing->prefetchedJbProcesses,
+                );
+            }
+        } catch (ManualRegistrationRequiredException $e) {
+            $request = $this->requestManualProcessRegistrationService->handle(
+                $e->processNumber,
+                $organization->id,
+                $appUser->id,
+                $e->reason,
+                $e->lawyerRole ?? $data->lawyer_role,
+            );
 
-        // Alta inline.
-        if ($routing->source === ProcessDataSourceSlug::Samai) {
-            $result = $this->registerSamaiProcessService->handle(
-                $data->process_number,
-                $organization->id,
-                $data->lawyer_role,
-                '',
-                $appUser->id,
-            );
-        } else {
-            $result = $this->registerProcessService->handle(
-                $data->process_number,
-                $organization->id,
-                $data->lawyer_role,
-                '',
-                $appUser->id,
-                $routing->prefetchedJbProcesses,
-            );
+            return response()->json([
+                'message' => __('process.manual_registration_requested'),
+                'status' => 'manual_review',
+                'reason' => $request->reason->value,
+                'request_id' => $request->id,
+                'unassigned_actions_count' => $request->unassigned_actions_count,
+            ], 202);
         }
 
         return response()->json([

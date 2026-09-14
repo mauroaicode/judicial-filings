@@ -11,15 +11,19 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Random\RandomException;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
+use Src\Application\AppUser\Process\Services\RequestManualProcessRegistrationService;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Exceptions\ApiProxyFailureException;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
@@ -49,8 +53,10 @@ class SyncJudicialBranchJob implements ShouldQueue
     /**
      * @throws Throwable
      */
-    public function handle(RegisterProcessService $registerProcessService): void
-    {
+    public function handle(
+        RegisterProcessService $registerProcessService,
+        RequestManualProcessRegistrationService $requestManualProcessRegistrationService,
+    ): void {
         try {
             $seed = $this->processNumber.':'.$this->attempts();
 
@@ -80,6 +86,13 @@ class SyncJudicialBranchJob implements ShouldQueue
                     'No process was imported.'
                 ));
             }
+        } catch (ManualRegistrationRequiredException $e) {
+            $this->createManualRegistrationRequest($requestManualProcessRegistrationService, $e->reason, $e->lawyerRole);
+            $this->updateLogStatus('failed', __('process.manual_registration_requested'));
+            $this->appUser->notify(new ProcessImportFailedNotification(
+                $this->processNumber,
+                __('process.manual_registration_requested')
+            ));
         } catch (Throwable $e) {
             $this->handleException($e);
         }
@@ -95,6 +108,19 @@ class SyncJudicialBranchJob implements ShouldQueue
             : __('process.import_job_max_attempts_exceeded');
 
         $this->updateLogStatus('failed', $message);
+
+        if ($this->shouldRequestManualRegistration($e)) {
+            resolve(RequestManualProcessRegistrationService::class)->handle(
+                $this->processNumber,
+                $this->organizationId,
+                $this->appUser->id,
+                $this->resolveManualReason($e),
+                $this->lawyerRole,
+            );
+
+            $message = __('process.manual_registration_requested');
+        }
+
         $this->appUser->notify(new ProcessImportFailedNotification($this->processNumber, $message));
     }
 
@@ -190,6 +216,63 @@ class SyncJudicialBranchJob implements ShouldQueue
         }
 
         return $e instanceof NotFoundHttpException;
+    }
+
+    private function shouldRequestManualRegistration(?Throwable $e): bool
+    {
+        if ($e instanceof ManualRegistrationRequiredException) {
+            return true;
+        }
+
+        if ($e instanceof Throwable && $this->isNotFoundError($e)) {
+            return true;
+        }
+
+        if ($e instanceof HttpException) {
+            $message = $e->getMessage();
+
+            return str_contains($message, (string) __('process.is_private'))
+                || str_contains($message, (string) __('process.all_instances_are_private'))
+                || str_contains($message, (string) __('process.not_found_in_any_source'))
+                || str_contains($message, (string) __('process.not_found_in_judicial_branch'));
+        }
+
+        return false;
+    }
+
+    private function resolveManualReason(?Throwable $e): ManualRegistrationRequestReason
+    {
+        if ($e instanceof ManualRegistrationRequiredException) {
+            return $e->reason;
+        }
+
+        if ($e instanceof HttpException) {
+            $message = $e->getMessage();
+
+            if (str_contains($message, (string) __('process.is_private'))) {
+                return ManualRegistrationRequestReason::Private;
+            }
+
+            if (str_contains($message, (string) __('process.all_instances_are_private'))) {
+                return ManualRegistrationRequestReason::AllPrivate;
+            }
+        }
+
+        return ManualRegistrationRequestReason::NotFound;
+    }
+
+    private function createManualRegistrationRequest(
+        RequestManualProcessRegistrationService $service,
+        ManualRegistrationRequestReason $reason,
+        ?ProcessLawyerRole $lawyerRole,
+    ): void {
+        $service->handle(
+            $this->processNumber,
+            $this->organizationId,
+            $this->appUser->id,
+            $reason,
+            $lawyerRole ?? $this->lawyerRole,
+        );
     }
 
     private function updateLogStatus(string $status, ?string $error = null): void

@@ -95,7 +95,8 @@ it('rejects process registration when user has no organization', function (): vo
     ]);
 });
 
-it('rejects process registration when radicado does not exist in judicial branch or samai', function (): void {
+it('returns manual review when radicado does not exist in judicial branch or samai', function (): void {
+    Queue::fake();
     Http::fake([
         '*NumeroRadicacion*' => Http::response([
             'procesos' => [],
@@ -107,6 +108,10 @@ it('rejects process registration when radicado does not exist in judicial branch
         '*' => Http::response([], 200),
     ]);
 
+    config([
+        'discord-alerts.webhook_urls.manual_registration' => 'https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz',
+    ]);
+
     // Use a number never created by any test so the fast-path (DB lookup) is never triggered
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
@@ -114,9 +119,19 @@ it('rejects process registration when radicado does not exist in judicial branch
             'lawyer_role' => 'plaintiff',
         ]);
 
-    $response->assertStatus(404);
+    $response->assertStatus(202);
     $response->assertJson([
-        'messages' => [__('process.not_found_in_any_source')],
+        'message' => __('process.manual_registration_requested'),
+        'status' => 'manual_review',
+        'reason' => 'not_found',
+    ]);
+    expect($response->json('request_id'))->not->toBeEmpty();
+
+    $this->assertDatabaseHas('manual_registration_requests', [
+        'process_number' => '00000000000000000000001',
+        'organization_id' => $this->organization->id,
+        'status' => 'pending',
+        'reason' => 'not_found',
     ]);
 });
 
@@ -142,7 +157,8 @@ it('rejects process registration when radicado is already registered for organiz
     ]);
 });
 
-it('rejects process registration when all judicial branch instances are private and samai has no match', function (): void {
+it('returns manual review when all judicial branch instances are private and samai has no match', function (): void {
+    Queue::fake();
     $processId1 = random_int(2000000000, 2999999999);
     $processId2 = random_int(3000000000, 3999999999);
     $processNumber = '12345678901234567890123'; // Unique 23-digit number
@@ -170,16 +186,22 @@ it('rejects process registration when all judicial branch instances are private 
         '*' => Http::response([], 200),
     ]);
 
+    config([
+        'discord-alerts.webhook_urls.manual_registration' => 'https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz',
+    ]);
+
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
             'lawyer_role' => 'plaintiff',
         ]);
 
-    // JB privado → se intenta SAMAI → sin resultado → no encontrado en ninguna fuente
-    $response->assertStatus(404);
+    // JB privado → se intenta SAMAI → sin resultado → solicitud manual
+    $response->assertStatus(202);
     $response->assertJson([
-        'messages' => [__('process.not_found_in_any_source')],
+        'message' => __('process.manual_registration_requested'),
+        'status' => 'manual_review',
+        'reason' => 'not_found',
     ]);
 
     // Verify no processes were created
@@ -190,7 +212,8 @@ it('rejects process registration when all judicial branch instances are private 
     expect($processes)->toHaveCount(0);
 });
 
-it('rejects process registration when existing global process is private', function (): void {
+it('returns manual review when existing global process is private', function (): void {
+    Queue::fake();
     $processId = random_int(3000000000, 3999999999);
     $processNumber = '98765432109876543210987'; // Unique 23-digit number
 
@@ -228,23 +251,30 @@ it('rejects process registration when existing global process is private', funct
         ], 200),
     ]);
 
+    config([
+        'discord-alerts.webhook_urls.manual_registration' => 'https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz',
+    ]);
+
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
             'lawyer_role' => 'plaintiff',
         ]);
 
-    $response->assertStatus(422);
-    // When the process already exists in DB and is private, the fast-path returns all_instances_are_private
+    $response->assertStatus(202);
+    // When the process already exists in DB and is private, the fast-path returns private/all_private
     $response->assertJson([
-        'messages' => [__('process.all_instances_are_private')],
+        'message' => __('process.manual_registration_requested'),
+        'status' => 'manual_review',
+        'reason' => 'private',
     ]);
 
     // Verify process was not attached to organization
     expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
 });
 
-it('rejects process registration when single judicial branch instance is private and samai has no match', function (): void {
+it('returns manual review when single judicial branch instance is private and samai has no match', function (): void {
+    Queue::fake();
     $processId = random_int(4000000000, 4999999999);
     $processNumber = '11111111111111111111111'; // Unique 23-digit number
 
@@ -267,16 +297,22 @@ it('rejects process registration when single judicial branch instance is private
         '*' => Http::response([], 200),
     ]);
 
+    config([
+        'discord-alerts.webhook_urls.manual_registration' => 'https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz',
+    ]);
+
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
             'process_number' => $processNumber,
             'lawyer_role' => 'plaintiff',
         ]);
 
-    // JB privado → se intenta SAMAI → sin resultado → no encontrado en ninguna fuente
-    $response->assertStatus(404);
+    // JB privado → se intenta SAMAI → sin resultado → solicitud manual
+    $response->assertStatus(202);
     $response->assertJson([
-        'messages' => [__('process.not_found_in_any_source')],
+        'message' => __('process.manual_registration_requested'),
+        'status' => 'manual_review',
+        'reason' => 'not_found',
     ]);
 
     // Verify no process was created

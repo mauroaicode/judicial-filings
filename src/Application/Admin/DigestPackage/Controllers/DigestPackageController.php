@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Admin\DigestPackage\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Src\Application\Admin\DigestPackage\Services\DiscardDigestPackageOrganizationService;
 use Src\Application\Admin\DigestPackage\Services\PreviewDigestPackageService;
 use Src\Application\Admin\DigestPackage\Services\SendDigestPackageService;
 
@@ -13,6 +14,7 @@ readonly class DigestPackageController
     public function __construct(
         private PreviewDigestPackageService $previewService,
         private SendDigestPackageService $sendService,
+        private DiscardDigestPackageOrganizationService $discardService,
     ) {}
 
     /**
@@ -33,6 +35,17 @@ readonly class DigestPackageController
     public function send(): JsonResponse
     {
         $resource = $this->sendService->handle();
+
+        return response()->json($resource->toArray());
+    }
+
+    /**
+     * Discard (silence without sending) the pending consolidate for one organization
+     * so it is no longer included in Enviar paquete.
+     */
+    public function discardOrganization(string $organizationId): JsonResponse
+    {
+        $resource = $this->discardService->handle($organizationId);
 
         return response()->json($resource->toArray());
     }

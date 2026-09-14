@@ -10,13 +10,17 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Src\Application\AppUser\Process\Services\RegisterSamaiProcessService;
+use Src\Application\AppUser\Process\Services\RequestManualProcessRegistrationService;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Exceptions\SamaiDiscoveryTimeoutException;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Notifications\ProcessDataImportedNotification;
 use Src\Domain\Notification\Notifications\ProcessImportFailedNotification;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessRegistrationLog;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
@@ -57,8 +61,10 @@ class SyncSamaiJob implements ShouldQueue
     /**
      * @throws Throwable
      */
-    public function handle(RegisterSamaiProcessService $registerSamaiProcessService): void
-    {
+    public function handle(
+        RegisterSamaiProcessService $registerSamaiProcessService,
+        RequestManualProcessRegistrationService $requestManualProcessRegistrationService,
+    ): void {
         try {
             $seed = $this->processNumber.':'.$this->attempts();
 
@@ -82,6 +88,19 @@ class SyncSamaiJob implements ShouldQueue
                     'No process was imported from SAMAI.'
                 ));
             }
+        } catch (ManualRegistrationRequiredException $e) {
+            $requestManualProcessRegistrationService->handle(
+                $this->processNumber,
+                $this->organizationId,
+                $this->appUser->id,
+                $e->reason,
+                $e->lawyerRole ?? $this->lawyerRole,
+            );
+            $this->updateLogStatus('failed', __('process.manual_registration_requested'));
+            $this->appUser->notify(new ProcessImportFailedNotification(
+                $this->processNumber,
+                __('process.manual_registration_requested')
+            ));
         } catch (Throwable $e) {
             $this->handleException($e);
         }
@@ -94,6 +113,19 @@ class SyncSamaiJob implements ShouldQueue
             : __('process.import_job_max_attempts_exceeded');
 
         $this->updateLogStatus('failed', $message);
+
+        if ($this->shouldRequestManualRegistration($e)) {
+            resolve(RequestManualProcessRegistrationService::class)->handle(
+                $this->processNumber,
+                $this->organizationId,
+                $this->appUser->id,
+                $this->resolveManualReason($e),
+                $this->lawyerRole,
+            );
+
+            $message = __('process.manual_registration_requested');
+        }
+
         $this->appUser->notify(new ProcessImportFailedNotification($this->processNumber, $message));
     }
 
@@ -120,6 +152,49 @@ class SyncSamaiJob implements ShouldQueue
         }
 
         throw $e;
+    }
+
+    private function shouldRequestManualRegistration(?Throwable $e): bool
+    {
+        if ($e instanceof ManualRegistrationRequiredException) {
+            return true;
+        }
+
+        if ($e instanceof NotFoundHttpException) {
+            return true;
+        }
+
+        if ($e instanceof HttpException) {
+            $message = $e->getMessage();
+
+            return str_contains($message, (string) __('process.is_private'))
+                || str_contains($message, (string) __('process.all_instances_are_private'))
+                || str_contains($message, (string) __('process.not_found_in_any_source'))
+                || str_contains($message, (string) __('process.not_found_in_samai'));
+        }
+
+        return false;
+    }
+
+    private function resolveManualReason(?Throwable $e): ManualRegistrationRequestReason
+    {
+        if ($e instanceof ManualRegistrationRequiredException) {
+            return $e->reason;
+        }
+
+        if ($e instanceof HttpException) {
+            $message = $e->getMessage();
+
+            if (str_contains($message, (string) __('process.is_private'))) {
+                return ManualRegistrationRequestReason::Private;
+            }
+
+            if (str_contains($message, (string) __('process.all_instances_are_private'))) {
+                return ManualRegistrationRequestReason::AllPrivate;
+            }
+        }
+
+        return ManualRegistrationRequestReason::NotFound;
     }
 
     private function updateLogStatus(string $status, ?string $error = null): void

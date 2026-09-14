@@ -71,15 +71,23 @@ final class SamaiCourtNameHelper
      *   → "JUZGADO 001 ADMINISTRATIVO DE AGUACHICA (CESAR)"
      * - "ADMINISTRATIVO 007 JUZGADO ADMINISTRATIVO DE IBAGUE (TOLIMA)"
      *   → "JUZGADO 007 ADMINISTRATIVO DE IBAGUE (TOLIMA)"
+     * - "Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE CALI (VALLE)"
+     *   → se conserva completo (000 = despacho del magistrado, no es placeholder)
      */
     private static function normalizeOrigen(string $origen): string
     {
         $origen = trim((string) preg_replace('/\s+/u', ' ', $origen));
 
-        // Prefijo "Juzgado/Tribunal Administrativo NNN" o "ADMINISTRATIVO NNN"
+        // Tribunales: el NNN (incluye 000) identifica el despacho del magistrado.
+        // No reescribir a "Juzgado Administrativo..." o se pierde la competencia/despacho.
+        if (preg_match('/^Tribunal\s+Administrativo\s+\d{1,3}\b/iu', $origen) === 1) {
+            return self::scrubSamaiTypo($origen);
+        }
+
+        // Prefijo "Juzgado Administrativo NNN" o "ADMINISTRATIVO NNN"
         // + nombre completo en mayúsculas (Ibagué omite "Juzgado" al inicio).
         if (preg_match(
-            '/^(?:(?:Juzgado|Tribunal)\s+)?Administrativo\s+(\d{1,3})\s+(JUZGADO|TRIBUNAL)\s+(.+)$/iu',
+            '/^(?:Juzgado\s+)?Administrativo\s+(\d{1,3})\s+(JUZGADO|TRIBUNAL)\s+(.+)$/iu',
             $origen,
             $matches
         ) === 1) {

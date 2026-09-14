@@ -18,6 +18,9 @@ readonly class DiscordNotificationChannelService
     /** Webhook key for Rama data-replication lag alerts (#sincronizacion-tardia). */
     public const CHANNEL_LATE_SYNC = 'late_sync';
 
+    /** Webhook key for manual / private registration requests (#crear-procesos-privados). */
+    public const CHANNEL_MANUAL_REGISTRATION = 'manual_registration';
+
     /**
      * @param  array<int, array<string, mixed>>  $embeds  Discord embed payloads (see Spatie docs).
      */

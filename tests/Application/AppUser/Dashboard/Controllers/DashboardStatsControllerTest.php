@@ -46,6 +46,7 @@ it('returns zero counts when organization has no processes nor notifications', f
     $response->assertJsonPath('total_processes', 0);
     $response->assertJsonPath('active_processes', 0);
     $response->assertJsonPath('inactive_processes', 0);
+    $response->assertJsonPath('pending_manual_registrations', 0);
     $response->assertJsonPath('notifications.by_type.actuacion', 0);
     $response->assertJsonPath('notifications.by_type.actuacion_alerta', 0);
     $response->assertJsonPath('semaphores.red', 0);
@@ -74,10 +75,21 @@ it('returns correct process counts for organization', function (): void {
         'status' => OrganizationProcessStatus::INACTIVE->value,
     ]);
 
+    \Src\Domain\Process\Models\ManualRegistrationRequest::query()->create([
+        'organization_id' => $this->organization->id,
+        'app_user_id' => $this->appUser->id,
+        'process_number' => '76892400300120260066300',
+        'reason' => \Src\Domain\Process\Enums\ManualRegistrationRequestReason::NotFound,
+        'status' => \Src\Domain\Process\Enums\ManualRegistrationRequestStatus::Pending,
+        'unassigned_actions_count' => 0,
+        'discord_notified' => true,
+    ]);
+
     $response = $this->actingAs($this->appUser)
         ->getJson('/api/app-user/dashboard/stats');
 
     $response->assertStatus(200);
+    $response->assertJsonPath('pending_manual_registrations', 1);
     $response->assertJsonPath('total_processes', 3);
     $response->assertJsonPath('active_processes', 2);
     $response->assertJsonPath('inactive_processes', 1);

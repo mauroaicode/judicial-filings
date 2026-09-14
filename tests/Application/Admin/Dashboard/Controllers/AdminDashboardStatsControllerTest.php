@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Models\ManualRegistrationRequest;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Role\Models\Role;
 use Src\Domain\User\Enums\UserStatus;
@@ -11,6 +12,7 @@ use Src\Domain\User\Models\User;
 
 beforeEach(function (): void {
     Process::query()->delete();
+    ManualRegistrationRequest::query()->delete();
 
     $this->user = User::factory()->create([
         'email' => 'admin@dashboard.com',
@@ -44,6 +46,7 @@ it('returns zero counts when there are no processes', function (): void {
     $response->assertJsonPath('outdated_processes', 0);
     $response->assertJsonPath('critical_alert_processes', 0);
     $response->assertJsonPath('early_attention_processes', 0);
+    $response->assertJsonPath('pending_manual_registrations', 0);
 });
 
 it('counts orphan_processes from processes.status ignoring organization pivot', function (): void {
@@ -304,6 +307,7 @@ it('returns correct json structure', function (): void {
         'outdated_processes',
         'critical_alert_processes',
         'early_attention_processes',
+        'pending_manual_registrations',
     ]);
 });
 

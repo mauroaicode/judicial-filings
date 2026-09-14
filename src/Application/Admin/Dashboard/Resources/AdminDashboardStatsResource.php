@@ -17,6 +17,8 @@ class AdminDashboardStatsResource extends Resource
         public int $outdated_processes,
         public int $critical_alert_processes,
         public int $early_attention_processes,
+        /** Pending alta-manual requests waiting for ops (Edwin). */
+        public int $pending_manual_registrations,
     ) {}
 
     public static function fromCounts(
@@ -28,6 +30,7 @@ class AdminDashboardStatsResource extends Resource
         int $outdatedProcesses,
         int $criticalAlertProcesses,
         int $earlyAttentionProcesses,
+        int $pendingManualRegistrations,
     ): self {
         return new self(
             total_processes: $totalProcesses,
@@ -38,6 +41,7 @@ class AdminDashboardStatsResource extends Resource
             outdated_processes: $outdatedProcesses,
             critical_alert_processes: $criticalAlertProcesses,
             early_attention_processes: $earlyAttentionProcesses,
+            pending_manual_registrations: $pendingManualRegistrations,
         );
     }
 }

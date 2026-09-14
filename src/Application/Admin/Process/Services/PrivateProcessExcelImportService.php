@@ -32,6 +32,7 @@ class PrivateProcessExcelImportService
         private readonly FijacionEstadoActionSplitter $fijacionEstadoActionSplitter,
         private readonly OrganizationProcessQuotaService $organizationProcessQuotaService,
         private readonly ProcessImportBatchService $processImportBatchService,
+        private readonly ResolvePendingManualRegistrationsAfterPrivateImportService $resolvePendingManualRegistrationsService,
     ) {
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
         $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
@@ -227,6 +228,11 @@ class PrivateProcessExcelImportService
             $quotaErrors,
         );
 
+        $resolvedManualRequests = $this->resolvePendingManualRegistrationsService->handle(
+            $organizationId,
+            array_keys($grouped),
+        );
+
         if ($quotaErrors !== []) {
             $this->processImportBatchService->sendImportReport($batch);
         }
@@ -240,6 +246,7 @@ class PrivateProcessExcelImportService
                 'actions_imported' => $actionsImported,
                 'import_batch_id' => $batch->id,
                 'skipped_quota_limit' => $quotaErrors !== [] ? count($quotaErrors) : null,
+                'manual_registration_requests_resolved' => $resolvedManualRequests > 0 ? $resolvedManualRequests : null,
             ], static fn (string|int|array|null $value): bool => $value !== null),
         ];
     }

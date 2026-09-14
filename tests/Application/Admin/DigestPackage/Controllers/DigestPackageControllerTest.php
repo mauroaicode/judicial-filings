@@ -360,3 +360,74 @@ it('does not dispatch digest jobs for inactive organizations', function (): void
     expect($response->json('organizations_queued'))->toBe(0);
     Queue::assertNothingPushed();
 });
+
+// ─── Discard per organization ──────────────────────────────────────────────
+
+it('requires authentication for discard organization', function (): void {
+    $this->deleteJson('/api/admin/digest-packages/organizations/'.$this->orgA->id)
+        ->assertStatus(401);
+});
+
+it('discards pending consolidate for one organization without sending email', function (): void {
+    Queue::fake();
+
+    $process = attachActiveProcess($this->orgA);
+    $actionA = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now()->toDateString(),
+    ]);
+    $actionB = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now()->toDateString(),
+    ]);
+    createPendingActuacionNotification($this->orgA, $actionA);
+    createPendingActuacionNotification($this->orgA, $actionB);
+
+    $processB = attachActiveProcess($this->orgB);
+    $actionOther = ProcessAction::factory()->create([
+        'process_id' => $processB->id,
+        'registration_date' => now()->toDateString(),
+    ]);
+    createPendingActuacionNotification($this->orgB, $actionOther);
+
+    $response = $this->actingAs($this->user)
+        ->deleteJson('/api/admin/digest-packages/organizations/'.$this->orgA->id);
+
+    $response->assertStatus(200);
+    expect($response->json('organization_id'))->toBe($this->orgA->id)
+        ->and($response->json('actions_discarded'))->toBe(2)
+        ->and($response->json('message'))->not->toBeEmpty();
+
+    Queue::assertNothingPushed();
+
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $this->orgA->id)
+        ->where('is_email_notified', false)
+        ->count())->toBe(0);
+
+    // Org B still pending
+    expect(OrganizationNotification::query()
+        ->where('organization_id', $this->orgB->id)
+        ->where('is_email_notified', false)
+        ->count())->toBe(1);
+
+    $preview = $this->actingAs($this->user)
+        ->getJson('/api/admin/digest-packages/preview');
+
+    expect($preview->json('consolidates_ready'))->toBe(1)
+        ->and($preview->json('organizations.0.organization_id'))->toBe($this->orgB->id);
+});
+
+it('returns zero discarded when organization has nothing pending', function (): void {
+    $response = $this->actingAs($this->user)
+        ->deleteJson('/api/admin/digest-packages/organizations/'.$this->orgA->id);
+
+    $response->assertStatus(200);
+    expect($response->json('actions_discarded'))->toBe(0);
+});
+
+it('returns 404 when discarding unknown organization', function (): void {
+    $this->actingAs($this->user)
+        ->deleteJson('/api/admin/digest-packages/organizations/'.(string) Str::uuid())
+        ->assertStatus(404);
+});

@@ -134,7 +134,7 @@ it('does not consult SAMAI when Unificada misses a laboral radicado', function (
 
     expect(fn () => (new SmartProcessRegistrationResolverService($jb, $samai))
         ->handle($this->processNumber, $this->organization->id))
-        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        ->toThrow(\Src\Application\Shared\Exceptions\ManualRegistrationRequiredException::class);
 });
 
 it('consults SAMAI when Unificada misses an administrative radicado', function (): void {
@@ -153,5 +153,22 @@ it('consults SAMAI when Unificada misses an administrative radicado', function (
 
     expect(fn () => (new SmartProcessRegistrationResolverService($jb, $samai))
         ->handle($adminNumber, $this->organization->id))
-        ->toThrow(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        ->toThrow(\Src\Application\Shared\Exceptions\ManualRegistrationRequiredException::class);
+});
+
+it('defers judicial branch registration to the queue when the portal proxy times out', function (): void {
+    $jb = Mockery::mock(JudicialBranchConsultService::class);
+    $jb->shouldReceive('withSeed')->once()->with($this->processNumber)->andReturnSelf();
+    $jb->shouldReceive('fetchProcesses')->once()->andThrow(
+        new \Src\Application\Shared\Exceptions\ApiProxyFailureException('Proxy curl error on fetchProcesses: cURL error 28')
+    );
+
+    $samai = Mockery::mock(SamaiConsultService::class);
+    $samai->shouldNotReceive('buscarProceso');
+
+    $decision = (new SmartProcessRegistrationResolverService($jb, $samai))
+        ->handle($this->processNumber, $this->organization->id);
+
+    expect($decision->source)->toBe(ProcessDataSourceSlug::JudicialBranch)
+        ->and($decision->deferToQueue)->toBeTrue();
 });

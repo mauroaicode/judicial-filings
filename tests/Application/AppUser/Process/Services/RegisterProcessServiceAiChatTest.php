@@ -6,6 +6,7 @@ namespace Tests\Application\AppUser\Process\Services;
 
 use Mockery;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
@@ -15,10 +16,10 @@ use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessTimelineEvent;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class RegisterProcessServiceAiChatTest extends TestCase
@@ -146,8 +147,9 @@ class RegisterProcessServiceAiChatTest extends TestCase
         try {
             $service->handle($process->process_number, $this->organization->id);
             $this->fail('Expected registration to reject the still-private process.');
-        } catch (HttpException $exception) {
-            $this->assertSame(422, $exception->getStatusCode());
+        } catch (ManualRegistrationRequiredException $exception) {
+            $this->assertSame(ManualRegistrationRequestReason::Private, $exception->reason);
+            $this->assertSame($processNumber, $exception->processNumber);
         }
 
         $event = ProcessTimelineEvent::query()

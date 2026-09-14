@@ -65,6 +65,7 @@ return [
     'total_recent_actions' => 'Total Recent Actions',
     'severity_color' => 'Severity Color',
     'privacy' => 'Privacy (process list filter)',
+    'reason' => 'Reason',
     'id' => 'ID',
     'is_ai_enabled' => 'AI Enabled',
     'max_active_processes' => 'Active filings limit',

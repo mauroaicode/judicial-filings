@@ -13,6 +13,8 @@ class DashboardStatsResource extends Resource
         public int $active_processes,
         public int $inactive_processes,
         public int $processes_with_multiple_instances,
+        /** Pending alta-manual requests waiting for advisor. */
+        public int $pending_manual_registrations,
         /** @var array{red: int, yellow: int, green: int} */
         public array $semaphores,
         /** @var array{by_type: array{actuacion: int, actuacion_alerta: int}} */
@@ -24,6 +26,7 @@ class DashboardStatsResource extends Resource
         int $activeProcesses,
         int $inactiveProcesses,
         int $processesWithMultipleInstances,
+        int $pendingManualRegistrations,
         array $notificationsByType,
         array $semaphoreCounts,
     ): self {
@@ -32,6 +35,7 @@ class DashboardStatsResource extends Resource
             active_processes: $activeProcesses,
             inactive_processes: $inactiveProcesses,
             processes_with_multiple_instances: $processesWithMultipleInstances,
+            pending_manual_registrations: $pendingManualRegistrations,
             semaphores: $semaphoreCounts,
             notifications: [
                 'by_type' => $notificationsByType,

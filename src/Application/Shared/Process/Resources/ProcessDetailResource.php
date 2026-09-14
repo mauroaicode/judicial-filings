@@ -31,6 +31,8 @@ class ProcessDetailResource extends Resource
         public ?string $filing_content,
         public bool $is_private,
         public bool $has_multiple_instances,
+        /** True when process data was loaded outside automatic Rama/SAMAI sync (e.g. private Excel). */
+        public bool $is_manual_sync,
         public ?string $last_api_update,
         public string $status,
         public string $status_label,
@@ -108,6 +110,7 @@ class ProcessDetailResource extends Resource
             filing_content: $process->filing_content,
             is_private: $process->is_private,
             has_multiple_instances: $process->has_multiple_instances,
+            is_manual_sync: (bool) $process->is_manual_sync,
             last_api_update: $process->last_api_update ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_api_update) : null,
             status: $status->value,
             status_label: $status->getLabel(),

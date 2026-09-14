@@ -45,12 +45,20 @@ it('normalizes prefixed EntidadRadicadora origen labels keeping the number', fun
     expect($court)->toBe('JUZGADO 014 ADMINISTRATIVO DE CALI (VALLE)');
 });
 
-it('drops placeholder 000 from tribunal-prefixed origen', function (): void {
+it('keeps tribunal desk code including 000 from tribunal-prefixed origen', function (): void {
     $court = SamaiCourtNameHelper::build([
-        'Origen' => 'Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE ARMENIA',
+        'Origen' => 'Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
     ]);
 
-    expect($court)->toBe('JUZGADO ADMINISTRATIVO DE ARMENIA');
+    expect($court)->toBe('Tribunal Administrativo 000 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+});
+
+it('keeps non-zero tribunal desk codes without rewriting to juzgado', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'Tribunal Administrativo 006 JUZGADO ADMINISTRATIVO DE ARMENIA',
+    ]);
+
+    expect($court)->toBe('Tribunal Administrativo 006 JUZGADO ADMINISTRATIVO DE ARMENIA');
 });
 
 it('ignores numeric EntidadRadicadora codes from REST', function (): void {

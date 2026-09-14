@@ -6,6 +6,8 @@ namespace Src\Application\Admin\Dashboard\Services;
 
 use Illuminate\Contracts\Database\Query\Builder;
 use Src\Application\Admin\Dashboard\Resources\AdminDashboardStatsResource;
+use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
+use Src\Domain\Process\Models\ManualRegistrationRequest;
 use Src\Domain\Process\Models\Process;
 
 readonly class AdminDashboardStatsService
@@ -19,6 +21,10 @@ readonly class AdminDashboardStatsService
         $criticalAlertProcesses = $this->getCriticalAlertProcessesCount();
         $earlyAttentionProcesses = $this->getEarlyAttentionProcessesCount();
 
+        $pendingManualRegistrations = ManualRegistrationRequest::query()
+            ->where('status', ManualRegistrationRequestStatus::Pending->value)
+            ->count();
+
         return AdminDashboardStatsResource::fromCounts(
             totalProcesses: $processCounts['total'],
             activeProcesses: $processCounts['active'],
@@ -28,6 +34,7 @@ readonly class AdminDashboardStatsService
             outdatedProcesses: $outdatedProcesses,
             criticalAlertProcesses: $criticalAlertProcesses,
             earlyAttentionProcesses: $earlyAttentionProcesses,
+            pendingManualRegistrations: $pendingManualRegistrations,
         );
     }
 

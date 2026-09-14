@@ -852,6 +852,7 @@ it('returns correct resource structure', function (): void {
                 'last_activity_date',
                 'is_private',
                 'has_multiple_instances',
+                'is_manual_sync',
                 'status',
                 'status_label',
                 'semaphore' => [
@@ -878,6 +879,7 @@ it('returns correct resource structure', function (): void {
                         'last_activity_date',
                         'is_private',
                         'has_multiple_instances',
+                        'is_manual_sync',
                         'status',
                         'status_label',
                         'semaphore' => [
