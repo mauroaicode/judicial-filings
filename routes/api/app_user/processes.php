@@ -20,6 +20,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Specific named routes must come before wildcard {id} routes
     Route::get('processes/import-history', [ProcessImportHistoryController::class, 'index']);
     Route::get('processes/manual-registration-requests', [ManualRegistrationRequestController::class, 'index']);
+    Route::post('processes/manual-registration-requests', [ManualRegistrationRequestController::class, 'store']);
 
     Route::get('processes/{id}', [ProcessController::class, 'show']);
     Route::delete('processes/{id}', [TrashOrganizationProcessesController::class, 'destroy'])->whereUuid('id');

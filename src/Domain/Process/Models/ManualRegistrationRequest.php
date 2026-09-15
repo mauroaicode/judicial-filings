@@ -24,6 +24,10 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read ManualRegistrationRequestReason $reason
  * @property-read ManualRegistrationRequestStatus $status
  * @property-read ProcessLawyerRole|null $lawyer_role
+ * @property-read string|null $process_class
+ * @property-read list<array{name: string, identification: string|null}>|null $plaintiffs
+ * @property-read list<array{name: string, identification: string|null}>|null $defendants
+ * @property-read list<array{name: string, identification: string|null}>|null $other_subjects
  * @property-read int $unassigned_actions_count
  * @property-read bool $discord_notified
  * @property-read Carbon|null $resolved_at
@@ -48,6 +52,10 @@ class ManualRegistrationRequest extends Model
         'reason',
         'status',
         'lawyer_role',
+        'process_class',
+        'plaintiffs',
+        'defendants',
+        'other_subjects',
         'unassigned_actions_count',
         'discord_notified',
         'resolved_at',
@@ -58,6 +66,9 @@ class ManualRegistrationRequest extends Model
         'reason' => ManualRegistrationRequestReason::class,
         'status' => ManualRegistrationRequestStatus::class,
         'lawyer_role' => ProcessLawyerRole::class,
+        'plaintiffs' => 'array',
+        'defendants' => 'array',
+        'other_subjects' => 'array',
         'unassigned_actions_count' => 'integer',
         'discord_notified' => 'boolean',
         'resolved_at' => 'datetime',

@@ -118,3 +118,23 @@ it('does not spam discord or admin notification when the same org+radicado is al
     Queue::assertPushed(SendToDiscordChannelJob::class, 1);
     Notification::assertSentToTimes($this->admin, ManualRegistrationRequestedNotification::class, 1);
 });
+
+it('stores lawyer-provided subjects and process class on create', function (): void {
+    $request = app(RequestManualProcessRegistrationService::class)->handle(
+        $this->processNumber,
+        $this->organization->id,
+        $this->appUser->id,
+        ManualRegistrationRequestReason::Private,
+        ProcessLawyerRole::DEFENDANT,
+        [
+            'process_class' => 'Ordinario',
+            'plaintiffs' => [['name' => 'A', 'identification' => null]],
+            'defendants' => [['name' => 'B', 'identification' => '99']],
+            'other_subjects' => [],
+        ],
+    );
+
+    expect($request->process_class)->toBe('Ordinario')
+        ->and($request->plaintiffs[0]['name'])->toBe('A')
+        ->and($request->defendants[0]['identification'])->toBe('99');
+});

@@ -22,12 +22,21 @@ readonly class RequestManualProcessRegistrationService
         private NotifyAdminsManualRegistrationRequestService $notifyAdminsService,
     ) {}
 
+    /**
+     * @param  array{
+     *     process_class?: string|null,
+     *     plaintiffs?: list<array{name: string, identification: string|null}>|null,
+     *     defendants?: list<array{name: string, identification: string|null}>|null,
+     *     other_subjects?: list<array{name: string, identification: string|null}>|null,
+     * }|null  $details
+     */
     public function handle(
         string $processNumber,
         string $organizationId,
         string $appUserId,
         ManualRegistrationRequestReason $reason,
         ?ProcessLawyerRole $lawyerRole = null,
+        ?array $details = null,
     ): ManualRegistrationRequest {
         $existing = ManualRegistrationRequest::query()
             ->where('organization_id', $organizationId)
@@ -37,7 +46,28 @@ readonly class RequestManualProcessRegistrationService
             ->first();
 
         if ($existing instanceof ManualRegistrationRequest) {
-            return $existing;
+            if ($details !== null) {
+                $existing->update([
+                    'lawyer_role' => $lawyerRole ?? $existing->lawyer_role,
+                    'reason' => $reason,
+                    'process_class' => $details['process_class'] ?? $existing->process_class,
+                    'plaintiffs' => $details['plaintiffs'] ?? $existing->plaintiffs,
+                    'defendants' => $details['defendants'] ?? $existing->defendants,
+                    'other_subjects' => $details['other_subjects'] ?? $existing->other_subjects,
+                ]);
+
+                $existing = $existing->fresh(['appUser', 'organization']) ?? $existing;
+
+                if (! $existing->discord_notified) {
+                    $notified = $this->discordNotificationService->notify($existing);
+                    if ($notified) {
+                        $existing->update(['discord_notified' => true]);
+                    }
+                    $this->notifyAdminsService->handle($existing);
+                }
+            }
+
+            return $existing->fresh() ?? $existing;
         }
 
         $unassignedCount = UnassignedProcessAction::query()
@@ -52,6 +82,10 @@ readonly class RequestManualProcessRegistrationService
             'reason' => $reason,
             'status' => ManualRegistrationRequestStatus::Pending,
             'lawyer_role' => $lawyerRole,
+            'process_class' => $details['process_class'] ?? null,
+            'plaintiffs' => $details['plaintiffs'] ?? null,
+            'defendants' => $details['defendants'] ?? null,
+            'other_subjects' => $details['other_subjects'] ?? null,
             'unassigned_actions_count' => $unassignedCount,
             'discord_notified' => false,
         ]);

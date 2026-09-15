@@ -35,6 +35,7 @@ readonly class ManualRegistrationDiscordNotificationService
         $orgName = $org === null ? '—' : ($org->name ?: '—');
         $roleLabel = $request->lawyer_role?->getLabel() ?? '—';
         $unassigned = $request->unassigned_actions_count;
+        $processClass = $request->process_class ?: '—';
 
         $historicoLine = $unassigned > 0
             ? "Ya hay **{$unassigned}** actuación(es) en histórico pendiente (`unassigned_process_actions`); se asociarán al crear el proceso."
@@ -61,6 +62,11 @@ readonly class ManualRegistrationDiscordNotificationService
                     'inline' => true,
                 ],
                 [
+                    'name' => 'Clase de proceso',
+                    'value' => $processClass,
+                    'inline' => true,
+                ],
+                [
                     'name' => 'Usuario',
                     'value' => $userName,
                     'inline' => true,
@@ -81,6 +87,21 @@ readonly class ManualRegistrationDiscordNotificationService
                     'inline' => true,
                 ],
                 [
+                    'name' => 'Demandantes',
+                    'value' => $this->formatSubjects($request->plaintiffs),
+                    'inline' => false,
+                ],
+                [
+                    'name' => 'Demandados',
+                    'value' => $this->formatSubjects($request->defendants),
+                    'inline' => false,
+                ],
+                [
+                    'name' => 'Otros sujetos',
+                    'value' => $this->formatSubjects($request->other_subjects),
+                    'inline' => false,
+                ],
+                [
                     'name' => 'Request ID',
                     'value' => '`'.$request->id.'`',
                     'inline' => false,
@@ -96,5 +117,32 @@ readonly class ManualRegistrationDiscordNotificationService
         );
 
         return true;
+    }
+
+    /**
+     * @param  list<array{name?: string, identification?: string|null}>|null  $subjects
+     */
+    private function formatSubjects(?array $subjects): string
+    {
+        if ($subjects === null || $subjects === []) {
+            return '—';
+        }
+
+        $lines = [];
+        foreach ($subjects as $subject) {
+            $name = trim((string) ($subject['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $identification = $subject['identification'] ?? null;
+            $lines[] = is_string($identification) && $identification !== ''
+                ? "• {$name} ({$identification})"
+                : "• {$name}";
+        }
+
+        $text = implode("\n", $lines);
+
+        return $text !== '' ? mb_substr($text, 0, 1000) : '—';
     }
 }

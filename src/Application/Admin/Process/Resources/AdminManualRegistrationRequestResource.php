@@ -10,6 +10,11 @@ use Src\Domain\Process\Models\ManualRegistrationRequest;
 
 class AdminManualRegistrationRequestResource extends Resource
 {
+    /**
+     * @param  list<array{name: string, identification: string|null}>  $plaintiffs
+     * @param  list<array{name: string, identification: string|null}>  $defendants
+     * @param  list<array{name: string, identification: string|null}>  $other_subjects
+     */
     public function __construct(
         public string $id,
         public string $process_number,
@@ -17,6 +22,10 @@ class AdminManualRegistrationRequestResource extends Resource
         public string $reason_label,
         public string $status,
         public ?string $lawyer_role,
+        public ?string $process_class,
+        public array $plaintiffs,
+        public array $defendants,
+        public array $other_subjects,
         public int $unassigned_actions_count,
         public bool $discord_notified,
         public string $organization_id,
@@ -51,6 +60,10 @@ class AdminManualRegistrationRequestResource extends Resource
             reason_label: $request->reason->label(),
             status: $request->status->value,
             lawyer_role: $request->lawyer_role?->value,
+            process_class: $request->process_class,
+            plaintiffs: $request->plaintiffs ?? [],
+            defendants: $request->defendants ?? [],
+            other_subjects: $request->other_subjects ?? [],
             unassigned_actions_count: $request->unassigned_actions_count,
             discord_notified: $request->discord_notified,
             organization_id: $request->organization_id,

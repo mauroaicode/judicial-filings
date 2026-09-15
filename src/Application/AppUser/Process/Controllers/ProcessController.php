@@ -17,7 +17,6 @@ use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\AppUser\Process\Services\ProcessFinderService;
 use Src\Application\AppUser\Process\Services\RegisterProcessService;
 use Src\Application\AppUser\Process\Services\RegisterSamaiProcessService;
-use Src\Application\AppUser\Process\Services\RequestManualProcessRegistrationService;
 use Src\Application\AppUser\Process\Services\SmartProcessRegistrationResolverService;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
@@ -30,6 +29,7 @@ use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
+use Src\Domain\Process\Models\UnassignedProcessAction;
 use Throwable;
 
 readonly class ProcessController
@@ -43,7 +43,6 @@ readonly class ProcessController
         private RegisterProcessService $registerProcessService,
         private DispatchSamaiProcessRegistrationService $dispatchSamaiProcessRegistrationService,
         private RegisterSamaiProcessService $registerSamaiProcessService,
-        private RequestManualProcessRegistrationService $requestManualProcessRegistrationService,
     ) {}
 
     /**
@@ -177,20 +176,20 @@ readonly class ProcessController
                 );
             }
         } catch (ManualRegistrationRequiredException $e) {
-            $request = $this->requestManualProcessRegistrationService->handle(
-                $e->processNumber,
-                $organization->id,
-                $appUser->id,
-                $e->reason,
-                $e->lawyerRole ?? $data->lawyer_role,
-            );
+            $unassignedActionsCount = UnassignedProcessAction::query()
+                ->whereProcessNumber($e->processNumber)
+                ->whereUnassigned()
+                ->count();
 
             return response()->json([
-                'message' => __('process.manual_registration_requested'),
-                'status' => 'manual_review',
-                'reason' => $request->reason->value,
-                'request_id' => $request->id,
-                'unassigned_actions_count' => $request->unassigned_actions_count,
+                'message' => __('process.manual_registration_details_required'),
+                'status' => 'manual_registration_required',
+                'reason' => $e->reason->value,
+                'reason_label' => $e->reason->label(),
+                'process_number' => $e->processNumber,
+                'lawyer_role' => ($e->lawyerRole ?? $data->lawyer_role)->value,
+                'unassigned_actions_count' => $unassignedActionsCount,
+                'requires_details' => true,
             ], 202);
         }
 

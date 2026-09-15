@@ -8,11 +8,12 @@ Documento para pasar a otro chat / frontend. **Estado backend MVP: implementado.
 
 Implementado:
 
-- Tabla `manual_registration_requests` + modelo/enums.
-- Al fallar alta app_user (`not_found` / `private` / `all_private`) → solicitud `pending` + Discord (`manual_registration`) + HTTP **202**.
+- Tabla `manual_registration_requests` + modelo/enums (+ `process_class`, `plaintiffs`, `defendants`, `other_subjects`).
+- `POST /processes` si no elegible → **202** `manual_registration_required` (**sin** crear solicitud / Discord).
+- `POST /processes/manual-registration-requests` con sujetos + clase + rol → crea `pending` + Discord + admin WS.
 - Cuenta `unassigned_process_actions` en la solicitud y lo muestra en Discord.
 - Idempotencia Discord: mismo org+radicado `pending` no reenvía.
-- Jobs async (`SyncJudicialBranchJob` / `SyncSamaiJob`) también crean solicitud en fallo definitivo privado/not found.
+- Jobs async (`SyncJudicialBranchJob` / `SyncSamaiJob`) siguen pudiendo crear solicitud en fallo definitivo (sin modal).
 - Env: `DISCORD_ALERT_WEBHOOK_MANUAL_REGISTRATION` (canal Discord `#crear-procesos-privados`).
 
 Pendiente (fuera de este MVP):
@@ -48,32 +49,70 @@ Al completar alta (`PATCH … status=registered` **o** `private-import` del mism
 - **201** — proceso registrado, o
 - **201** — `{ "message": "…en segundo plano…" }` si fue a cola.
 
-### Nuevo: revisión con asesor
+### Nuevo: no elegible → modal de datos (sin crear solicitud aún)
 
-- **202 Accepted**
+- **202 Accepted** cuando no se puede alta automática (`not_found` / `private` / `all_private`)
 
 ```json
 {
-  "message": "Este radicado no está disponible en consulta automática. Lo dejamos en revisión con tu asesor; te confirmaremos cuando quede registrado.",
-  "status": "manual_review",
-  "reason": "not_found",
-  "request_id": "uuid",
-  "unassigned_actions_count": 0
+  "message": "Este radicado no está disponible en consulta automática. Completa la información del proceso para enviarlo a revisión con tu asesor.",
+  "status": "manual_registration_required",
+  "reason": "private",
+  "reason_label": "Proceso privado",
+  "process_number": "76892400300120260066300",
+  "lawyer_role": "defendant",
+  "unassigned_actions_count": 0,
+  "requires_details": true
 }
 ```
 
-| Campo | Valores / uso |
-|-------|----------------|
-| `status` | Siempre `"manual_review"` en este path |
-| `reason` | `not_found` \| `private` \| `all_private` |
-| `request_id` | UUID de la solicitud ops |
-| `unassigned_actions_count` | Actuaciones ya cargadas en histórico pendiente (info; opcional mostrar) |
-| `message` | Texto listo para toast/modal |
+| Campo | Uso FE |
+|-------|--------|
+| `status` | `"manual_registration_required"` → abrir modal (no toast de éxito) |
+| `reason` / `reason_label` | Explicar por qué no es elegible |
+| `process_number` | Prefill (readonly) |
+| `lawyer_role` | Prefill del paso anterior; editable en modal |
+| `requires_details` | Siempre `true` en este path |
+| `request_id` | **No viene** — aún no hay solicitud |
+
+**Importante:** este 202 **no** crea fila en BD ni Discord. Eso ocurre solo al guardar el modal.
+
+### Confirmar con datos del modal
+
+`POST /api/app-user/processes/manual-registration-requests`
+
+```json
+{
+  "process_number": "76892400300120260066300",
+  "reason": "private",
+  "lawyer_role": "defendant",
+  "process_class": "Verbal",
+  "plaintiffs": [{ "name": "Juan Pérez", "identification": "123" }],
+  "defendants": [{ "name": "Empresa SA" }],
+  "other_subjects": [{ "name": "Apoderado X" }]
+}
+```
+
+Respuesta **202**:
+
+```json
+{
+  "message": "Recibimos tu solicitud. Lo dejamos en revisión con tu asesor; te confirmaremos cuando quede registrado.",
+  "status": "manual_review",
+  "reason": "private",
+  "reason_label": "Proceso privado",
+  "request_id": "uuid",
+  "unassigned_actions_count": 0,
+  "data": { "...ManualRegistrationRequestResource" }
+}
+```
+
+Validación: `plaintiffs` y `defendants` mín. 1 ítem con `name`; `other_subjects` opcional; `process_class` y `lawyer_role` requeridos.
 
 ### Qué ya no debe asumir el frontend
 
-- Antes: **404** con `messages[]` tipo “contacte a su asesor” / **422** privado.
-- Ahora esos casos de alta imposible por consulta → **202** con el shape de arriba (no es error de validación).
+- Antes: **202** `manual_review` + `request_id` al primer `POST /processes` (solicitud ya creada).
+- Ahora: primer `POST /processes` → `manual_registration_required` + modal; segundo `POST …/manual-registration-requests` → `manual_review` + `request_id` + Discord.
 
 Siguen igual:
 
@@ -82,10 +121,11 @@ Siguen igual:
 
 ### UX sugerida
 
-1. Toast/modal informativo (no error rojo) con `message`.
-2. No navegar al detalle del proceso (no hay `process` en el body).
-3. Opcional: badge “En revisión” local o mensaje bajo el formulario.
-4. No reintentar en loop el mismo radicado (backend es idempotente para Discord, pero el usuario no gana nada spameando).
+1. Si `status === 'manual_registration_required'`: abrir modal (no error rojo).
+2. Mostrar `reason_label` + `message`.
+3. Formulario: demandantes, demandados, otros sujetos, clase de proceso, rol (Demandante/Demandado).
+4. Guardar → `POST …/manual-registration-requests` con `reason` del 202 anterior.
+5. Éxito → toast con `message` del segundo response; refrescar contador `pending_manual_registrations`.
 
 ---
 

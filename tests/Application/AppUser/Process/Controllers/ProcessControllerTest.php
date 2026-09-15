@@ -121,17 +121,17 @@ it('returns manual review when radicado does not exist in judicial branch or sam
 
     $response->assertStatus(202);
     $response->assertJson([
-        'message' => __('process.manual_registration_requested'),
-        'status' => 'manual_review',
+        'message' => __('process.manual_registration_details_required'),
+        'status' => 'manual_registration_required',
         'reason' => 'not_found',
+        'requires_details' => true,
     ]);
-    expect($response->json('request_id'))->not->toBeEmpty();
+    expect($response->json('request_id'))->toBeNull();
 
-    $this->assertDatabaseHas('manual_registration_requests', [
+    $this->assertDatabaseMissing('manual_registration_requests', [
         'process_number' => '00000000000000000000001',
         'organization_id' => $this->organization->id,
         'status' => 'pending',
-        'reason' => 'not_found',
     ]);
 });
 
@@ -196,12 +196,13 @@ it('returns manual review when all judicial branch instances are private and sam
             'lawyer_role' => 'plaintiff',
         ]);
 
-    // JB privado → se intenta SAMAI → sin resultado → solicitud manual
+    // JB privado → se intenta SAMAI → sin resultado → requiere detalles (sin crear aún)
     $response->assertStatus(202);
     $response->assertJson([
-        'message' => __('process.manual_registration_requested'),
-        'status' => 'manual_review',
+        'message' => __('process.manual_registration_details_required'),
+        'status' => 'manual_registration_required',
         'reason' => 'not_found',
+        'requires_details' => true,
     ]);
 
     // Verify no processes were created
@@ -210,6 +211,11 @@ it('returns manual review when all judicial branch instances are private and sam
         ->get();
 
     expect($processes)->toHaveCount(0);
+
+    $this->assertDatabaseMissing('manual_registration_requests', [
+        'process_number' => $processNumber,
+        'organization_id' => $this->organization->id,
+    ]);
 });
 
 it('returns manual review when existing global process is private', function (): void {
@@ -264,13 +270,19 @@ it('returns manual review when existing global process is private', function ():
     $response->assertStatus(202);
     // When the process already exists in DB and is private, the fast-path returns private/all_private
     $response->assertJson([
-        'message' => __('process.manual_registration_requested'),
-        'status' => 'manual_review',
+        'message' => __('process.manual_registration_details_required'),
+        'status' => 'manual_registration_required',
         'reason' => 'private',
+        'requires_details' => true,
     ]);
 
     // Verify process was not attached to organization
     expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
+
+    $this->assertDatabaseMissing('manual_registration_requests', [
+        'process_number' => $processNumber,
+        'organization_id' => $this->organization->id,
+    ]);
 });
 
 it('returns manual review when single judicial branch instance is private and samai has no match', function (): void {
@@ -307,12 +319,13 @@ it('returns manual review when single judicial branch instance is private and sa
             'lawyer_role' => 'plaintiff',
         ]);
 
-    // JB privado → se intenta SAMAI → sin resultado → solicitud manual
+    // JB privado → se intenta SAMAI → sin resultado → requiere detalles (sin crear aún)
     $response->assertStatus(202);
     $response->assertJson([
-        'message' => __('process.manual_registration_requested'),
-        'status' => 'manual_review',
+        'message' => __('process.manual_registration_details_required'),
+        'status' => 'manual_registration_required',
         'reason' => 'not_found',
+        'requires_details' => true,
     ]);
 
     // Verify no process was created
@@ -321,6 +334,11 @@ it('returns manual review when single judicial branch instance is private and sa
         ->first();
 
     expect($process)->toBeNull();
+
+    $this->assertDatabaseMissing('manual_registration_requests', [
+        'process_number' => $processNumber,
+        'organization_id' => $this->organization->id,
+    ]);
 });
 
 it('registers a new process successfully', function (): void {

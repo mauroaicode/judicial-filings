@@ -10,6 +10,11 @@ use Src\Domain\Process\Models\ManualRegistrationRequest;
 
 class ManualRegistrationRequestResource extends Resource
 {
+    /**
+     * @param  list<array{name: string, identification: string|null}>  $plaintiffs
+     * @param  list<array{name: string, identification: string|null}>  $defendants
+     * @param  list<array{name: string, identification: string|null}>  $other_subjects
+     */
     public function __construct(
         public string $id,
         public string $process_number,
@@ -17,6 +22,10 @@ class ManualRegistrationRequestResource extends Resource
         public string $reason_label,
         public string $status,
         public ?string $lawyer_role,
+        public ?string $process_class,
+        public array $plaintiffs,
+        public array $defendants,
+        public array $other_subjects,
         public int $unassigned_actions_count,
         public string $requested_by_name,
         public ?string $requested_by_identification,
@@ -43,6 +52,10 @@ class ManualRegistrationRequestResource extends Resource
             reason_label: $request->reason->label(),
             status: $request->status->value,
             lawyer_role: $request->lawyer_role?->value,
+            process_class: $request->process_class,
+            plaintiffs: $request->plaintiffs ?? [],
+            defendants: $request->defendants ?? [],
+            other_subjects: $request->other_subjects ?? [],
             unassigned_actions_count: $request->unassigned_actions_count,
             requested_by_name: $name,
             requested_by_identification: $identification,

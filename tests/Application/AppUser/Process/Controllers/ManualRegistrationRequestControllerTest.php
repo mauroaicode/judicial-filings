@@ -74,3 +74,58 @@ it('lists pending manual registration requests for the organization', function (
         ->assertJsonPath('data.0.unassigned_actions_count', 2)
         ->assertJsonPath('data.0.requested_by_name', 'Carlos Ruiz');
 });
+
+it('creates a pending request with details and notifies discord on submit', function (): void {
+    config([
+        'discord-alerts.webhook_urls.manual_registration' => 'https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz',
+    ]);
+
+    \Illuminate\Support\Facades\Queue::fake();
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes/manual-registration-requests', [
+            'process_number' => '76892400300120260066300',
+            'reason' => 'private',
+            'lawyer_role' => 'defendant',
+            'process_class' => 'Verbal',
+            'plaintiffs' => [
+                ['name' => 'Juan Pérez', 'identification' => '123'],
+            ],
+            'defendants' => [
+                ['name' => 'Empresa SA'],
+            ],
+            'other_subjects' => [
+                ['name' => 'Apoderado X'],
+            ],
+        ]);
+
+    $response->assertStatus(202)
+        ->assertJsonPath('status', 'manual_review')
+        ->assertJsonPath('reason', 'private')
+        ->assertJsonPath('data.process_class', 'Verbal')
+        ->assertJsonPath('data.plaintiffs.0.name', 'Juan Pérez')
+        ->assertJsonPath('data.defendants.0.name', 'Empresa SA');
+
+    expect($response->json('request_id'))->not->toBeEmpty();
+
+    $this->assertDatabaseHas('manual_registration_requests', [
+        'process_number' => '76892400300120260066300',
+        'organization_id' => $this->organization->id,
+        'status' => 'pending',
+        'process_class' => 'Verbal',
+        'discord_notified' => true,
+    ]);
+});
+
+it('validates required details when submitting manual registration', function (): void {
+    $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes/manual-registration-requests', [
+            'process_number' => '76892400300120260066300',
+            'reason' => 'private',
+            'lawyer_role' => 'defendant',
+            'process_class' => 'Verbal',
+            'plaintiffs' => [],
+            'defendants' => [],
+        ])
+        ->assertStatus(422);
+});
