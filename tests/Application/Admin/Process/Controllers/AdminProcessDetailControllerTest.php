@@ -163,3 +163,79 @@ it('shows process as active when at least one organization is still interested',
     expect($items->firstWhere('id', $inactiveOrg->id)['status'])->toBe('inactive');
     expect($items->firstWhere('id', $activeOrg->id)['status'])->toBe('active');
 });
+
+it('requires authentication to update admin process information', function (): void {
+    $process = Process::factory()->create();
+
+    $response = $this->patchJson("/api/admin/processes/{$process->id}", [
+        'court' => 'Juzgado Civil',
+    ]);
+
+    $response->assertStatus(401);
+});
+
+it('updates process general information and returns iso process date', function (): void {
+    $process = Process::factory()->create([
+        'court' => 'JUZGADO CIVIL',
+        'speaker' => 'Maria Gomez',
+        'department' => 'VALLE DEL CAUCA',
+        'process_type' => 'ORDINARIO',
+        'process_class' => 'CIVIL',
+        'subclass_process' => 'SINGULAR',
+        'location' => 'Cali',
+        'process_date' => '2026-01-01',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}", [
+            'court' => 'Juzgado 017 Administrativo De Cali',
+            'speaker' => 'Ana Perez',
+            'process_class' => 'Verbal',
+            'subclass_process' => null,
+            'location' => 'Bogota',
+            'process_date' => '2022-03-18',
+        ]);
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('message', __('process.updated_successfully'));
+    $response->assertJsonPath('process.process_date_iso', '2022-03-18');
+    $response->assertJsonPath('process.speaker', 'Ana Perez');
+    $response->assertJsonPath('process.location', 'Bogota');
+    $response->assertJsonPath('process.subclass_process', null);
+
+    $this->assertDatabaseHas('processes', [
+        'id' => $process->id,
+        'court' => 'Juzgado 017 Administrativo De Cali',
+        'speaker' => 'Ana Perez',
+        'process_class' => 'Verbal',
+        'subclass_process' => null,
+        'location' => 'Bogota',
+        'process_date' => '2022-03-18',
+        'process_type' => 'ORDINARIO',
+    ]);
+});
+
+it('rejects empty process updates and impossible process dates', function (): void {
+    $process = Process::factory()->create();
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}", [])
+        ->assertStatus(422);
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}", [
+            'process_date' => '2851-10-22',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['process_date']);
+});
+
+it('returns 404 when updating a missing process', function (): void {
+    $missingId = '00000000-0000-0000-0000-000000000000';
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$missingId}", [
+            'court' => 'Juzgado Civil',
+        ])
+        ->assertStatus(404);
+});

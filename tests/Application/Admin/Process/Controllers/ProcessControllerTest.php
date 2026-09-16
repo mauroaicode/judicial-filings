@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
+use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
+use Src\Domain\Process\Models\ManualRegistrationRequest;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessSubject;
@@ -597,6 +600,47 @@ it('filters processes by privacy query param private or public', function (): vo
     expect($all->json('total'))->toBe(2);
 });
 
+it('filters processes added through a completed alta manual request', function (): void {
+    $organization = Organization::factory()->create();
+    $appUser = \Src\Domain\AppUser\Models\AppUser::factory()->create();
+
+    $manual = Process::factory()->create([
+        'process_number' => '33001418901234567890123',
+        'is_manual_sync' => true,
+        'is_private' => true,
+    ]);
+    $excelOnly = Process::factory()->create([
+        'process_number' => '44001418901234567890123',
+        'is_manual_sync' => true,
+        'is_private' => true,
+    ]);
+
+    foreach ([$manual, $excelOnly] as $process) {
+        $process->organizations()->attach($organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+        ]);
+    }
+
+    ManualRegistrationRequest::query()->create([
+        'organization_id' => $organization->id,
+        'app_user_id' => $appUser->id,
+        'process_number' => $manual->process_number,
+        'reason' => ManualRegistrationRequestReason::Private,
+        'status' => ManualRegistrationRequestStatus::Registered,
+        'unassigned_actions_count' => 0,
+        'discord_notified' => true,
+        'resolved_at' => now(),
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?alta_manual=1');
+
+    $response->assertOk();
+    expect($response->json('total'))->toBe(1)
+        ->and($response->json('data.0.process_number'))->toBe($manual->process_number);
+});
+
 it('rejects invalid privacy query value', function (): void {
     $response = $this->actingAs($this->user)
         ->getJson('/api/admin/processes?privacy=all');
@@ -654,4 +698,51 @@ it('uses earliest organization registration date for created_at', function (): v
     $response->assertStatus(200);
     // Should use the earliest date (5 days ago), formatted for display
     expect($response->json('data.0.created_at'))->toBe(\Src\Application\Shared\Helpers\DateFormatHelper::formatDate($earlierDate));
+});
+
+it('does not include radicados whose visible creation date is outside the filter range', function (): void {
+    $organization = Organization::factory()->create();
+    $laterOrganization = Organization::factory()->create();
+
+    $older = Process::factory()->create(['process_number' => '76001333301320260000100']);
+    $inRange = Process::factory()->create(['process_number' => '76001333301320260000200']);
+    $siblingOutOfRange = Process::factory()->create([
+        'process_number' => '76001333301320260000200',
+        'last_activity_date' => '2026-09-15',
+    ]);
+
+    $older->organizations()->attach($organization->id, [
+        'interest_date' => '2026-06-20',
+        'is_active' => true,
+        'created_at' => '2026-06-20 10:00:00',
+        'updated_at' => '2026-06-20 10:00:00',
+    ]);
+    $older->organizations()->attach($laterOrganization->id, [
+        'interest_date' => '2026-09-08',
+        'is_active' => true,
+        'created_at' => '2026-09-08 10:00:00',
+        'updated_at' => '2026-09-08 10:00:00',
+    ]);
+
+    $inRange->organizations()->attach($organization->id, [
+        'interest_date' => '2026-09-08',
+        'is_active' => true,
+        'created_at' => '2026-09-08 12:00:00',
+        'updated_at' => '2026-09-08 12:00:00',
+    ]);
+    $siblingOutOfRange->organizations()->attach($organization->id, [
+        'interest_date' => '2026-06-20',
+        'is_active' => true,
+        'created_at' => '2026-06-20 08:00:00',
+        'updated_at' => '2026-06-20 08:00:00',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?created_at_from=2026-09-07&created_at_to=2026-09-11');
+
+    $response->assertOk();
+    expect($response->json('total'))->toBe(1)
+        ->and($response->json('data.0.process_number'))->toBe('76001333301320260000200')
+        ->and($response->json('data.0.id'))->toBe($inRange->id)
+        ->and(collect($response->json('data.0.instances'))->pluck('id')->all())->toBe([$inRange->id]);
 });

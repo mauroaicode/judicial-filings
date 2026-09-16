@@ -6,9 +6,11 @@ namespace Src\Application\Admin\Process\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Src\Application\Admin\Process\Data\UpdateAdminProcessData;
 use Src\Application\Admin\Process\Resources\AdminProcessOrganizationResource;
 use Src\Application\Admin\Process\Resources\AdminProcessSubjectResource;
 use Src\Application\Admin\Process\Services\AdminProcessDetailService;
+use Src\Application\Admin\Process\Services\UpdateAdminProcessService;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
@@ -19,6 +21,7 @@ readonly class AdminProcessDetailController
 {
     public function __construct(
         private AdminProcessDetailService $adminProcessDetailService,
+        private UpdateAdminProcessService $updateAdminProcessService,
     ) {}
 
     /**
@@ -105,6 +108,43 @@ readonly class AdminProcessDetailController
                 'count' => $organizationItems->count(),
                 'items' => $organizationItems->all(),
             ],
+        ]);
+    }
+
+    /**
+     * Partial update of process general information (admin).
+     *
+     * Send only the fields to change. Dates must be `Y-m-d`.
+     * `process_number` is not editable (sync key).
+     */
+    public function update(string $id, UpdateAdminProcessData $data, Request $request): JsonResponse
+    {
+        $process = $this->updateAdminProcessService->handle($id, $data);
+        $process->load('organizations');
+
+        $organizationId = (string) $request->query('organization_id', '');
+        $org = $organizationId !== ''
+            ? $process->organizations->firstWhere('id', $organizationId)
+            : $process->organizations->sortByDesc(fn ($o) => $o->pivot?->created_at)->first();
+
+        $contextOrganizationId = $org?->id
+            ? (string) $org->id
+            : (string) ($process->organizations->first()?->id ?? '');
+
+        $processPayload = ProcessDetailResource::fromModel(
+            $process,
+            $contextOrganizationId,
+            statusActiveIfAnyOrganization: true,
+        )->toArray();
+
+        if ($contextOrganizationId === '' || ! $org?->pivot) {
+            $processPayload['alert_level'] = null;
+            $processPayload['lawyer_role'] = null;
+        }
+
+        return response()->json([
+            'message' => __('process.updated_successfully'),
+            'process' => $processPayload,
         ]);
     }
 }

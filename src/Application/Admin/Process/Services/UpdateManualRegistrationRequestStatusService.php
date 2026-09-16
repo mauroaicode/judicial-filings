@@ -4,17 +4,16 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Process\Services;
 
-use Src\Application\Shared\Services\Notification\NotifyAppUserManualRegistrationCompletedService;
 use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
 use Src\Domain\Process\Models\ManualRegistrationRequest;
 
 /**
- * Marks a manual registration request as registered or rejected after ops completes (or declines) digitación.
+ * Marks a manual registration request as rejected, or registers it by inserting the process.
  */
 readonly class UpdateManualRegistrationRequestStatusService
 {
     public function __construct(
-        private NotifyAppUserManualRegistrationCompletedService $notifyAppUserCompletedService,
+        private RegisterManualProcessFromRequestService $registerManualProcessFromRequestService,
     ) {}
 
     public function handle(string $id, ManualRegistrationRequestStatus $status): ManualRegistrationRequest
@@ -33,17 +32,15 @@ readonly class UpdateManualRegistrationRequestStatusService
             abort(422, __('process.manual_registration_already_resolved'));
         }
 
+        if ($status === ManualRegistrationRequestStatus::Registered) {
+            return $this->registerManualProcessFromRequestService->handle($request)['request'];
+        }
+
         $request->update([
             'status' => $status,
             'resolved_at' => now(),
         ]);
 
-        $request = $request->fresh(['appUser', 'organization']) ?? $request;
-
-        if ($status === ManualRegistrationRequestStatus::Registered) {
-            $this->notifyAppUserCompletedService->handle($request);
-        }
-
-        return $request;
+        return $request->fresh(['appUser', 'organization']) ?? $request;
     }
 }

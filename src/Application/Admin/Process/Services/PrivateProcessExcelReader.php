@@ -147,6 +147,18 @@ class PrivateProcessExcelReader implements ToCollection
             $annotation = $annotationRaw === '' ? null : $annotationRaw;
         }
 
+        $documentName = null;
+        if (isset($map['documento'])) {
+            $documentRaw = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['documento']));
+            $documentName = $documentRaw === '' ? null : $documentRaw;
+        }
+
+        $autoNumber = null;
+        if (isset($map['auto'])) {
+            $autoRaw = StrParseHelper::normalizeImportedLabel((string) $this->cell($row, $map['auto']));
+            $autoNumber = $autoRaw === '' ? null : $autoRaw;
+        }
+
         $startRaw = isset($map['fecha_inicial']) ? $this->cell($row, $map['fecha_inicial']) : null;
         $endRaw = isset($map['fecha_finalizacion']) ? $this->cell($row, $map['fecha_finalizacion']) : null;
         $regRaw = isset($map['fecha_registro']) ? $this->cell($row, $map['fecha_registro']) : null;
@@ -210,6 +222,8 @@ class PrivateProcessExcelReader implements ToCollection
             startDate: $startDate,
             endDate: $endDate,
             registrationDate: $registrationDate,
+            documentName: $documentName,
+            autoNumber: $autoNumber,
         );
     }
 
@@ -281,6 +295,18 @@ class PrivateProcessExcelReader implements ToCollection
 
         if ($this->labelMatches($label, ['fecha registro'])) {
             return 'fecha_registro';
+        }
+
+        if ($this->labelMatches($label, ['nombre del documento', 'archivo adjunto', 'documento', 'archivo'])) {
+            return 'documento';
+        }
+
+        if ($this->labelMatches($label, ['nro auto', 'número de auto', 'numero de auto', 'nro. auto'])) {
+            return 'auto';
+        }
+
+        if ($label === 'auto') {
+            return 'auto';
         }
 
         return null;

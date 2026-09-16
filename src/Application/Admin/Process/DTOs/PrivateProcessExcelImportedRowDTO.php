@@ -21,5 +21,26 @@ readonly class PrivateProcessExcelImportedRowDTO
         public ?string $startDate,
         public ?string $endDate,
         public ?string $registrationDate,
+        public ?string $documentName = null,
+        public ?string $autoNumber = null,
     ) {}
+
+    public function withAnnotation(?string $annotation): self
+    {
+        return new self(
+            excelRowNumber: $this->excelRowNumber,
+            court: $this->court,
+            processNumber: $this->processNumber,
+            processClass: $this->processClass,
+            plaintiffsRaw: $this->plaintiffsRaw,
+            defendantsRaw: $this->defendantsRaw,
+            actionText: $this->actionText,
+            annotation: $annotation,
+            startDate: $this->startDate,
+            endDate: $this->endDate,
+            registrationDate: $this->registrationDate,
+            documentName: $this->documentName,
+            autoNumber: $this->autoNumber,
+        );
+    }
 }

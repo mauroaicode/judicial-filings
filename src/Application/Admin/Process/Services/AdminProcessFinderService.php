@@ -58,6 +58,7 @@ readonly class AdminProcessFinderService
         }
 
         $processes = Process::query()
+            ->whereIn('processes.id', (clone $filteredIdsQuery))
             ->whereIn('process_number', $processNumbers)
             ->with(['subjects', 'organizations', 'processDataSource'])
             ->orderedByLastActivityDate()

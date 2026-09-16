@@ -61,6 +61,10 @@ it('notifies requesting lawyer and org peers when a request is marked registered
         'process_number' => $this->processNumber,
         'reason' => ManualRegistrationRequestReason::Private,
         'status' => ManualRegistrationRequestStatus::Pending,
+        'lawyer_role' => \Src\Domain\Process\Enums\ProcessLawyerRole::DEFENDANT,
+        'process_class' => 'Verbal',
+        'plaintiffs' => [['name' => 'Ana', 'identification' => null]],
+        'defendants' => [['name' => 'Empresa', 'identification' => null]],
         'unassigned_actions_count' => 0,
         'discord_notified' => true,
     ]);

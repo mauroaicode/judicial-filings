@@ -184,3 +184,138 @@ it('returns alert keyword stats for process (admin)', function (): void {
     expect($response->json('data.0.slug'))->toBe($slug);
     expect($response->json('data.0.count'))->toBe(2);
 });
+
+it('requires authentication to update admin process action dates', function (): void {
+    $process = Process::factory()->create();
+    $action = ProcessAction::factory()->create(['process_id' => $process->id]);
+
+    $response = $this->patchJson("/api/admin/processes/{$process->id}/actions/{$action->id}", [
+        'action_date' => '2022-03-18',
+    ]);
+
+    $response->assertStatus(401);
+});
+
+it('updates action dates and recalculates last activity date', function (): void {
+    $process = Process::factory()->create([
+        'last_activity_date' => '2851-10-22',
+    ]);
+
+    $olderAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => '2021-01-10',
+        'registration_date' => '2021-01-10',
+        'start_date' => '2021-01-01',
+        'end_date' => '2021-01-20',
+        'cons_action' => 1,
+    ]);
+
+    $corruptedAction = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action_date' => '2851-10-22',
+        'registration_date' => '2851-10-22',
+        'start_date' => null,
+        'end_date' => null,
+        'cons_action' => 2,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}/actions/{$corruptedAction->id}", [
+            'action_date' => '2022-03-18',
+            'registration_date' => '2022-03-18',
+            'term_start_date' => '2022-03-18',
+            'term_end_date' => '2022-03-25',
+        ]);
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('message', __('process.action_updated_successfully'));
+    $response->assertJsonPath('action.action_date_iso', '2022-03-18');
+    $response->assertJsonPath('action.registration_date_iso', '2022-03-18');
+    $response->assertJsonPath('action.term_start_date_iso', '2022-03-18');
+    $response->assertJsonPath('action.term_end_date_iso', '2022-03-25');
+
+    $this->assertDatabaseHas('process_actions', [
+        'id' => $corruptedAction->id,
+        'action_date' => '2022-03-18',
+        'registration_date' => '2022-03-18',
+        'start_date' => '2022-03-18',
+        'end_date' => '2022-03-25',
+    ]);
+
+    $this->assertDatabaseHas('processes', [
+        'id' => $process->id,
+        'last_activity_date' => '2022-03-18',
+    ]);
+
+    $this->assertDatabaseHas('process_actions', [
+        'id' => $olderAction->id,
+        'action_date' => '2021-01-10',
+    ]);
+});
+
+it('clears term dates when null is sent', function (): void {
+    $process = Process::factory()->create();
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'start_date' => '2022-03-18',
+        'end_date' => '2022-03-25',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}/actions/{$action->id}", [
+            'term_start_date' => null,
+            'term_end_date' => null,
+        ]);
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('action.term_start_date', '-');
+    $response->assertJsonPath('action.term_end_date', '-');
+    $response->assertJsonPath('action.term_start_date_iso', null);
+    $response->assertJsonPath('action.term_end_date_iso', null);
+
+    $this->assertDatabaseHas('process_actions', [
+        'id' => $action->id,
+        'start_date' => null,
+        'end_date' => null,
+    ]);
+});
+
+it('rejects empty action updates, impossible dates and inverted term range', function (): void {
+    $process = Process::factory()->create();
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'start_date' => '2022-03-18',
+        'end_date' => '2022-03-25',
+    ]);
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}/actions/{$action->id}", [])
+        ->assertStatus(422);
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}/actions/{$action->id}", [
+            'action_date' => '2851-10-22',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['action_date']);
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}/actions/{$action->id}", [
+            'term_start_date' => '2022-03-25',
+            'term_end_date' => '2022-03-18',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['term_end_date']);
+});
+
+it('returns 404 when updating an action that does not belong to the process', function (): void {
+    $process = Process::factory()->create();
+    $otherProcess = Process::factory()->create();
+    $action = ProcessAction::factory()->create(['process_id' => $otherProcess->id]);
+
+    $this->actingAs($this->user)
+        ->patchJson("/api/admin/processes/{$process->id}/actions/{$action->id}", [
+            'action_date' => '2022-03-18',
+        ])
+        ->assertStatus(404);
+});

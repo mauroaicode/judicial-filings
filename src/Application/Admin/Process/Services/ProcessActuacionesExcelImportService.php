@@ -26,10 +26,9 @@ use Throwable;
  * - If not → persist them in {@see UnassignedProcessAction} for later retroactive attach
  *   when the Process is created (no data loss for Publicaciones Procesales / small courts).
  *
- * Deduplication: an actuacion is skipped if a row already exists for that
- * process with the same registration_date + action text + annotation.
- * Combined "Fijación Estado Auto …" titles are split; a repeated estado half
- * is skipped silently when the Auto half is new (not listed as omitida).
+ * Deduplication: an actuacion is skipped only if the same distinguished row already
+ * exists (date + action + annotation). Rows that publicaciones lists twice — different
+ * auto, PDF, parties, or just a second publication — are kept as separate actuaciones.
  */
 class ProcessActuacionesExcelImportService
 {
@@ -39,6 +38,7 @@ class ProcessActuacionesExcelImportService
         private readonly ProcessActionAlertNotificationService $processActionAlertNotificationService,
         private readonly FijacionEstadoActionSplitter $fijacionEstadoActionSplitter,
         private readonly PersistUnassignedProcessActionsService $persistUnassignedProcessActionsService,
+        private readonly ActuacionImportRowIdentity $actuacionImportRowIdentity,
     ) {
         $minAct = ProcessAction::query()->where('action_registration_id', '<', 0)->min('action_registration_id');
         $this->actionRegistrationSeed = $minAct === null ? -1 : (int) $minAct - 1;
@@ -113,7 +113,7 @@ class ProcessActuacionesExcelImportService
 
                 if (! $process instanceof Process) {
                     $stored = $this->persistUnassignedProcessActionsService->handle(
-                        $rows,
+                        $this->actuacionImportRowIdentity->distinguish($rows),
                         null,
                         $requestedByUserId,
                     );
@@ -138,7 +138,7 @@ class ProcessActuacionesExcelImportService
                     $processesUpdatedNumbers[] = $first->processNumber;
                 }
 
-                $result = $this->importActuaciones($process, $rows);
+                $result = $this->importActuaciones($process, $this->actuacionImportRowIdentity->distinguish($rows));
                 $actionsImported += $result['imported'];
                 $actionsSkipped += count($result['skipped']);
                 foreach ($result['skipped'] as $skipped) {

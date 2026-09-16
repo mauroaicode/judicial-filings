@@ -8,6 +8,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Src\Application\Admin\Process\Data\UpdateAdminProcessActionData;
+use Src\Application\Admin\Process\Services\UpdateAdminProcessActionService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
 use Src\Application\Shared\Process\Services\ProcessActionFinderService;
@@ -23,6 +25,7 @@ readonly class AdminProcessActionController
         private ProcessActionFinderService $processActionFinderService,
         private GroupProcessActionsService $groupProcessActionsService,
         private ProcessActionPairingContextService $pairingContextService,
+        private UpdateAdminProcessActionService $updateAdminProcessActionService,
     ) {}
 
     /**
@@ -68,6 +71,24 @@ readonly class AdminProcessActionController
         $paginatedActions->setCollection($groupedItems);
 
         return $paginatedActions;
+    }
+
+    /**
+     * Partial update of actuación dates (admin).
+     *
+     * Send only the fields to change. Dates must be `Y-m-d`.
+     * Term dates may be null to clear them. Updating `action_date` recalculates
+     * the process `last_activity_date` from the latest actuación.
+     */
+    public function update(string $id, string $actionId, UpdateAdminProcessActionData $data): JsonResponse
+    {
+        $action = $this->updateAdminProcessActionService->handle($id, $actionId, $data);
+        $action->load('process.organizations');
+
+        return response()->json([
+            'message' => __('process.action_updated_successfully'),
+            'action' => ProcessActionResource::fromModel($action)->toArray(),
+        ]);
     }
 
     /**

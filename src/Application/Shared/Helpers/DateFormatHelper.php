@@ -11,6 +11,20 @@ use Illuminate\Support\Facades\Date;
 class DateFormatHelper
 {
     /**
+     * ISO date (Y-m-d) for date pickers and PATCH payloads. Null when empty.
+     */
+    public static function formatIsoDate(CarbonInterface|Carbon|\DateTimeInterface|string|null $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $carbon = $value instanceof Carbon ? $value : Date::parse($value);
+
+        return $carbon->format('Y-m-d');
+    }
+
+    /**
      * Formato solo fecha: "25 de Junio de 2026".
      */
     public static function formatDate(CarbonInterface|Carbon|\DateTimeInterface|string|null $value): string

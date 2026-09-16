@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Date;
 use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -336,6 +337,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyStatusFilter($data->status, $data->status_on_process_table);
         $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
         $this->applyPrivacyFilter($data->privacy);
+        $this->applyAltaManualFilter($data->alta_manual);
         $this->applyRoleFilter($data->lawyer_role);
         $this->applySeverityColorFilter($data->severity_color);
 
@@ -430,14 +432,13 @@ class ProcessQueryBuilder extends Builder
 
     /**
      * Apply created_at filter (exact date or date range).
-     * Filters by organization_processes.created_at (when the organization registered the process).
+     * Uses the same date the list shows: the earliest non-deleted organization registration.
      */
     private function applyCreatedAtFilter(?string $createdAt, ?string $createdAtFrom, ?string $createdAtTo): void
     {
         if ($createdAt) {
-            $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($createdAt): void {
-                $query->whereDate('organization_processes.created_at', Date::parse($createdAt)->format('Y-m-d'));
-            });
+            $day = Date::parse($createdAt)->toDateString();
+            $this->whereEarliestOrganizationRegistrationBetween($day, $day);
 
             return;
         }
@@ -559,6 +560,34 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Processes added through a completed alta-manual request (not Excel-only imports).
+     */
+    private function applyAltaManualFilter(mixed $altaManual): void
+    {
+        if ($altaManual === null || $altaManual === '') {
+            return;
+        }
+
+        if (! filter_var($altaManual, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        $this->whereExists(function (\Illuminate\Database\Query\Builder $query): void {
+            $query->selectRaw('1')
+                ->from('manual_registration_requests')
+                ->whereColumn('manual_registration_requests.process_number', 'processes.process_number')
+                ->where('manual_registration_requests.status', ManualRegistrationRequestStatus::Registered->value)
+                ->whereExists(function (\Illuminate\Database\Query\Builder $pivot): void {
+                    $pivot->selectRaw('1')
+                        ->from('organization_processes')
+                        ->whereColumn('organization_processes.process_id', 'processes.id')
+                        ->whereColumn('organization_processes.organization_id', 'manual_registration_requests.organization_id')
+                        ->whereNull('organization_processes.deleted_at');
+                });
+        });
+    }
+
+    /**
      * Apply date range filter helper.
      *
      * @param  string  $column  The column name to filter.
@@ -608,7 +637,7 @@ class ProcessQueryBuilder extends Builder
 
     /**
      * Apply the date range filter for the organization_processes pivot table.
-     * Filters by when the organization registered the process.
+     * Matches the earliest registration date shown in the process list, not a later re-attachment.
      *
      * @param  string|null  $from  Start date.
      * @param  string|null  $to  End date.
@@ -619,16 +648,43 @@ class ProcessQueryBuilder extends Builder
             return;
         }
 
-        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($from, $to): void {
-            if ($from && $to) {
-                $query->whereBetween('organization_processes.created_at', [
-                    Date::parse($from)->startOfDay(),
-                    Date::parse($to)->endOfDay(),
-                ]);
-            } elseif ($from) {
-                $query->whereDate('organization_processes.created_at', '>=', Date::parse($from)->format('Y-m-d'));
-            } elseif ($to !== '' && $to !== '0') { // @phpstan-ignore-line
-                $query->whereDate('organization_processes.created_at', '<=', Date::parse($to)->format('Y-m-d'));
+        $this->whereEarliestOrganizationRegistrationBetween(
+            $from !== '' && $from !== '0' ? Date::parse($from)->toDateString() : null,
+            $to !== '' && $to !== '0' ? Date::parse($to)->toDateString() : null,
+        );
+    }
+
+    /**
+     * Keep processes whose first organization registration falls in the range.
+     * A later attachment (another org) must not pull in a radicado whose visible date is older.
+     */
+    private function whereEarliestOrganizationRegistrationBetween(?string $from, ?string $to): void
+    {
+        if (! $from && ! $to) {
+            return;
+        }
+
+        $start = $from ? Date::parse($from)->startOfDay() : null;
+        $end = $to ? Date::parse($to)->endOfDay() : null;
+
+        $this->whereExists(function (\Illuminate\Database\Query\Builder $query) use ($start, $end): void {
+            $query->selectRaw('1')
+                ->from('organization_processes as op_match')
+                ->whereColumn('op_match.process_id', 'processes.id')
+                ->whereNull('op_match.deleted_at')
+                ->whereRaw('op_match.created_at = (
+                    SELECT MIN(op_min.created_at)
+                    FROM organization_processes AS op_min
+                    WHERE op_min.process_id = op_match.process_id
+                      AND op_min.deleted_at IS NULL
+                )');
+
+            if ($start && $end) {
+                $query->whereBetween('op_match.created_at', [$start, $end]);
+            } elseif ($start) {
+                $query->where('op_match.created_at', '>=', $start);
+            } elseif ($end) {
+                $query->where('op_match.created_at', '<=', $end);
             }
         });
     }

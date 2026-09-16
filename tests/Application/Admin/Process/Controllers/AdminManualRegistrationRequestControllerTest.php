@@ -126,13 +126,19 @@ it('filters by organization name', function (): void {
         ->assertJsonPath('data.0.organization_name', 'Org Alpha');
 });
 
-it('marks a pending request as registered', function (): void {
+it('marks a pending request as registered and inserts the process', function (): void {
+    \Illuminate\Support\Facades\Notification::fake();
+
     $request = ManualRegistrationRequest::query()->create([
         'organization_id' => $this->organization->id,
         'app_user_id' => $this->appUser->id,
         'process_number' => '76892400300120260066300',
         'reason' => ManualRegistrationRequestReason::NotFound,
         'status' => ManualRegistrationRequestStatus::Pending,
+        'lawyer_role' => ProcessLawyerRole::DEFENDANT,
+        'process_class' => 'Verbal',
+        'plaintiffs' => [['name' => 'Juan Pérez', 'identification' => '123']],
+        'defendants' => [['name' => 'Empresa SA', 'identification' => null]],
         'unassigned_actions_count' => 0,
         'discord_notified' => true,
     ]);
@@ -146,7 +152,58 @@ it('marks a pending request as registered', function (): void {
         ->assertJsonPath('data.status', 'registered');
 
     expect($request->fresh()?->status)->toBe(ManualRegistrationRequestStatus::Registered)
-        ->and($request->fresh()?->resolved_at)->not->toBeNull();
+        ->and($request->fresh()?->resolved_at)->not->toBeNull()
+        ->and(\Src\Domain\Process\Models\Process::query()->whereProcessNumber('76892400300120260066300')->exists())->toBeTrue();
+});
+
+it('registers a pending request with edited subjects and creates the process', function (): void {
+    \Illuminate\Support\Facades\Notification::fake();
+
+    $request = ManualRegistrationRequest::query()->create([
+        'organization_id' => $this->organization->id,
+        'app_user_id' => $this->appUser->id,
+        'process_number' => '76892400300120260066400',
+        'reason' => ManualRegistrationRequestReason::Private,
+        'status' => ManualRegistrationRequestStatus::Pending,
+        'lawyer_role' => ProcessLawyerRole::PLAINTIFF,
+        'process_class' => 'Ordinario',
+        'plaintiffs' => [['name' => 'Mal escrito', 'identification' => null]],
+        'defendants' => [['name' => 'Demandado original', 'identification' => null]],
+        'unassigned_actions_count' => 0,
+        'discord_notified' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson("/api/admin/processes/manual-registration-requests/{$request->id}/register", [
+            'process_class' => 'Verbal sumario',
+            'lawyer_role' => 'defendant',
+            'court' => 'Juzgado 1 Civil',
+            'speaker' => 'Maria Gomez',
+            'subclass_process' => 'Singular',
+            'location' => 'Despacho',
+            'plaintiffs' => [['name' => 'Ana Corregida', 'identification' => '555']],
+            'defendants' => [['name' => 'Empresa Corregida']],
+            'other_subjects' => [['name' => 'Apoderado']],
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('data.status', 'registered')
+        ->assertJsonPath('data.process_class', 'Verbal sumario')
+        ->assertJsonPath('data.court', 'Juzgado 1 Civil')
+        ->assertJsonPath('data.lawyer_role', 'defendant')
+        ->assertJsonPath('data.plaintiffs.0.name', 'Ana Corregida');
+
+    $process = \Src\Domain\Process\Models\Process::query()->whereProcessNumber('76892400300120260066400')->first();
+    expect($process)->not->toBeNull()
+        ->and($process?->is_manual_sync)->toBeTrue()
+        ->and($process?->is_private)->toBeTrue()
+        ->and($process?->process_class)->toBe('Verbal sumario')
+        ->and($process?->court)->toBe('Juzgado 1 Civil')
+        ->and($process?->speaker)->toBe('Maria Gomez')
+        ->and($process?->subclass_process)->toBe('Singular')
+        ->and($process?->location)->toBe('Despacho')
+        ->and($process?->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeTrue()
+        ->and($process?->subjects()->where('name_or_business_name', 'Ana Corregida')->exists())->toBeTrue();
 });
 
 it('rejects resolving an already resolved request', function (): void {

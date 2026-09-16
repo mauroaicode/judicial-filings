@@ -25,6 +25,10 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read ManualRegistrationRequestStatus $status
  * @property-read ProcessLawyerRole|null $lawyer_role
  * @property-read string|null $process_class
+ * @property-read string|null $court
+ * @property-read string|null $speaker
+ * @property-read string|null $subclass_process
+ * @property-read string|null $location
  * @property-read list<array{name: string, identification: string|null}>|null $plaintiffs
  * @property-read list<array{name: string, identification: string|null}>|null $defendants
  * @property-read list<array{name: string, identification: string|null}>|null $other_subjects
@@ -53,6 +57,10 @@ class ManualRegistrationRequest extends Model
         'status',
         'lawyer_role',
         'process_class',
+        'court',
+        'speaker',
+        'subclass_process',
+        'location',
         'plaintiffs',
         'defendants',
         'other_subjects',

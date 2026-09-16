@@ -48,5 +48,7 @@ class ProcessFilterData extends Data
         /** `private` | `public`; omit for no filter (admin and app-user lists). */
         #[In(['private', 'public'])]
         public ?string $privacy = null,
+        /** `1`/`true` = only radicados given de alta via a registered manual request. */
+        public mixed $alta_manual = null,
     ) {}
 }
