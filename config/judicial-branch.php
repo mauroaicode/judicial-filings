@@ -68,8 +68,10 @@ return [
     | de actuaciones en el Portal, el alta va en cola (SyncJudicialBranchJob).
     | Con cantidadPaginas <= este valor, el registro termina en la misma petición HTTP.
     |
-    | Si hay un sync diario activo (batch pending), el alta también se encola aunque
-    | el historial sea corto, para no pelear locks con el cron (deadlocks MySQL).
+    | Si hay un sync diario activo (batch pending), las altas *públicas* también
+    | se encolan aunque el historial sea corto, para no pelear locks con el cron
+    | (deadlocks MySQL). La clasificación privado / no encontrado sigue inline
+    | para poder abrir el modal de alta manual.
     |
     */
     'registration_inline_max_actuacion_pages' => (int) env('JUDICIAL_BRANCH_REGISTRATION_INLINE_MAX_ACTUACION_PAGES', 2),

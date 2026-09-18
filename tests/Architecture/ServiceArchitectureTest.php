@@ -34,6 +34,7 @@ beforeEach(function (): void {
         'Src\Application\Admin\Process\Services\PrivateProcessExcelReader', // reader with parse() for private-process Excel rows
         'Src\Application\Admin\Process\Services\ProcessImportBatchService', // dispatch() is the public entry point for batch queuing
         'Src\Application\Admin\Process\Services\PrivateImportSubjectNamesSplitter', // static row helper for private Excel import
+        'Src\Application\Admin\Process\Services\ActuacionImportRowIdentity', // row helper: keeps distinct Excel actuaciones with the same date/action
     ]);
 });
 

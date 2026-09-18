@@ -127,9 +127,10 @@ readonly class AdminProcessDetailController
             ? $process->organizations->firstWhere('id', $organizationId)
             : $process->organizations->sortByDesc(fn ($o) => $o->pivot?->created_at)->first();
 
-        $contextOrganizationId = $org?->id
+        $fallbackOrg = $process->organizations->first();
+        $contextOrganizationId = $org !== null
             ? (string) $org->id
-            : (string) ($process->organizations->first()?->id ?? '');
+            : ($fallbackOrg !== null ? (string) $fallbackOrg->id : '');
 
         $processPayload = ProcessDetailResource::fromModel(
             $process,

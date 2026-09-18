@@ -145,7 +145,7 @@ readonly class ProcessController
         try {
             $routing = $this->smartProcessRegistrationResolverService->handle($data->process_number, $organization->id);
 
-            // Alta asíncrona (historial largo → encolar).
+            // Alta asíncrona (historial largo o batch diario de instancia pública → encolar).
             if ($routing->deferToQueue) {
                 if ($routing->source === ProcessDataSourceSlug::Samai) {
                     $this->dispatchSamaiProcessRegistrationService->handle($data, $organization, $appUser);

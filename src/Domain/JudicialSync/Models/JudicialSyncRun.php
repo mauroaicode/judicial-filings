@@ -94,7 +94,8 @@ class JudicialSyncRun extends Model
 
     /**
      * Whether a sync batch is still writing (command started or Laravel batch pending).
-     * Used to avoid inline AppUser registration deadlocks against the daily cron.
+     * Used to defer heavy AppUser registration writes against the daily cron.
+     * Classification (público vs privado) still runs inline.
      */
     public static function hasActiveBatch(?JudicialSyncDataSource $dataSource = null): bool
     {

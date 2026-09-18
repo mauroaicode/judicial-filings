@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Queue;
 use Src\Application\AppUser\Process\Jobs\SyncJudicialBranchJob;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessDataSource;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create();
@@ -277,6 +279,44 @@ it('returns manual review when existing global process is private', function ():
     ]);
 
     // Verify process was not attached to organization
+    expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
+
+    $this->assertDatabaseMissing('manual_registration_requests', [
+        'process_number' => $processNumber,
+        'organization_id' => $this->organization->id,
+    ]);
+});
+
+it('returns manual review when existing private publicaciones/manual process would otherwise attach', function (): void {
+    Queue::fake();
+    $processNumber = '55555555555555555555555';
+
+    $existingProcess = Process::factory()->create([
+        'process_id' => random_int(5000000000, 5999999999),
+        'process_number' => $processNumber,
+        'is_private' => true,
+        'is_manual_sync' => true,
+        'process_data_source_id' => ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::PublicacionesProcesales),
+    ]);
+
+    config([
+        'discord-alerts.webhook_urls.manual_registration' => 'https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz',
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
+        ]);
+
+    $response->assertStatus(202);
+    $response->assertJson([
+        'message' => __('process.manual_registration_details_required'),
+        'status' => 'manual_registration_required',
+        'reason' => 'private',
+        'requires_details' => true,
+    ]);
+
     expect($existingProcess->organizations()->where('organizations.id', $this->organization->id)->exists())->toBeFalse();
 
     $this->assertDatabaseMissing('manual_registration_requests', [

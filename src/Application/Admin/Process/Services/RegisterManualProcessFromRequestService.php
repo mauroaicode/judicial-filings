@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Process\Services;
 
+use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Src\Application\Admin\Process\Data\RegisterManualRegistrationRequestData;
 use Src\Application\Shared\Services\Notification\NotifyAppUserManualRegistrationCompletedService;
@@ -52,7 +53,7 @@ readonly class RegisterManualProcessFromRequestService
         $process = DB::transaction(function () use ($request, $plaintiffs, $defendants): Process {
             $existing = Process::query()
                 ->whereProcessNumber($request->process_number)
-                ->whereHas('organizations', function ($query) use ($request): void {
+                ->whereHas('organizations', function (Builder $query) use ($request): void {
                     $query->where('organizations.id', $request->organization_id);
                 })
                 ->first();
@@ -74,7 +75,7 @@ readonly class RegisterManualProcessFromRequestService
 
             $process = Process::query()
                 ->whereProcessNumber($request->process_number)
-                ->orderByDesc('created_at')
+                ->latest()
                 ->first();
 
             if (! $process instanceof Process) {
@@ -95,6 +96,7 @@ readonly class RegisterManualProcessFromRequestService
         ]);
 
         $request = $request->fresh(['appUser', 'organization']) ?? $request;
+
         $this->notifyAppUserCompletedService->handle($request);
 
         return [
@@ -231,11 +233,11 @@ readonly class RegisterManualProcessFromRequestService
         $chunks = [];
 
         foreach ($request->plaintiffs ?? [] as $subject) {
-            $chunks[] = __('process.private_process_litigant_prefix_plaintiff').($subject['name'] ?? '');
+            $chunks[] = __('process.private_process_litigant_prefix_plaintiff').$subject['name'];
         }
 
         foreach ($request->defendants ?? [] as $subject) {
-            $chunks[] = __('process.private_process_litigant_prefix_defendant').($subject['name'] ?? '');
+            $chunks[] = __('process.private_process_litigant_prefix_defendant').$subject['name'];
         }
 
         return implode(' | ', array_slice($chunks, 0, 12));

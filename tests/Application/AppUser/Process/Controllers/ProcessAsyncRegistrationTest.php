@@ -34,6 +34,8 @@ beforeEach(function (): void {
     $this->appUser->organizations()->attach($this->organization->id, [
         'is_owner' => true,
     ]);
+
+    JudicialSyncRun::query()->delete();
 });
 
 it('dispatches the process registration flow asynchronously without placeholders', function (): void {
@@ -199,7 +201,7 @@ it('notifies failure when SyncJudicialBranchJob fails', function (): void {
     );
 });
 
-it('dispatches SyncJudicialBranchJob to process-import while a judicial sync batch is active', function (): void {
+it('dispatches SyncJudicialBranchJob for a public radicado while a judicial sync batch is active', function (): void {
     Queue::fake();
 
     JudicialSyncRun::factory()->create([
@@ -208,9 +210,23 @@ it('dispatches SyncJudicialBranchJob to process-import while a judicial sync bat
         'data_source' => JudicialSyncDataSource::JudicialBranch,
     ]);
 
-    $processNumber = '76520310500320260013300';
+    $processNumber = '76520310500320260014400';
+    $processId = 6060606077;
 
-    Http::fake(); // must not hit Portal while JB sync is active
+    Http::fake([
+        config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion*' => Http::response([
+            'procesos' => [
+                [
+                    'idProceso' => $processId,
+                    'esPrivado' => false,
+                    'llaveProceso' => $processNumber,
+                ],
+            ],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+    ]);
 
     $response = $this->actingAs($this->appUser)
         ->postJson('/api/app-user/processes', [
@@ -225,7 +241,112 @@ it('dispatches SyncJudicialBranchJob to process-import while a judicial sync bat
         return $job->processNumber === $processNumber
             && $job->queue === config('process-import.jobs.import_radicado.queue');
     });
+});
 
+it('returns the manual registration modal for a private radicado while a judicial sync batch is active', function (): void {
+    Queue::fake();
+
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subMinutes(10),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    $processNumber = '76520310500320260015500';
+
+    Http::fake([
+        config('judicial-branch.api_url').'/Procesos/Consulta/NumeroRadicacion*' => Http::response([
+            'procesos' => [
+                [
+                    'idProceso' => 6060606088,
+                    'esPrivado' => true,
+                    'llaveProceso' => $processNumber,
+                ],
+            ],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => $processNumber,
+            'lawyer_role' => 'defendant',
+        ]);
+
+    $response->assertStatus(202);
+    $response->assertJson([
+        'status' => 'manual_registration_required',
+        'requires_details' => true,
+        'process_number' => $processNumber,
+    ]);
+
+    Queue::assertNotPushed(SyncJudicialBranchJob::class);
+});
+
+it('attaches an existing public process inline while a judicial sync batch is active', function (): void {
+    Queue::fake();
+
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subMinutes(10),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    $processNumber = '76520310500320260016600';
+    Process::factory()->public()->create([
+        'process_number' => $processNumber,
+        'process_id' => 6060606099,
+    ]);
+
+    Http::fake();
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => $processNumber,
+            'lawyer_role' => 'plaintiff',
+        ]);
+
+    $response->assertStatus(201);
+    $response->assertJsonFragment(['message' => __('process.registered_successfully')]);
+
+    Queue::assertNotPushed(SyncJudicialBranchJob::class);
+    Http::assertNothingSent();
+});
+
+it('returns the manual registration modal for an existing private process while a judicial sync batch is active', function (): void {
+    Queue::fake();
+
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subMinutes(10),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    $processNumber = '76520310500320260017700';
+    Process::factory()->private()->create([
+        'process_number' => $processNumber,
+        'process_id' => 6060606100,
+    ]);
+
+    Http::fake();
+
+    $response = $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes', [
+            'process_number' => $processNumber,
+            'lawyer_role' => 'defendant',
+        ]);
+
+    $response->assertStatus(202);
+    $response->assertJson([
+        'status' => 'manual_registration_required',
+        'reason' => 'private',
+        'requires_details' => true,
+        'process_number' => $processNumber,
+    ]);
+
+    Queue::assertNotPushed(SyncJudicialBranchJob::class);
     Http::assertNothingSent();
 });
 

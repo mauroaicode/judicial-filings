@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use Src\Application\AppUser\Process\Services\SmartProcessRegistrationResolverService;
+use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\SamaiConsultService;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Organization\Models\Organization;
+use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 
@@ -26,7 +28,7 @@ afterEach(function (): void {
     Mockery::close();
 });
 
-it('defers judicial branch registration to the queue while a sync batch is active', function (): void {
+it('defers public judicial branch registration after probing while a sync batch is active', function (): void {
     JudicialSyncRun::factory()->create([
         'status' => JudicialSyncRunStatus::BatchPending,
         'started_at' => now()->subMinutes(30),
@@ -34,8 +36,15 @@ it('defers judicial branch registration to the queue while a sync batch is activ
     ]);
 
     $jb = Mockery::mock(JudicialBranchConsultService::class);
-    $jb->shouldNotReceive('withSeed');
-    $jb->shouldNotReceive('fetchProcesses');
+    $jb->shouldReceive('withSeed')->once()->with($this->processNumber)->andReturnSelf();
+    $jb->shouldReceive('fetchProcesses')->once()->andReturn((object) [
+        'isSuccessful' => true,
+        'data' => [[
+            'idProceso' => 999002,
+            'esPrivado' => false,
+            'llaveProceso' => $this->processNumber,
+        ]],
+    ]);
     $jb->shouldNotReceive('peekActuacionesPagination');
 
     $samai = Mockery::mock(SamaiConsultService::class);
@@ -48,7 +57,39 @@ it('defers judicial branch registration to the queue while a sync batch is activ
         ->and($decision->deferToQueue)->toBeTrue();
 });
 
-it('defers SAMAI registration without probing while a SAMAI sync batch is active', function (): void {
+it('requires manual registration for a private radicado while a sync batch is active', function (): void {
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subMinutes(30),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    $jb = Mockery::mock(JudicialBranchConsultService::class);
+    $jb->shouldReceive('withSeed')->once()->with($this->processNumber)->andReturnSelf();
+    $jb->shouldReceive('fetchProcesses')->once()->andReturn((object) [
+        'isSuccessful' => true,
+        'data' => [[
+            'idProceso' => 999003,
+            'esPrivado' => true,
+            'llaveProceso' => $this->processNumber,
+        ]],
+    ]);
+    $jb->shouldNotReceive('peekActuacionesPagination');
+
+    $samai = Mockery::mock(SamaiConsultService::class);
+    $samai->shouldNotReceive('buscarProceso');
+
+    try {
+        (new SmartProcessRegistrationResolverService($jb, $samai))
+            ->handle($this->processNumber, $this->organization->id);
+        expect(false)->toBeTrue();
+    } catch (ManualRegistrationRequiredException $e) {
+        expect($e->reason)->toBe(ManualRegistrationRequestReason::NotFound)
+            ->and($e->processNumber)->toBe($this->processNumber);
+    }
+});
+
+it('defers SAMAI writes after probing while a SAMAI sync batch is active', function (): void {
     $adminNumber = '76001333301320160005700';
 
     JudicialSyncRun::factory()->create([
@@ -65,7 +106,9 @@ it('defers SAMAI registration without probing while a SAMAI sync batch is active
     ]);
 
     $samai = Mockery::mock(SamaiConsultService::class);
-    $samai->shouldNotReceive('buscarProceso');
+    $samai->shouldReceive('withSeed')->once()->with($adminNumber)->andReturnSelf();
+    $samai->shouldReceive('buscarProceso')->once()->andReturn([['id' => 1]]);
+    $samai->shouldNotReceive('contarActuaciones');
 
     $decision = (new SmartProcessRegistrationResolverService($jb, $samai))
         ->handle($adminNumber, $this->organization->id);
@@ -99,14 +142,14 @@ it('keeps short judicial branch registrations inline when sync is idle', functio
         ->and($decision->deferToQueue)->toBeFalse();
 });
 
-it('defers attaching an existing process while its source sync batch is active', function (): void {
+it('attaches an existing public process inline while its source sync batch is active', function (): void {
     JudicialSyncRun::factory()->create([
         'status' => JudicialSyncRunStatus::Started,
         'started_at' => now()->subMinutes(5),
         'data_source' => JudicialSyncDataSource::JudicialBranch,
     ]);
 
-    Process::factory()->create([
+    Process::factory()->public()->create([
         'process_number' => $this->processNumber,
         'process_id' => 888001,
     ]);
@@ -118,7 +161,32 @@ it('defers attaching an existing process while its source sync batch is active',
         ->handle($this->processNumber, $this->organization->id);
 
     expect($decision->source)->toBe(ProcessDataSourceSlug::JudicialBranch)
-        ->and($decision->deferToQueue)->toBeTrue();
+        ->and($decision->deferToQueue)->toBeFalse();
+});
+
+it('requires manual registration for an existing private process while a sync batch is active', function (): void {
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::Started,
+        'started_at' => now()->subMinutes(5),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    Process::factory()->private()->create([
+        'process_number' => $this->processNumber,
+        'process_id' => 888002,
+    ]);
+
+    $jb = Mockery::mock(JudicialBranchConsultService::class);
+    $samai = Mockery::mock(SamaiConsultService::class);
+
+    try {
+        (new SmartProcessRegistrationResolverService($jb, $samai))
+            ->handle($this->processNumber, $this->organization->id);
+        expect(false)->toBeTrue();
+    } catch (ManualRegistrationRequiredException $e) {
+        expect($e->reason)->toBe(ManualRegistrationRequestReason::Private)
+            ->and($e->processNumber)->toBe($this->processNumber);
+    }
 });
 
 it('does not consult SAMAI when Unificada misses a laboral radicado', function (): void {

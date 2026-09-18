@@ -129,3 +129,35 @@ it('validates required details when submitting manual registration', function ()
         ])
         ->assertStatus(422);
 });
+
+it('rejects blank plaintiff or defendant rows when submitting manual registration', function (): void {
+    $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes/manual-registration-requests', [
+            'process_number' => '76892400300120260066300',
+            'reason' => 'private',
+            'lawyer_role' => 'defendant',
+            'process_class' => 'Verbal',
+            'plaintiffs' => [
+                ['name' => '   '],
+            ],
+            'defendants' => [
+                ['name' => 'Empresa SA'],
+            ],
+        ])
+        ->assertStatus(422);
+
+    $this->actingAs($this->appUser)
+        ->postJson('/api/app-user/processes/manual-registration-requests', [
+            'process_number' => '76892400300120260066301',
+            'reason' => 'private',
+            'lawyer_role' => 'defendant',
+            'process_class' => 'Verbal',
+            'plaintiffs' => [
+                ['name' => 'Juan Pérez'],
+            ],
+            'defendants' => [
+                ['name' => ''],
+            ],
+        ])
+        ->assertStatus(422);
+});

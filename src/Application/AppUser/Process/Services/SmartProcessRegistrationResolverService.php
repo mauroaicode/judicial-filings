@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Process\Services;
 
 use Illuminate\Contracts\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Src\Application\AppUser\Process\DTOs\SmartProcessRoutingDecision;
 use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
@@ -31,7 +32,11 @@ use Src\Domain\Process\Models\Process;
  *  (3. TYBA          → pendiente de integración futura.)
  *
  * Si el radicado ya existe en la BD (de cualquier fuente), se usa el fast-path
- * inline sin necesidad de llamar a ninguna API.
+ * inline sin necesidad de llamar a ninguna API. Los privados existentes piden
+ * alta manual (modal) aunque haya un sync diario activo.
+ *
+ * Un batch de sync diario no salta la clasificación (consulta Portal / SAMAI):
+ * solo encola el alta pesada de instancias públicas para no pelear locks MySQL.
  */
 readonly class SmartProcessRegistrationResolverService
 {
@@ -45,28 +50,14 @@ readonly class SmartProcessRegistrationResolverService
         $this->assertNotAlreadyRegisteredForOrganization($processNumber, $organizationId);
 
         // Fast path: el proceso ya existe en la BD (otra organización lo registró antes).
-        $existing = Process::query()->whereProcessNumber($processNumber)->first();
-        if ($existing !== null) {
+        $existing = Process::query()->whereProcessNumber($processNumber)->get();
+        if ($existing->isNotEmpty()) {
             return $this->fastPathDecision($existing);
         }
 
-        // Mientras el sync masivo de Rama Judicial ocupa los proxies del Portal,
-        // no sondear en request: diferir a la cola process-import (misma puerta que admin).
-        if (JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch)) {
-            if (ProcessConsultationScopeHelper::shouldConsultSamai($processNumber)) {
-                $samaiWhileJbBusy = $this->trySamai($processNumber);
-                if ($samaiWhileJbBusy instanceof SmartProcessRoutingDecision) {
-                    return $samaiWhileJbBusy;
-                }
-            }
-
-            return new SmartProcessRoutingDecision(
-                source: ProcessDataSourceSlug::JudicialBranch,
-                deferToQueue: true,
-            );
-        }
-
         // Intentar Rama Judicial primero (procesos públicos).
+        // Si hay batch diario activo, igual se clasifica (privado → modal);
+        // solo se encola el write pesado de instancias públicas.
         $jbDecision = $this->tryJudicialBranch($processNumber);
         if ($jbDecision instanceof SmartProcessRoutingDecision) {
             return $jbDecision;
@@ -96,22 +87,32 @@ readonly class SmartProcessRegistrationResolverService
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private function fastPathDecision(Process $existing): SmartProcessRoutingDecision
+    /**
+     * @param  Collection<int, Process>  $existing
+     */
+    private function fastPathDecision(Collection $existing): SmartProcessRoutingDecision
     {
-        $existing->loadMissing('processDataSource');
-        $sourceSlug = $existing->processDataSource?->slug;
+        $public = $existing->first(fn (Process $process): bool => ! $process->is_private);
+
+        if (! $public instanceof Process) {
+            throw new ManualRegistrationRequiredException(
+                (string) $existing->first()->process_number,
+                $existing->count() === 1
+                    ? ManualRegistrationRequestReason::Private
+                    : ManualRegistrationRequestReason::AllPrivate,
+            );
+        }
+
+        $public->loadMissing('processDataSource');
+        $sourceSlug = $public->processDataSource?->slug;
 
         $source = $sourceSlug === ProcessDataSourceSlug::Samai->value
             ? ProcessDataSourceSlug::Samai
             : ProcessDataSourceSlug::JudicialBranch;
 
-        $syncSource = $source === ProcessDataSourceSlug::Samai
-            ? JudicialSyncDataSource::Samai
-            : JudicialSyncDataSource::JudicialBranch;
-
         return new SmartProcessRoutingDecision(
             source: $source,
-            deferToQueue: JudicialSyncRun::hasActiveBatch($syncSource),
+            deferToQueue: false,
         );
     }
 
@@ -153,6 +154,15 @@ readonly class SmartProcessRegistrationResolverService
             return null;
         }
 
+        // Batch diario activo: ya sabemos que es público; no peek de páginas (otra ida al proxy).
+        if (JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch)) {
+            return new SmartProcessRoutingDecision(
+                source: ProcessDataSourceSlug::JudicialBranch,
+                deferToQueue: true,
+                prefetchedJbProcesses: $processesData,
+            );
+        }
+
         // Determinar si ir a cola o inline contando páginas de actuaciones para instancias nuevas.
         $inlineMaxPages = max(1, (int) config('judicial-branch.registration_inline_max_actuacion_pages', 2));
         $maxPages = 1;
@@ -186,14 +196,6 @@ readonly class SmartProcessRegistrationResolverService
 
     private function trySamai(string $processNumber): ?SmartProcessRoutingDecision
     {
-        // Sync masivo SAMAI activo: no sondear; diferir a process-import.
-        if (JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::Samai)) {
-            return new SmartProcessRoutingDecision(
-                source: ProcessDataSourceSlug::Samai,
-                deferToQueue: true,
-            );
-        }
-
         $this->samaiService->withSeed($processNumber);
 
         try {
@@ -209,6 +211,13 @@ readonly class SmartProcessRegistrationResolverService
 
         if ($searchResults === []) {
             return null;
+        }
+
+        if (JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::Samai)) {
+            return new SmartProcessRoutingDecision(
+                source: ProcessDataSourceSlug::Samai,
+                deferToQueue: true,
+            );
         }
 
         $inlineMax = max(1, (int) config('samai.registration_inline_max_actuaciones', 50));

@@ -21,6 +21,8 @@ use Src\Application\Shared\Traits\MapsSamaiSujetoTrait;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
+use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
@@ -83,12 +85,15 @@ readonly class RegisterSamaiProcessService
 
         if ($existingProcesses->isNotEmpty()) {
             $result = $this->attachExistingProcesses($existingProcesses, $organizationId, $lawyerRole, $appUserId);
-            $this->processSyncService->finalizeSamaiRegistration(
-                $processNumber,
-                $organizationId,
-                dispatchDigest: ! $deferRegistrationDigest,
-                queueNotifications: $queueRegistrationNotifications,
-            );
+
+            if (! JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::Samai)) {
+                $this->processSyncService->finalizeSamaiRegistration(
+                    $processNumber,
+                    $organizationId,
+                    dispatchDigest: ! $deferRegistrationDigest,
+                    queueNotifications: $queueRegistrationNotifications,
+                );
+            }
 
             return $result;
         }

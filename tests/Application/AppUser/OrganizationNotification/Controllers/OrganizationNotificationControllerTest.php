@@ -62,7 +62,10 @@ it('returns 422 when app user has no organization', function (): void {
 });
 
 it('returns notification_type and data and meta for actuacion list', function (): void {
-    $process = Process::factory()->create(['process_number' => '76001333301320170009301']);
+    $process = Process::factory()->create([
+        'process_number' => '76001333301320170009301',
+        'court' => 'JUZGADO 017 ADMINISTRATIVO DE CALI',
+    ]);
     $process->organizations()->attach($this->organization->id, [
         'interest_date' => now()->toDateString(),
         'is_active' => true,
@@ -96,6 +99,7 @@ it('returns notification_type and data and meta for actuacion list', function ()
                 'detail' => [
                     'process_id',
                     'process_number',
+                    'despacho',
                     'action',
                     'annotation',
                     'action_date',
@@ -112,6 +116,7 @@ it('returns notification_type and data and meta for actuacion list', function ()
     expect($response->json('data.0.notification_id'))->toBe($notification->id);
     expect($response->json('data.0.detail.process_id'))->toBe($process->id);
     expect($response->json('data.0.detail.process_number'))->toBe('76001333301320170009301');
+    expect($response->json('data.0.detail.despacho'))->toBe('Juzgado 017 Administrativo de Cali');
 });
 
 it('returns alert_highlights in detail for actuacion_alerta when action has highlights', function (): void {

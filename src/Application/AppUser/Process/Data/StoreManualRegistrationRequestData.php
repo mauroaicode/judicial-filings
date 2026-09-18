@@ -44,14 +44,33 @@ class StoreManualRegistrationRequestData extends Data
     {
         return [
             'plaintiffs' => ['required', 'array', 'min:1'],
-            'plaintiffs.*.name' => ['required', 'string', 'max:255'],
+            'plaintiffs.*.name' => ['required', 'string', 'max:255', 'regex:/\S/'],
             'plaintiffs.*.identification' => ['nullable', 'string', 'max:50'],
             'defendants' => ['required', 'array', 'min:1'],
-            'defendants.*.name' => ['required', 'string', 'max:255'],
+            'defendants.*.name' => ['required', 'string', 'max:255', 'regex:/\S/'],
             'defendants.*.identification' => ['nullable', 'string', 'max:50'],
             'other_subjects' => ['nullable', 'array'],
-            'other_subjects.*.name' => ['required', 'string', 'max:255'],
+            'other_subjects.*.name' => ['required', 'string', 'max:255', 'regex:/\S/'],
             'other_subjects.*.identification' => ['nullable', 'string', 'max:50'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function messages(): array
+    {
+        return [
+            'plaintiffs.required' => __('process.manual_registration_plaintiffs_required'),
+            'plaintiffs.min' => __('process.manual_registration_plaintiffs_required'),
+            'plaintiffs.*.name.required' => __('process.manual_registration_subject_name_required'),
+            'plaintiffs.*.name.regex' => __('process.manual_registration_subject_name_required'),
+            'defendants.required' => __('process.manual_registration_defendants_required'),
+            'defendants.min' => __('process.manual_registration_defendants_required'),
+            'defendants.*.name.required' => __('process.manual_registration_subject_name_required'),
+            'defendants.*.name.regex' => __('process.manual_registration_subject_name_required'),
+            'other_subjects.*.name.required' => __('process.manual_registration_subject_name_required'),
+            'other_subjects.*.name.regex' => __('process.manual_registration_subject_name_required'),
         ];
     }
 

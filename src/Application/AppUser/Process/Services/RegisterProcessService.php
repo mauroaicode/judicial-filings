@@ -22,6 +22,8 @@ use Src\Application\Shared\Services\Process\ProcessSyncService;
 use Src\Application\Shared\Traits\ParseDateTrait;
 use Src\Domain\AiChat\Models\AiChat;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
+use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Enums\ManualRegistrationRequestReason;
@@ -121,11 +123,15 @@ readonly class RegisterProcessService
         bool $queueRegistrationNotifications = true,
     ): RegisterProcessResult {
         $processNumber = (string) $processes->first()->process_number;
+        $skipHeavyAttachWork = $this->shouldSkipHeavyAttachWorkWhileSyncBatchIsActive($processes);
 
-        $migratedToSamai = $this->detectPrivacyFlipAndMigrateToSamai($processNumber, $organizationId);
+        $migratedToSamai = false;
+        if (! $skipHeavyAttachWork) {
+            $migratedToSamai = $this->detectPrivacyFlipAndMigrateToSamai($processNumber, $organizationId);
 
-        // Recargar por si la fuente cambió a SAMAI.
-        $processes = Process::query()->whereProcessNumber($processNumber)->get();
+            // Recargar por si la fuente cambió a SAMAI.
+            $processes = Process::query()->whereProcessNumber($processNumber)->get();
+        }
 
         $result = DB::transaction(function () use ($processes, $organizationId, $lawyerRole, $appUserId, $processNumber): RegisterProcessResult {
             /** @var Collection<int, Process> $attached */
@@ -135,9 +141,10 @@ readonly class RegisterProcessService
             foreach ($processes as $process) {
                 $process->loadMissing('processDataSource');
 
-                // Tras migración exitosa la fuente es SAMAI e is_private=false.
-                // Si sigue privado en JB (SAMAI no lo tenía), no se puede adjuntar.
-                if ($process->is_private && $process->processDataSource?->slug === ProcessDataSourceSlug::JudicialBranch->value) {
+                // Privados no se adjuntan automáticamente (JB, SAMAI, publicaciones/manual).
+                // Tras migración JB→SAMAI exitosa el proceso queda is_private=false y sí se adjunta.
+                // Publicaciones/manual privado exige flujo de alta manual (modal + Discord).
+                if ($process->is_private) {
                     $privateCount++;
 
                     continue;
@@ -168,7 +175,8 @@ readonly class RegisterProcessService
 
         // Si ya migró a SAMAI, los datos vienen del backfill: la org registrante no recibe consolidado.
         // Si sigue en JB público, sync de registro como antes (digest opcional).
-        if (! $migratedToSamai) {
+        // Durante el batch diario no syncForRegistration: el cron ya escribe ese radicado.
+        if (! $migratedToSamai && ! $skipHeavyAttachWork) {
             $this->processSyncService->syncForRegistration(
                 $processNumber,
                 $organizationId,
@@ -560,6 +568,29 @@ readonly class RegisterProcessService
             Date::parse($process->last_activity_date),
             $role,
         );
+    }
+
+    /**
+     * While the daily sync is writing the same radicado, skip Portal round-trips and
+     * syncForRegistration so the HTTP attach stays a short pivot insert.
+     *
+     * @param  Collection<int, Process>  $processes
+     */
+    private function shouldSkipHeavyAttachWorkWhileSyncBatchIsActive(Collection $processes): bool
+    {
+        foreach ($processes as $process) {
+            $process->loadMissing('processDataSource');
+
+            $source = $process->processDataSource?->slug === ProcessDataSourceSlug::Samai->value
+                ? JudicialSyncDataSource::Samai
+                : JudicialSyncDataSource::JudicialBranch;
+
+            if (JudicialSyncRun::hasActiveBatch($source)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function registrationTransactionAttempts(): int

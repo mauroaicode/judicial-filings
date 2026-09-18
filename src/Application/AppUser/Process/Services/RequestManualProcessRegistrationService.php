@@ -63,6 +63,7 @@ readonly class RequestManualProcessRegistrationService
                     if ($notified) {
                         $existing->update(['discord_notified' => true]);
                     }
+
                     $this->notifyAdminsService->handle($existing);
                 }
             }

@@ -112,6 +112,7 @@ readonly class OrganizationNotificationListService
         $detail = [
             'process_id' => $process->id,
             'process_number' => $process->process_number,
+            'despacho' => StrParseHelper::toTitleCase($process->court) ?? '',
             'action' => $action->action,
             'annotation' => $action->annotation,
             'action_date' => DateFormatHelper::formatDate($action->action_date),
