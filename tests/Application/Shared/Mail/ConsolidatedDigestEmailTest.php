@@ -9,8 +9,8 @@ use Src\Application\Shared\Mail\ConsolidatedJudicialActionsMailable;
 beforeEach(function (): void {
     config([
         'notification.mail.digest_max_rows' => 3,
-        'notification.mail.frontend_url_email_consolidated' => 'https://app.example.com/actuaciones',
-        'notification.mail.frontend_digest_path' => '/notification-digests',
+        'notification.mail.frontend_url_email_consolidated' => 'https://app.example.com',
+        'notification.mail.frontend_digest_path' => '/actuaciones-recientes',
     ]);
 });
 
@@ -64,7 +64,7 @@ it('prioritizes alerts and limits rows when digest_max_rows is configured', func
         ->and($presented['displayedActionsCount'])->toBe(3)
         ->and($presented['remainingActionsCount'])->toBe(2)
         ->and($presented['alertsCount'])->toBe(1)
-        ->and($presented['digestUrl'])->toBe('https://app.example.com/actuaciones/notification-digests/digest-uuid')
+        ->and($presented['digestUrl'])->toBe('https://app.example.com/actuaciones-recientes?digest=digest-uuid')
         ->and($presented['displayedRows']->first()['action_text'])
         ->toBe('Alerta 1');
 });
@@ -86,13 +86,28 @@ it('renders scrollable table digest email markup', function (): void {
     expect($html)
         ->toContain('76001418900120220081900')
         ->toContain('Ver detalle completo en NotiJudicial')
-        ->toContain('https://app.example.com/actuaciones/notification-digests/digest-uuid')
+        ->toContain('https://app.example.com/actuaciones-recientes?digest=digest-uuid')
         ->toContain('-webkit-overflow-scrolling: touch')
         ->toContain('Desliza horizontalmente la tabla para ver todas las columnas.')
         ->toContain('<thead>')
         ->toContain('width: 1280px')
         ->toContain('overflow-x: auto')
         ->toContain('max-width: 1200px');
+});
+
+it('builds the digest CTA with query param even if the override url points at gestion-procesos', function (): void {
+    config([
+        'notification.mail.frontend_url_email_consolidated' => 'https://app.notijudicial.com/gestion-procesos',
+        'notification.mail.frontend_digest_path' => '/actuaciones-recientes',
+    ]);
+
+    $presented = (new ConsolidatedDigestEmailPresenter)->present(collect([
+        makeDigestRow('76001418900120220081900'),
+    ]), 'a1e4067d-12cf-49dd-871f-525f4a118776');
+
+    expect($presented['digestUrl'])->toBe(
+        'https://app.notijudicial.com/actuaciones-recientes?digest=a1e4067d-12cf-49dd-871f-525f4a118776'
+    );
 });
 
 it('shows remaining actions notice when digest exceeds configured max rows', function (): void {

@@ -59,13 +59,35 @@ final class ConsolidatedDigestEmailPresenter
 
     private function resolveDigestUrl(string $digestId): string
     {
-        $base = (string) (config('notification.mail.frontend_url_email_consolidated')
+        $origin = $this->resolveFrontendOrigin();
+        $path = trim((string) config('notification.mail.frontend_digest_path', '/actuaciones-recientes'), '/');
+
+        if ($path === '') {
+            $path = 'actuaciones-recientes';
+        }
+
+        return $origin.'/'.$path.'?digest='.rawurlencode($digestId);
+    }
+
+    private function resolveFrontendOrigin(): string
+    {
+        $candidate = (string) (config('notification.mail.frontend_url_email_consolidated')
+            ?: config('app.frontend_url')
             ?: config('tasks.frontend.base_url', 'http://localhost:4200'));
 
-        $base = rtrim($base, '/');
+        $candidate = rtrim($candidate, '/');
+        $parts = parse_url($candidate);
 
-        $path = trim((string) config('notification.mail.frontend_digest_path', '/notification-digests'), '/');
+        if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'])) {
+            return $candidate;
+        }
 
-        return "{$base}/{$path}/{$digestId}";
+        $origin = $parts['scheme'].'://'.$parts['host'];
+
+        if (isset($parts['port'])) {
+            $origin .= ':'.$parts['port'];
+        }
+
+        return $origin;
     }
 }
