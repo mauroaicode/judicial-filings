@@ -143,4 +143,94 @@ class DateFormatHelper
 
         return $carbon->translatedFormat($format);
     }
+
+    /**
+     * Parse dates stored in digest JSON / UI filters.
+     *
+     * Supports ISO (Y-m-d), d/m/Y, and Spanish long form from {@see formatDate()}
+     * e.g. "18 de septiembre de 2026". Blank placeholders return null.
+     */
+    public static function tryParseDate(CarbonInterface|Carbon|\DateTimeInterface|string|null $value): ?Carbon
+    {
+        if ($value instanceof Carbon) {
+            return $value->copy()->startOfDay();
+        }
+
+        if ($value instanceof CarbonInterface || $value instanceof \DateTimeInterface) {
+            return Date::instance(\DateTimeImmutable::createFromInterface($value))->startOfDay();
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || in_array($trimmed, ['-', '---', '—', 'n/a', 'N/A'], true)) {
+            return null;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $trimmed) === 1) {
+            try {
+                return Date::parse($trimmed)->startOfDay();
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        if (preg_match('/^\d{1,2}\/\d{1,2}\/\d{4}$/', $trimmed) === 1) {
+            $parsed = Date::createFromFormat('d/m/Y', $trimmed);
+
+            return $parsed instanceof Carbon ? $parsed->startOfDay() : null;
+        }
+
+        $spanish = self::tryParseSpanishLongDate($trimmed);
+        if ($spanish instanceof Carbon) {
+            return $spanish;
+        }
+
+        try {
+            return Date::parse($trimmed)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private static function tryParseSpanishLongDate(string $value): ?Carbon
+    {
+        // "18 de septiembre de 2026" / "18 De Septiembre De 2026" (+ optional time suffix)
+        if (preg_match('/^(\d{1,2})\s+de\s+(\p{L}+)\s+de\s+(\d{4})/ui', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $months = [
+            'enero' => 1,
+            'febrero' => 2,
+            'marzo' => 3,
+            'abril' => 4,
+            'mayo' => 5,
+            'junio' => 6,
+            'julio' => 7,
+            'agosto' => 8,
+            'septiembre' => 9,
+            'setiembre' => 9,
+            'octubre' => 10,
+            'noviembre' => 11,
+            'diciembre' => 12,
+        ];
+
+        $monthName = mb_strtolower($matches[2]);
+        $month = $months[$monthName] ?? null;
+        if ($month === null) {
+            return null;
+        }
+
+        $day = (int) $matches[1];
+        $year = (int) $matches[3];
+
+        if (! checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return Date::create($year, $month, $day)->startOfDay();
+    }
 }

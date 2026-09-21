@@ -141,11 +141,30 @@ readonly class NotificationDigestController
 
                 return $resource;
             })
+            ->filter(function (array $resource) use ($filters): bool {
+                // When filtering by término / actuación / radicado, hide cards with 0 matching rows.
+                if (! self::filtersAffectDigestRows($filters)) {
+                    return true;
+                }
+
+                return ($resource['actions_count'] ?? 0) > 0;
+            })
             ->values();
 
         $paginatedDigests->setCollection($mergedCollection);
 
         return $paginatedDigests;
+    }
+
+    private static function filtersAffectDigestRows(NotificationDigestFilterData $filters): bool
+    {
+        return (bool) (
+            $filters->process_number
+            || $filters->registration_date_from || $filters->registration_date_to
+            || $filters->action_date_from || $filters->action_date_to
+            || $filters->term_start_date_from || $filters->term_start_date_to
+            || $filters->term_end_date_from || $filters->term_end_date_to
+        );
     }
 
     public function history(NotificationDigestFilterData $filters): LengthAwarePaginator

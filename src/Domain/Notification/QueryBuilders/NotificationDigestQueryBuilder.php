@@ -72,7 +72,7 @@ class NotificationDigestQueryBuilder extends Builder
         return $this->whereIn('id', function ($subQuery) use ($filters): void {
             $subQuery->select('notification_digest_id')
                 ->from('organization_notifications')
-                ->where('notifiable_type', ProcessAction::class)
+                ->where('notifiable_type', (new ProcessAction)->getMorphClass())
                 ->join('process_actions', 'process_actions.id', '=', 'organization_notifications.notifiable_id')
                 ->join('processes', 'processes.id', '=', 'process_actions.process_id');
 
@@ -97,19 +97,23 @@ class NotificationDigestQueryBuilder extends Builder
             }
 
             if ($filters->term_start_date_from) {
-                $subQuery->where('process_actions.start_date', '>=', $filters->term_start_date_from);
+                $subQuery->whereNotNull('process_actions.start_date')
+                    ->where('process_actions.start_date', '>=', $filters->term_start_date_from);
             }
 
             if ($filters->term_start_date_to) {
-                $subQuery->where('process_actions.start_date', '<=', $filters->term_start_date_to);
+                $subQuery->whereNotNull('process_actions.start_date')
+                    ->where('process_actions.start_date', '<=', $filters->term_start_date_to);
             }
 
             if ($filters->term_end_date_from) {
-                $subQuery->where('process_actions.end_date', '>=', $filters->term_end_date_from);
+                $subQuery->whereNotNull('process_actions.end_date')
+                    ->where('process_actions.end_date', '>=', $filters->term_end_date_from);
             }
 
             if ($filters->term_end_date_to) {
-                $subQuery->where('process_actions.end_date', '<=', $filters->term_end_date_to);
+                $subQuery->whereNotNull('process_actions.end_date')
+                    ->where('process_actions.end_date', '<=', $filters->term_end_date_to);
             }
         });
     }

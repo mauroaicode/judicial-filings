@@ -110,6 +110,15 @@ it('can filter notification digests by action date', function () {
 
     $digest = NotificationDigest::factory()->create([
         'organization_id' => $this->organization->id,
+        'data' => [
+            [
+                'process_number' => $process->process_number,
+                'process_action_id' => $action->id,
+                'action_text' => 'Auto',
+                'action_date' => '19/03/2026',
+                'registration_date' => '19/03/2026',
+            ],
+        ],
     ]);
 
     DB::table('organization_notifications')->insert([
@@ -129,6 +138,7 @@ it('can filter notification digests by action date', function () {
 
     $response->assertOk()
         ->assertJsonCount(1, 'data');
+    expect($response->json('data.0.actions_count'))->toBe(1);
 });
 
 it('does not collapse multiple actions of same process in digest details', function (): void {
@@ -329,4 +339,162 @@ it('hydrates plaintiff and defendant in digest detail when snapshot was empty an
     $item = $response->json('data.0.data.0');
     expect($item['plaintiff'])->toBe('Andrea Isabel Martinez Benavides');
     expect($item['defendant'])->toBe('Banco Agrario de Colombia S.A');
+});
+
+it('filters digest detail by term start/end dates and excludes empty term rows', function (): void {
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'created_at' => now(),
+        'data' => [
+            [
+                'process_number' => '76001333301220240028500',
+                'action_text' => 'Auto secretarial',
+                'registration_date' => '18 de septiembre de 2026',
+                'action_date' => '18 de septiembre de 2026',
+                'term_start_date' => null,
+                'term_end_date' => null,
+            ],
+            [
+                'process_number' => '76001333300820200013001',
+                'action_text' => 'Sentencia',
+                'registration_date' => '18 de septiembre de 2026',
+                'action_date' => '18 de septiembre de 2026',
+                'term_start_date' => '-',
+                'term_end_date' => '-',
+            ],
+            [
+                'process_number' => '76001310300120140006600',
+                'action_text' => 'Notificación',
+                'registration_date' => '17 de septiembre de 2026',
+                'action_date' => '17 de septiembre de 2026',
+                'term_start_date' => '18 de septiembre de 2026',
+                'term_end_date' => '18 de septiembre de 2026',
+            ],
+            [
+                'process_number' => '76001333301720240024700',
+                'action_text' => 'Auto',
+                'registration_date' => '17 de septiembre de 2026',
+                'action_date' => '17 de septiembre de 2026',
+                'term_start_date' => '18/09/2026',
+                'term_end_date' => '18/09/2026',
+            ],
+            [
+                'process_number' => '76001333301720240099900',
+                'action_text' => 'Otro día',
+                'registration_date' => '17 de septiembre de 2026',
+                'action_date' => '17 de septiembre de 2026',
+                'term_start_date' => '19 de septiembre de 2026',
+                'term_end_date' => '19 de septiembre de 2026',
+            ],
+        ],
+    ]);
+
+    $response = getJson(
+        '/api/app-user/notification-digests/'.$digest->id
+        .'?term_start_date_from=2026-09-18&term_start_date_to=2026-09-18'
+        .'&term_end_date_from=2026-09-18&term_end_date_to=2026-09-18'
+    );
+
+    $response->assertOk();
+    $items = $response->json('data.0.data');
+    expect($items)->toHaveCount(2)
+        ->and(collect($items)->pluck('process_number')->all())->toEqualCanonicalizing([
+            '76001310300120140006600',
+            '76001333301720240024700',
+        ])
+        ->and($response->json('data.0.actions_count'))->toBe(2)
+        ->and($response->json('total'))->toBe(2);
+});
+
+it('lists digests with term filters using filtered actions_count', function (): void {
+    $processWithTerm = Process::factory()->create(['process_number' => '76001310300120140006600']);
+    $processEmpty = Process::factory()->create(['process_number' => '76001333301220240028500']);
+
+    $processWithTerm->organizations()->attach($this->organization->id, [
+        'interest_date' => now(),
+        'lawyer_role' => 'plaintiff',
+        'is_active' => true,
+    ]);
+    $processEmpty->organizations()->attach($this->organization->id, [
+        'interest_date' => now(),
+        'lawyer_role' => 'plaintiff',
+        'is_active' => true,
+    ]);
+
+    $actionWithTerm = ProcessAction::factory()->create([
+        'process_id' => $processWithTerm->id,
+        'start_date' => '2026-09-18',
+        'end_date' => '2026-09-18',
+        'registration_date' => '2026-09-17',
+    ]);
+    $actionEmpty = ProcessAction::factory()->create([
+        'process_id' => $processEmpty->id,
+        'start_date' => null,
+        'end_date' => null,
+        'registration_date' => '2026-09-18',
+    ]);
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'created_at' => now()->setDate(2026, 9, 18)->setTime(13, 6),
+        'data' => [
+            [
+                'process_number' => $processEmpty->process_number,
+                'process_action_id' => $actionEmpty->id,
+                'action_text' => 'Secretarial',
+                'term_start_date' => null,
+                'term_end_date' => null,
+                'registration_date' => '18 de septiembre de 2026',
+            ],
+            [
+                'process_number' => $processWithTerm->process_number,
+                'process_action_id' => $actionWithTerm->id,
+                'action_text' => 'Notificación',
+                'term_start_date' => '18 de septiembre de 2026',
+                'term_end_date' => '18 de septiembre de 2026',
+                'registration_date' => '17 de septiembre de 2026',
+            ],
+        ],
+    ]);
+
+    DB::table('organization_notifications')->insert([
+        [
+            'id' => fake()->uuid(),
+            'organization_id' => $this->organization->id,
+            'notification_digest_id' => $digest->id,
+            'notifiable_id' => $actionWithTerm->id,
+            'notifiable_type' => (new ProcessAction)->getMorphClass(),
+            'notification_type' => 'actuacion',
+            'is_viewed' => false,
+            'is_notified' => true,
+            'is_email_notified' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'id' => fake()->uuid(),
+            'organization_id' => $this->organization->id,
+            'notification_digest_id' => $digest->id,
+            'notifiable_id' => $actionEmpty->id,
+            'notifiable_type' => (new ProcessAction)->getMorphClass(),
+            'notification_type' => 'actuacion',
+            'is_viewed' => false,
+            'is_notified' => true,
+            'is_email_notified' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    $response = getJson(
+        '/api/app-user/notification-digests'
+        .'?term_start_date_from=2026-09-18&term_start_date_to=2026-09-18'
+        .'&term_end_date_from=2026-09-18&term_end_date_to=2026-09-18'
+    );
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data');
+    expect($response->json('data.0.actions_count'))->toBe(1)
+        ->and($response->json('data.0.data'))->toHaveCount(1)
+        ->and($response->json('data.0.data.0.process_number'))->toBe($processWithTerm->process_number);
 });

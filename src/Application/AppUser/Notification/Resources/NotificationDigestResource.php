@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Notification\Resources;
 
-use Illuminate\Support\Facades\Date;
 use Spatie\LaravelData\Resource;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\Shared\Helpers\DateFormatHelper;
@@ -298,21 +297,24 @@ class NotificationDigestResource extends Resource
             return true;
         }
 
-        if (! $value) {
+        // Term / date filters must match a real date — empty, "-", secretarial rows stay out.
+        $date = DateFormatHelper::tryParseDate($value);
+        if (! $date instanceof \Illuminate\Support\Carbon) {
             return false;
         }
 
-        try {
-            $date = str_contains($value, '/') ? Date::createFromFormat('d/m/Y', $value) : Date::parse($value);
-            if ($from && $date->lt(Date::parse($from)->startOfDay())) {
+        if ($from) {
+            $fromDate = DateFormatHelper::tryParseDate($from);
+            if ($fromDate instanceof \Illuminate\Support\Carbon && $date->lt($fromDate->startOfDay())) {
                 return false;
             }
+        }
 
-            if ($to && $date->gt(Date::parse($to)->endOfDay())) {
+        if ($to) {
+            $toDate = DateFormatHelper::tryParseDate($to);
+            if ($toDate instanceof \Illuminate\Support\Carbon && $date->gt($toDate->endOfDay())) {
                 return false;
             }
-        } catch (\Exception) {
-            return false;
         }
 
         return true;
@@ -320,17 +322,9 @@ class NotificationDigestResource extends Resource
 
     private static function calculateSortTimestamp(?string $rawRegDate): int
     {
-        if (! $rawRegDate) {
-            return 0;
-        }
+        $date = DateFormatHelper::tryParseDate($rawRegDate);
 
-        try {
-            return str_contains($rawRegDate, '/')
-                ? Date::createFromFormat('d/m/Y', $rawRegDate)->timestamp
-                : Date::parse($rawRegDate)->timestamp;
-        } catch (\Exception) {
-            return 0;
-        }
+        return $date instanceof \Illuminate\Support\Carbon ? $date->timestamp : 0;
     }
 
     private static function applyKeyMappings(array $item): array
@@ -571,12 +565,13 @@ class NotificationDigestResource extends Resource
     private static function applyFinalDateFormatting(array $item): array
     {
         foreach (['registration_date', 'action_date', 'term_start_date', 'term_end_date'] as $field) {
-            if (isset($item[$field]) && is_string($item[$field]) && ($item[$field] !== '' && $item[$field] !== '0')) {
-                try {
-                    $dateObj = str_contains($item[$field], '/') ? Date::createFromFormat('d/m/Y', $item[$field]) : $item[$field];
-                    $item[$field] = DateFormatHelper::formatDate($dateObj);
-                } catch (\Exception) {
-                }
+            if (! isset($item[$field]) || ! is_string($item[$field]) || $item[$field] === '' || $item[$field] === '0') {
+                continue;
+            }
+
+            $parsed = DateFormatHelper::tryParseDate($item[$field]);
+            if ($parsed instanceof \Illuminate\Support\Carbon) {
+                $item[$field] = DateFormatHelper::formatDate($parsed);
             }
         }
 
