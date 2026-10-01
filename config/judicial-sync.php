@@ -15,6 +15,13 @@ return [
     'log_channel' => env('JUDICIAL_SYNC_LOG_CHANNEL', 'judicial_sync_notifications'),
 
     /*
+    | Un radicado que ya existe en la base y el portal responde procesos: []
+    | se reencola. Tres intentos del job; luego se cierra para no gastar proxy
+    | en un radicado que de verdad desapareció.
+    */
+    'retry_release_seconds_for_empty_known_process' => (int) env('JUDICIAL_SYNC_EMPTY_KNOWN_RETRY_SECONDS', 30),
+
+    /*
     |--------------------------------------------------------------------------
     | Job Configuration
     |--------------------------------------------------------------------------

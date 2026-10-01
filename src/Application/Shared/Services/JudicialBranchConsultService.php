@@ -106,10 +106,7 @@ class JudicialBranchConsultService
 
                 $httpResponse = $this->performRequestWithRetries('get', $endpoint, 'fetchProcesses');
 
-                $response = $httpResponse->json();
-                if (! is_array($response)) {
-                    $response = [];
-                }
+                $response = $this->decodeProcessSearchResponse($httpResponse);
 
                 if (isset($response['procesos'])) {
                     $allProcesses = array_merge($allProcesses, $response['procesos']);
@@ -386,6 +383,30 @@ class JudicialBranchConsultService
 
                 $status = $response->status();
 
+                // Azure/proxy 5xx (típico HTML 502) no es "radicado no existe".
+                // Si se devuelve al caller, json() queda vacío y el job se cierra sin reintento.
+                if ($status >= 500) {
+                    $this->proxyPool->markFailed($this->radicadoSeed);
+
+                    if ($attempt < $maxAttempts) {
+                        $delayMs = $this->computeConnectionRetryDelayMs($attempt, null);
+                        $this->logWarning('HTTP gateway error from Portal Judicial, retrying with another session', [
+                            'context' => $context,
+                            'status' => $status,
+                            'attempt' => $attempt,
+                            'max_attempts' => $maxAttempts,
+                            'delay_ms' => $delayMs,
+                        ]);
+                        Sleep::usleep($delayMs * 1000);
+
+                        continue;
+                    }
+
+                    throw new ApiProxyFailureException(
+                        "HTTP {$status} del Portal Judicial on {$context}. Max retries reached."
+                    );
+                }
+
                 // If successful (or not a retryable error like 404), return immediately
                 if ($status < 400 || $status === 404) {
                     // Soft-block detection: If we expect JSON but receive an HTML 200 OK,
@@ -409,7 +430,7 @@ class JudicialBranchConsultService
 
             } catch (Throwable $th) {
                 // Ignore API exceptions we just threw
-                if ($th instanceof ApiForbiddenOrRateLimitException) {
+                if ($th instanceof ApiForbiddenOrRateLimitException || $th instanceof ApiProxyFailureException) {
                     throw $th;
                 }
 
@@ -565,6 +586,27 @@ class JudicialBranchConsultService
         }
 
         return min(15000, $delayMs + $jitterMs);
+    }
+
+    /**
+     * A real empty search is HTTP 200 JSON with a `procesos` list.
+     * HTML, 502 bodies and other non-lists are retried as proxy failures.
+     *
+     * @return array<string, mixed>
+     */
+    private function decodeProcessSearchResponse(Response $httpResponse): array
+    {
+        $decoded = $httpResponse->json();
+
+        if (! is_array($decoded) || ! array_key_exists('procesos', $decoded) || ! is_array($decoded['procesos'])) {
+            $this->proxyPool->markFailed($this->radicadoSeed);
+
+            throw new ApiProxyFailureException(
+                'Respuesta inválida del Portal Judicial en fetchProcesses (HTTP '.$httpResponse->status().').'
+            );
+        }
+
+        return $decoded;
     }
 
     private function maskProxy(string $proxy): string

@@ -16,6 +16,7 @@ use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Exceptions\ApiProxyFailureException;
 use Src\Application\Shared\Services\Process\ProcessSyncService;
+use Src\Domain\Process\Models\Process;
 use Throwable;
 
 class SyncProcessJob implements ShouldQueue
@@ -61,9 +62,29 @@ class SyncProcessJob implements ShouldQueue
             $syncService->syncByProcessNumber($this->processNumber);
 
         } catch (ApiEmptyProcessesException $e) {
-            // The Judicial Branch API confirmed (with HTTP 200 + empty array) that this
-            // radicado no longer exists. Retrying would waste proxy calls and timeout budget.
-            // We complete the job normally so Laravel does not schedule any more attempts.
+            // Un JSON 200 vacío a veces es transitorio. Si el radicado ya está guardado,
+            // reintentar: una respuesta vacía no debe borrar el sync de una sentencia
+            // que Rama sí publicó. Un radicado que nunca existió se cierra sin reintento.
+            $knownProcess = Process::query()
+                ->where('process_number', $this->processNumber)
+                ->whereNotNull('process_id')
+                ->exists();
+
+            if ($knownProcess && $this->attempts() < $this->tries) {
+                $delay = (int) config('judicial-sync.retry_release_seconds_for_empty_known_process', 30);
+
+                Log::channel($channel)->warning('SyncProcessJob: known radicado returned empty, will retry', [
+                    'process_number' => $this->processNumber,
+                    'attempt' => $this->attempts(),
+                    'release_seconds' => $delay,
+                    'message' => $e->getMessage(),
+                ]);
+
+                $this->release($delay);
+
+                return;
+            }
+
             Log::channel($channel)->warning('SyncProcessJob: radicado not found in Judicial API, completing without retry', [
                 'process_number' => $this->processNumber,
                 'attempt' => $this->attempts(),

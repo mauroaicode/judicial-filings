@@ -154,7 +154,8 @@ return [
     'environments' => [
         'production' => [
             'supervisor-judicial-sync' => [
-                'minProcesses' => 4,
+                // Sync diario: arrancar más caliente para no esperar a que auto-scale suba de 4→8.
+                'minProcesses' => 6,
                 'maxProcesses' => 8,
                 'balanceMaxShift' => 2,
                 'balanceCooldown' => 5,
