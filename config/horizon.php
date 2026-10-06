@@ -38,6 +38,7 @@ return [
         'redis:judicial-sync' => 300,
         'redis:samai-sync' => 300,
         'redis:process-import' => 120,
+        'redis:exports' => 120,
         'redis:notifications' => 60,
     ],
 
@@ -149,6 +150,22 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+
+        // Low concurrency on purpose: keep exports off judicial-sync workers.
+        'supervisor-exports' => [
+            'connection' => 'redis',
+            'queue' => ['exports'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 512,
+            'tries' => 5,
+            'timeout' => 900,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -184,6 +201,10 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-exports' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
         ],
 
         'local' => [
@@ -204,6 +225,10 @@ return [
                 'maxProcesses' => 2,
             ],
             'supervisor-misc' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
+            'supervisor-exports' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],

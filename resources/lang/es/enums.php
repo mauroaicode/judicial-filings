@@ -52,6 +52,12 @@ return [
         'completed' => 'Completado',
         'failed' => 'Fallido',
     ],
+    'process_export_status' => [
+        'pending' => 'Pendiente',
+        'processing' => 'En proceso',
+        'completed' => 'Completado',
+        'failed' => 'Fallido',
+    ],
     'judicial_sync_run_status' => [
         'started' => 'Iniciado',
         'no_processes' => 'Sin radicados a sincronizar',

@@ -52,6 +52,12 @@ return [
         'completed' => 'Completed',
         'failed' => 'Failed',
     ],
+    'process_export_status' => [
+        'pending' => 'Pending',
+        'processing' => 'Processing',
+        'completed' => 'Completed',
+        'failed' => 'Failed',
+    ],
     'judicial_sync_run_status' => [
         'started' => 'Started',
         'no_processes' => 'No filings to sync',

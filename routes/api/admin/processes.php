@@ -5,6 +5,7 @@ use Src\Application\Admin\Process\Controllers\AdminManualRegistrationRequestCont
 use Src\Application\Admin\Process\Controllers\AdminProcessActionController;
 use Src\Application\Admin\Process\Controllers\AdminProcessConfigController;
 use Src\Application\Admin\Process\Controllers\AdminProcessDetailController;
+use Src\Application\Admin\Process\Controllers\AdminProcessExportHistoryController;
 use Src\Application\Admin\Process\Controllers\AdminProcessImportHistoryController;
 use Src\Application\Admin\Process\Controllers\AdminProcessInstancesController;
 use Src\Application\Admin\Process\Controllers\AdminProcessOrganizationController;
@@ -43,6 +44,7 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('processes/{id}/alert-keywords', [AdminProcessActionController::class, 'alertKeywords'])->whereUuid('id');
     Route::get('processes/{id}/alert-keyword-stats', [AdminProcessActionController::class, 'alertKeywordStats'])->whereUuid('id');
     Route::get('processes/import-history', [AdminProcessImportHistoryController::class, 'index']);
+    Route::get('processes/export-history', [AdminProcessExportHistoryController::class, 'index']);
     Route::get('processes/manual-registration-requests', [AdminManualRegistrationRequestController::class, 'index']);
     Route::post('processes/manual-registration-requests/{id}/register', [AdminManualRegistrationRequestController::class, 'register'])
         ->whereUuid('id');
