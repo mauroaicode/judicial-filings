@@ -159,6 +159,28 @@ it('excludes radicados linked only to inactive organizations from judicial daily
         ->not->toContain('76001333301320170001100');
 });
 
+it('includes judicial_branch placeholders without process_id in daily sync', function (): void {
+    $activeOrg = Organization::factory()->create(['is_active' => true]);
+
+    $placeholder = Process::factory()->create([
+        'process_number' => '76001333301320170004400',
+        'process_id' => null,
+        'is_manual_sync' => false,
+        'is_private' => false,
+    ]);
+    $placeholder->organizations()->attach($activeOrg->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $numbers = Process::query()
+        ->forJudicialDailySync()
+        ->pluck('process_number')
+        ->all();
+
+    expect($numbers)->toContain('76001333301320170004400');
+});
+
 it('includes radicado when at least one linked organization is active for daily sync', function (): void {
     $inactiveOrg = Organization::factory()->create(['is_active' => false]);
     $activeOrg = Organization::factory()->create(['is_active' => true]);

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessConsultationScopeHelper;
 use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
+use Src\Application\Shared\Process\Services\ApplySpeakerChangeFromProcessActionService;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
 use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
@@ -53,6 +54,7 @@ readonly class ProcessSourceFallbackService
         private ProcessActionAlertNotificationService $alertNotificationService,
         private ProcessTimelineRecorder $timelineRecorder,
         private RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
+        private ApplySpeakerChangeFromProcessActionService $applySpeakerChangeFromProcessActionService,
     ) {}
 
     /**
@@ -335,6 +337,12 @@ readonly class ProcessSourceFallbackService
             $action = ProcessAction::query()->create($attributes);
             $hasNewActions = true;
             $latestNewAction = $action;
+
+            $this->applySpeakerChangeFromProcessActionService->handle(
+                $process,
+                $action,
+                ProcessTimelineEventSource::SAMAI,
+            );
 
             // Orgs existentes: filas pendientes para el próximo consolidado (no se despacha digest aquí).
             // La org que acaba de registrar se excluye: ve los datos en la UI al momento.

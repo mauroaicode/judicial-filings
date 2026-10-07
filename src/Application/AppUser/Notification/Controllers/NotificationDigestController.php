@@ -143,7 +143,7 @@ readonly class NotificationDigestController
             })
             ->filter(function (array $resource) use ($filters): bool {
                 // When filtering by término / actuación / radicado, hide cards with 0 matching rows.
-                if (! self::filtersAffectDigestRows($filters)) {
+                if (! $this->filtersAffectDigestRows($filters)) {
                     return true;
                 }
 
@@ -156,15 +156,13 @@ readonly class NotificationDigestController
         return $paginatedDigests;
     }
 
-    private static function filtersAffectDigestRows(NotificationDigestFilterData $filters): bool
+    private function filtersAffectDigestRows(NotificationDigestFilterData $filters): bool
     {
-        return (bool) (
-            $filters->process_number
+        return $filters->process_number
             || $filters->registration_date_from || $filters->registration_date_to
             || $filters->action_date_from || $filters->action_date_to
             || $filters->term_start_date_from || $filters->term_start_date_to
-            || $filters->term_end_date_from || $filters->term_end_date_to
-        );
+            || $filters->term_end_date_from || $filters->term_end_date_to;
     }
 
     public function history(NotificationDigestFilterData $filters): LengthAwarePaginator

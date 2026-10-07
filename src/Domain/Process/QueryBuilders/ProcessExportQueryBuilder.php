@@ -81,6 +81,8 @@ class ProcessExportQueryBuilder extends Builder
      */
     public function orderedByCreatedAtDesc(): self
     {
-        return $this->orderByDesc('created_at');
+        $this->latest();
+
+        return $this;
     }
 }

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\Admin\Process\Services;
+namespace Src\Application\Admin\Process\Support;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 
@@ -29,7 +29,7 @@ final class OrganizationProcessExportPivotFilter
             $query->where(
                 'organization_processes.created_at',
                 '>=',
-                Carbon::parse($filters->created_at_from)->startOfDay()
+                Date::parse($filters->created_at_from)->startOfDay()
             );
         }
 
@@ -37,7 +37,7 @@ final class OrganizationProcessExportPivotFilter
             $query->where(
                 'organization_processes.created_at',
                 '<=',
-                Carbon::parse($filters->created_at_to)->endOfDay()
+                Date::parse($filters->created_at_to)->endOfDay()
             );
         }
 
@@ -45,7 +45,7 @@ final class OrganizationProcessExportPivotFilter
             $query->where(
                 'organization_processes.updated_at',
                 '>=',
-                Carbon::parse($filters->updated_at_from)->startOfDay()
+                Date::parse($filters->updated_at_from)->startOfDay()
             );
         }
 
@@ -53,7 +53,7 @@ final class OrganizationProcessExportPivotFilter
             $query->where(
                 'organization_processes.updated_at',
                 '<=',
-                Carbon::parse($filters->updated_at_to)->endOfDay()
+                Date::parse($filters->updated_at_to)->endOfDay()
             );
         }
     }

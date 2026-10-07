@@ -565,7 +565,19 @@ class NotificationDigestResource extends Resource
     private static function applyFinalDateFormatting(array $item): array
     {
         foreach (['registration_date', 'action_date', 'term_start_date', 'term_end_date'] as $field) {
-            if (! isset($item[$field]) || ! is_string($item[$field]) || $item[$field] === '' || $item[$field] === '0') {
+            if (! isset($item[$field])) {
+                continue;
+            }
+
+            if (! is_string($item[$field])) {
+                continue;
+            }
+
+            if ($item[$field] === '') {
+                continue;
+            }
+
+            if ($item[$field] === '0') {
                 continue;
             }
 

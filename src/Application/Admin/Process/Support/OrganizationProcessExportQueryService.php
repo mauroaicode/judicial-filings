@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\Admin\Process\Services;
+namespace Src\Application\Admin\Process\Support;
 
 use Generator;
 use Illuminate\Database\Eloquent\Builder;
@@ -181,13 +181,15 @@ readonly class OrganizationProcessExportQueryService
      */
     private function formatSubjectGroup(Collection $subjects, string $type): ?string
     {
+        /** @var list<string> $names */
         $names = $subjects
             ->filter(fn (ProcessSubject $subject): bool => mb_strtoupper(trim($subject->subject_type)) === mb_strtoupper($type))
             ->map(fn (ProcessSubject $subject): string => mb_strtoupper(trim($subject->name_or_business_name)))
             ->filter()
             ->unique()
             ->sort()
-            ->values();
+            ->values()
+            ->all();
 
         return $this->formatNameList($names);
     }
@@ -203,6 +205,7 @@ readonly class OrganizationProcessExportQueryService
             '',
         ];
 
+        /** @var list<string> $names */
         $names = $subjects
             ->filter(function (ProcessSubject $subject) use ($excluded): bool {
                 $type = mb_strtoupper(trim((string) $subject->subject_type));
@@ -213,23 +216,24 @@ readonly class OrganizationProcessExportQueryService
             ->filter()
             ->unique()
             ->sort()
-            ->values();
+            ->values()
+            ->all();
 
         return $this->formatNameList($names);
     }
 
     /**
-     * @param  Collection<int, string>  $names
+     * @param  list<string>  $names
      */
-    private function formatNameList(Collection $names): ?string
+    private function formatNameList(array $names): ?string
     {
-        $count = $names->count();
+        $count = count($names);
 
         if ($count === 0) {
             return null;
         }
 
-        $first = $names->first();
+        $first = $names[0];
 
         if ($count === 1) {
             return $first;

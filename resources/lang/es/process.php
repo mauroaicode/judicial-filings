@@ -77,7 +77,7 @@ return [
     'manual_registration_status_updated' => 'Solicitud de alta manual actualizada.',
     'manual_registration_process_created' => 'El radicado quedó registrado en la organización.',
     'manual_registration_details_incomplete' => 'Faltan demandantes, demandados, clase de proceso o rol para registrar.',
-    'manual_registration_data_source_missing' => 'No está configurada la fuente de publicaciones procesales.',
+    'manual_registration_data_source_missing' => 'No está configurada la fuente de datos seleccionada para el alta manual.',
     'manual_registration_notification_title' => 'Nueva solicitud de alta manual',
     'manual_registration_notification_description' => 'Radicado :number (:reason) — org :organization — solicitado por :user.',
     'export_finished_notification_title' => 'Exportación de procesos lista',

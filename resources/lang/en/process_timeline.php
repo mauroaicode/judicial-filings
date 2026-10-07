@@ -38,6 +38,7 @@ return [
         'actividad_roja' => 'Recent activity requires attention',
         'actividad_amarilla' => 'Moderate activity',
         'speaker_updated_from_sync' => 'The reporting judge was updated from the official consultation',
+        'speaker_updated_from_action' => 'The reporting judge was updated from a change-of-judge proceeding',
         'unknown' => 'Process update',
     ],
 

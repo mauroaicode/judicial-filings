@@ -36,7 +36,7 @@ readonly class OrganizationProcessExportService
             'action_row_count' => 0,
         ]);
 
-        GenerateOrganizationProcessExportJob::dispatch($export->id);
+        dispatch(new GenerateOrganizationProcessExportJob($export->id));
 
         return $export->load(['organization', 'requestedByUser']);
     }

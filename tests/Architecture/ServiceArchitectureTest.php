@@ -35,6 +35,7 @@ beforeEach(function (): void {
         'Src\Application\Admin\Process\Services\ProcessImportBatchService', // dispatch() is the public entry point for batch queuing
         'Src\Application\Admin\Process\Services\PrivateImportSubjectNamesSplitter', // static row helper for private Excel import
         'Src\Application\Admin\Process\Services\ActuacionImportRowIdentity', // row helper: keeps distinct Excel actuaciones with the same date/action
+        'Src\Application\Admin\Process\Services\OrganizationProcessExportService', // queue/rerun/download/history entry points for export API
     ]);
 });
 

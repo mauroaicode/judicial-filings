@@ -36,6 +36,9 @@ Al completar alta (`PATCH … status=registered` **o** `private-import` del mism
 - Stats: `pending_manual_registrations` en `GET /api/admin/dashboard/stats`.
 - Cola paginada: `GET /api/admin/processes/manual-registration-requests`.
 - Resolver: `PATCH /api/admin/processes/manual-registration-requests/{id}` con `{ "status": "registered" | "rejected" }`.
+- Preferido: `POST /api/admin/processes/manual-registration-requests/{id}/register` con body de edición + **`data_source_slug`** (canal):
+  - `publicaciones_procesales` (default / omitido): privado + `is_manual_sync` (como antes).
+  - `judicial_branch`: alta en la org para consulta automática; si el Portal aún no lo tiene, queda placeholder (`process_id` null, `is_manual_sync=false`) y el sync diario lo descubre cuando aparezca.
 - Al marcar **registered** (o al completar `private-import` del mismo radicado+org): mail al abogado/org + notificación interna WebSocket (`ManualRegistrationCompleted` / `manual-registration-completed`).
 - Listado procesos admin ya expone `is_manual_sync` + `data_source_*` (columna Origen / badge Manual).
 - **WebSocket + campanita admin:** al crear solicitud nueva se notifica a todos los `User` admin activos (`database` + `broadcast`), tipo `ManualRegistrationRequested` / `data.type = manual-registration-requested`, canal privado `Src.Domain.User.Models.User.{id}` (mismo patrón que otras notificaciones admin). Queue: `notifications`.

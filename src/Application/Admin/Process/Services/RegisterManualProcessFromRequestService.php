@@ -7,6 +7,10 @@ namespace Src\Application\Admin\Process\Services;
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Src\Application\Admin\Process\Data\RegisterManualRegistrationRequestData;
+use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
+use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Exceptions\ApiProxyFailureException;
+use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Application\Shared\Services\Notification\NotifyAppUserManualRegistrationCompletedService;
 use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
@@ -20,13 +24,19 @@ use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessSubject;
 
 /**
- * Creates (or attaches) the private process from a pending alta-manual request and notifies the lawyer.
+ * Creates (or attaches) a process from a pending alta-manual request and notifies the lawyer.
+ *
+ * Canal (`data_source_slug`):
+ *  - publicaciones_procesales (default): privado + is_manual_sync (comportamiento histórico).
+ *  - judicial_branch: alta en org para consulta automática; si el Portal aún no lo tiene,
+ *    queda placeholder (process_id null) y el sync diario lo descubre cuando aparezca.
  */
 readonly class RegisterManualProcessFromRequestService
 {
     public function __construct(
         private OrganizationProcessQuotaService $organizationProcessQuotaService,
         private NotifyAppUserManualRegistrationCompletedService $notifyAppUserCompletedService,
+        private JudicialBranchConsultService $judicialBranchConsultService,
     ) {}
 
     /**
@@ -50,7 +60,12 @@ readonly class RegisterManualProcessFromRequestService
             abort(422, __('process.manual_registration_details_incomplete'));
         }
 
-        $process = DB::transaction(function () use ($request, $plaintiffs, $defendants): Process {
+        $dataSource = $edits?->resolvedDataSource() ?? ProcessDataSourceSlug::PublicacionesProcesales;
+        $portalSnapshot = $dataSource === ProcessDataSourceSlug::JudicialBranch
+            ? $this->peekJudicialBranchPublicInstance($request->process_number)
+            : null;
+
+        $process = DB::transaction(function () use ($request, $plaintiffs, $defendants, $dataSource, $portalSnapshot): Process {
             $existing = Process::query()
                 ->whereProcessNumber($request->process_number)
                 ->whereHas('organizations', function (Builder $query) use ($request): void {
@@ -79,9 +94,12 @@ readonly class RegisterManualProcessFromRequestService
                 ->first();
 
             if (! $process instanceof Process) {
-                $process = Process::query()->create($this->newProcessAttributes($request));
+                $process = Process::query()->create(
+                    $this->newProcessAttributes($request, $dataSource, $portalSnapshot)
+                );
             } else {
                 $this->applyOptionalProcessDetails($process, $request);
+                $this->alignExistingProcessToChannel($process, $dataSource, $portalSnapshot);
             }
 
             $this->attachOrganization($process, $request);
@@ -192,17 +210,51 @@ readonly class RegisterManualProcessFromRequestService
     }
 
     /**
+     * @param  array{idProceso: int, despacho?: string, ponente?: string, esPrivado?: bool}|null  $portalSnapshot
      * @return array<string, mixed>
      */
-    private function newProcessAttributes(ManualRegistrationRequest $request): array
-    {
+    private function newProcessAttributes(
+        ManualRegistrationRequest $request,
+        ProcessDataSourceSlug $dataSource,
+        ?array $portalSnapshot,
+    ): array {
         $sourceId = ProcessDataSource::query()
-            ->where('slug', ProcessDataSourceSlug::PublicacionesProcesales->value)
+            ->where('slug', $dataSource->value)
             ->where('is_active', true)
             ->value('id');
 
         if (! is_string($sourceId) || $sourceId === '') {
             abort(422, __('process.manual_registration_data_source_missing'));
+        }
+
+        if ($dataSource === ProcessDataSourceSlug::JudicialBranch) {
+            $apiProcessId = $portalSnapshot['idProceso'] ?? null;
+
+            return [
+                'process_id' => is_int($apiProcessId) && $apiProcessId > 0 ? $apiProcessId : null,
+                'process_number' => $request->process_number,
+                'court' => $request->court
+                    ?: (is_string($portalSnapshot['despacho'] ?? null) && $portalSnapshot['despacho'] !== ''
+                        ? $portalSnapshot['despacho']
+                        : 'Sin despacho'),
+                'speaker' => $request->speaker
+                    ?? (is_string($portalSnapshot['ponente'] ?? null) ? $portalSnapshot['ponente'] : null),
+                'department' => __('process.private_process_import_unknown_department'),
+                'process_type' => __('process.private_process_import_process_type_default'),
+                'process_class' => $request->process_class,
+                'subclass_process' => $request->subclass_process,
+                'litigants' => $this->litigantsSummary($request),
+                'process_date' => now()->toDateString(),
+                'last_activity_date' => null,
+                'location' => $request->location,
+                'filing_content' => null,
+                'is_private' => (bool) ($portalSnapshot['esPrivado'] ?? false),
+                'has_multiple_instances' => false,
+                'last_api_update' => $apiProcessId !== null ? now() : null,
+                'is_manual_sync' => false,
+                'process_data_source_id' => $sourceId,
+                'status' => 'activo',
+            ];
         }
 
         return [
@@ -225,6 +277,96 @@ readonly class RegisterManualProcessFromRequestService
             'is_manual_sync' => true,
             'process_data_source_id' => $sourceId,
             'status' => 'activo',
+        ];
+    }
+
+    /**
+     * @param  array{idProceso: int, despacho?: string, ponente?: string, esPrivado?: bool}|null  $portalSnapshot
+     */
+    private function alignExistingProcessToChannel(
+        Process $process,
+        ProcessDataSourceSlug $dataSource,
+        ?array $portalSnapshot,
+    ): void {
+        if ($dataSource !== ProcessDataSourceSlug::JudicialBranch) {
+            return;
+        }
+
+        $sourceId = ProcessDataSource::query()
+            ->where('slug', ProcessDataSourceSlug::JudicialBranch->value)
+            ->where('is_active', true)
+            ->value('id');
+
+        if (! is_string($sourceId) || $sourceId === '') {
+            return;
+        }
+
+        $updates = [
+            'is_manual_sync' => false,
+            'process_data_source_id' => $sourceId,
+        ];
+
+        $apiProcessId = $portalSnapshot['idProceso'] ?? null;
+        if (is_int($apiProcessId) && $apiProcessId > 0 && $process->process_id === null) {
+            $updates['process_id'] = $apiProcessId;
+            $updates['is_private'] = (bool) ($portalSnapshot['esPrivado'] ?? false);
+            $updates['last_api_update'] = now();
+        }
+
+        $process->update($updates);
+    }
+
+    /**
+     * @return array{idProceso: int, despacho?: string, ponente?: string, esPrivado?: bool}|null
+     */
+    private function peekJudicialBranchPublicInstance(string $processNumber): ?array
+    {
+        $this->judicialBranchConsultService->withSeed($processNumber);
+
+        try {
+            $response = $this->judicialBranchConsultService->fetchProcesses($processNumber);
+        } catch (ApiEmptyProcessesException|ApiProxyFailureException|ApiForbiddenOrRateLimitException) {
+            return null;
+        }
+
+        if (! $response->isSuccessful || $response->data === []) {
+            return null;
+        }
+
+        foreach ($response->data as $processData) {
+            if ($processData['esPrivado'] ?? false) {
+                continue;
+            }
+
+            $processId = (int) ($processData['idProceso'] ?? 0);
+            if ($processId === 0) {
+                continue;
+            }
+
+            return [
+                'idProceso' => $processId,
+                'despacho' => isset($processData['despacho']) ? (string) $processData['despacho'] : null,
+                'ponente' => isset($processData['ponente']) ? (string) $processData['ponente'] : null,
+                'esPrivado' => false,
+            ];
+        }
+
+        // Solo instancias privadas: guardar el idProceso para que el sync pueda gestionar el flip.
+        $first = $response->data[0] ?? null;
+        if (! is_array($first)) {
+            return null;
+        }
+
+        $processId = (int) ($first['idProceso'] ?? 0);
+        if ($processId === 0) {
+            return null;
+        }
+
+        return [
+            'idProceso' => $processId,
+            'despacho' => isset($first['despacho']) ? (string) $first['despacho'] : null,
+            'ponente' => isset($first['ponente']) ? (string) $first['ponente'] : null,
+            'esPrivado' => true,
         ];
     }
 

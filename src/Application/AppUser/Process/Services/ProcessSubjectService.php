@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Services;
 
+use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Exceptions\ApiProxyFailureException;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
 use Src\Domain\Process\Models\Process;
@@ -40,7 +42,11 @@ readonly class ProcessSubjectService
      */
     private function fetchSubjectsFromJudicialBranch(int $processId): array
     {
-        $subjectsResponse = $this->judicialBranchConsultService->fetchSubjectsByProcess($processId);
+        try {
+            $subjectsResponse = $this->judicialBranchConsultService->fetchSubjectsByProcess($processId);
+        } catch (ApiProxyFailureException|ApiForbiddenOrRateLimitException) {
+            return [];
+        }
 
         if (! $subjectsResponse->isSuccessful || empty($subjectsResponse->data)) {
             return [];

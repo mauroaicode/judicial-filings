@@ -526,6 +526,22 @@ it('attaches existing process to organization if process already exists globally
             'contenidoRadicacion' => 'APELACION DE SENTENCIA',
             'esPrivado' => false,
         ], 200),
+        config('judicial-branch.api_url')."/Proceso/Actuaciones/{$existingProcessId}*" => Http::response([
+            'actuaciones' => [],
+            'paginacion' => [
+                'cantidadPaginas' => 1,
+            ],
+        ], 200),
+        config('judicial-branch.api_url')."/Proceso/Sujetos/{$existingProcessId}*" => Http::response([
+            'sujetos' => [],
+            'paginacion' => [
+                'cantidadRegistros' => 0,
+                'registrosPagina' => 40,
+                'cantidadPaginas' => 1,
+                'pagina' => 1,
+                'paginas' => null,
+            ],
+        ], 200),
     ]);
 
     $response = $this->actingAs($this->appUser)

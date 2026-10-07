@@ -76,6 +76,7 @@ final class ConsolidatedDigestEmailPresenter
             ?: config('tasks.frontend.base_url', 'http://localhost:4200'));
 
         $candidate = rtrim($candidate, '/');
+
         $parts = parse_url($candidate);
 
         if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'])) {

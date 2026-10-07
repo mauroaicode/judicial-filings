@@ -72,9 +72,10 @@ class ProcessQueryBuilder extends Builder
     {
         $this->joinActiveOrganizationTracking();
 
+        // Incluye placeholders (process_id null) de altas manuales por canal Rama:
+        // SyncProcessJob → discoverNewProcesses reclama el idProceso cuando el Portal lo publique.
         $this->join('process_data_sources', 'processes.process_data_source_id', '=', 'process_data_sources.id')
             ->where('process_data_sources.slug', ProcessDataSourceSlug::JudicialBranch->value)
-            ->whereNotNull('processes.process_id')
             ->where('processes.is_manual_sync', false);
 
         if ($radicadoFilter !== null && $radicadoFilter !== '') {

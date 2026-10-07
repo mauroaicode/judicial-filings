@@ -6,8 +6,8 @@ namespace Src\Application\Admin\Process\Exports;
 
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
-use Src\Application\Admin\Process\Services\OrganizationProcessExportActionQueryService;
-use Src\Application\Admin\Process\Services\OrganizationProcessExportQueryService;
+use Src\Application\Admin\Process\Support\OrganizationProcessExportActionQueryService;
+use Src\Application\Admin\Process\Support\OrganizationProcessExportQueryService;
 
 /**
  * Workbook orchestrator: processes sheet always; actuaciones sheet only when requested.

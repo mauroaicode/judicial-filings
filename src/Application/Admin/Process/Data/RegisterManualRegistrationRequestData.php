@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Process\Data;
 
+use Illuminate\Validation\Rule;
 use Spatie\LaravelData\Attributes\Validation\Enum;
 use Spatie\LaravelData\Attributes\Validation\Max;
 use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Attributes\Validation\StringType;
 use Spatie\LaravelData\Data;
 use Src\Application\Shared\Traits\TranslatableDataAttributesTrait;
+use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 
 class RegisterManualRegistrationRequestData extends Data
@@ -34,6 +36,12 @@ class RegisterManualRegistrationRequestData extends Data
         public readonly ?string $subclass_process = null,
         #[Nullable, StringType, Max(255)]
         public readonly ?string $location = null,
+        /**
+         * Canal de alta: publicaciones (manual forever) o Rama (consulta automática cuando el Portal lo tenga).
+         * Default: publicaciones_procesales (comportamiento histórico).
+         */
+        #[Nullable, StringType]
+        public readonly ?string $data_source_slug = null,
         public readonly ?array $plaintiffs = null,
         public readonly ?array $defendants = null,
         public readonly ?array $other_subjects = null,
@@ -45,6 +53,14 @@ class RegisterManualRegistrationRequestData extends Data
     public static function rules(): array
     {
         return [
+            'data_source_slug' => [
+                'nullable',
+                'string',
+                Rule::in([
+                    ProcessDataSourceSlug::PublicacionesProcesales->value,
+                    ProcessDataSourceSlug::JudicialBranch->value,
+                ]),
+            ],
             'plaintiffs' => ['nullable', 'array', 'min:1'],
             'plaintiffs.*.name' => ['required', 'string', 'max:255'],
             'plaintiffs.*.identification' => ['nullable', 'string', 'max:50'],
@@ -55,6 +71,13 @@ class RegisterManualRegistrationRequestData extends Data
             'other_subjects.*.name' => ['required', 'string', 'max:255'],
             'other_subjects.*.identification' => ['nullable', 'string', 'max:50'],
         ];
+    }
+
+    public function resolvedDataSource(): ProcessDataSourceSlug
+    {
+        $slug = is_string($this->data_source_slug) ? trim($this->data_source_slug) : '';
+
+        return ProcessDataSourceSlug::tryFrom($slug) ?? ProcessDataSourceSlug::PublicacionesProcesales;
     }
 
     /**

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\Admin\Process\Services;
+namespace Src\Application\Admin\Process\Support;
 
 use Generator;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Domain\Process\Models\ProcessAction;
@@ -70,7 +70,7 @@ readonly class OrganizationProcessExportActionQueryService
             ->join('processes', 'processes.id', '=', 'process_actions.process_id')
             ->whereIn('process_actions.process_id', $processIds)
             ->orderBy('processes.process_number')
-            ->orderBy('process_actions.action_date')
+            ->oldest('process_actions.action_date')
             ->orderBy('process_actions.cons_action')
             ->orderBy('process_actions.id');
 
@@ -78,7 +78,7 @@ readonly class OrganizationProcessExportActionQueryService
             $query->whereDate(
                 'process_actions.action_date',
                 '>=',
-                Carbon::parse($filters->actions_from)->toDateString()
+                Date::parse($filters->actions_from)->toDateString()
             );
         }
 
@@ -86,7 +86,7 @@ readonly class OrganizationProcessExportActionQueryService
             $query->whereDate(
                 'process_actions.action_date',
                 '<=',
-                Carbon::parse($filters->actions_to)->toDateString()
+                Date::parse($filters->actions_to)->toDateString()
             );
         }
 
@@ -98,9 +98,11 @@ readonly class OrganizationProcessExportActionQueryService
      */
     private function mapRow(ProcessAction $action): array
     {
+        $court = mb_strtoupper(trim((string) $action->getAttribute('court')));
+
         return [
-            'Número de radicado' => (string) ($action->getAttribute('process_number') ?? $action->process?->process_number ?? ''),
-            'Despacho' => mb_strtoupper(trim((string) ($action->getAttribute('court') ?? $action->process?->court ?? ''))) ?: null,
+            'Número de radicado' => (string) $action->getAttribute('process_number'),
+            'Despacho' => $court !== '' ? $court : null,
             'Fecha actuación' => DateFormatHelper::formatIsoDate($action->action_date),
             'Actuación' => $action->action,
             'Anotación' => $action->annotation,

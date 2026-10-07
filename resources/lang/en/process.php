@@ -76,7 +76,7 @@ return [
     'manual_registration_status_updated' => 'Manual registration request updated.',
     'manual_registration_process_created' => 'The filing was registered for the organization.',
     'manual_registration_details_incomplete' => 'Plaintiffs, defendants, process class or role are missing.',
-    'manual_registration_data_source_missing' => 'The procedural publications data source is not configured.',
+    'manual_registration_data_source_missing' => 'The selected data source for manual registration is not configured.',
     'manual_registration_notification_title' => 'New manual registration request',
     'manual_registration_notification_description' => 'Filing :number (:reason) — org :organization — requested by :user.',
     'export_finished_notification_title' => 'Process export ready',

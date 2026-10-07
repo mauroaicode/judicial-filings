@@ -134,6 +134,7 @@ class RegisterProcessServiceAiChatTest extends TestCase
             app(ProcessActionAlertNotificationService::class),
             app(ProcessTimelineRecorder::class),
             app(RecordSemaphoreTimelineEventService::class),
+            app(\Src\Application\Shared\Process\Services\ApplySpeakerChangeFromProcessActionService::class),
         );
 
         $service = new RegisterProcessService(

@@ -11,7 +11,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStrictNullComparison;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
-use Src\Application\Admin\Process\Services\OrganizationProcessExportActionQueryService;
+use Src\Application\Admin\Process\Support\OrganizationProcessExportActionQueryService;
 
 class OrganizationProcessActionsExcelExport implements FromGenerator, ShouldAutoSize, WithHeadings, WithStrictNullComparison, WithTitle
 {

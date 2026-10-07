@@ -17,8 +17,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use RuntimeException;
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
 use Src\Application\Admin\Process\Exports\OrganizationProcessWorkbookExport;
-use Src\Application\Admin\Process\Services\OrganizationProcessExportActionQueryService;
-use Src\Application\Admin\Process\Services\OrganizationProcessExportQueryService;
+use Src\Application\Admin\Process\Support\OrganizationProcessExportActionQueryService;
+use Src\Application\Admin\Process\Support\OrganizationProcessExportQueryService;
 use Src\Application\Shared\Services\Notification\NotifyAdminProcessExportFinishedService;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Process\Enums\ProcessExportStatus;
@@ -80,7 +80,7 @@ class GenerateOrganizationProcessExportJob implements ShouldQueue
                     'release_in_seconds' => $delay,
                 ]);
 
-                self::dispatch($this->exportId, $this->syncDeferCount + 1)
+                dispatch(new self($this->exportId, $this->syncDeferCount + 1))
                     ->delay(now()->addSeconds($delay));
 
                 return;
@@ -97,7 +97,7 @@ class GenerateOrganizationProcessExportJob implements ShouldQueue
         $lock = Cache::lock('process-export:org:'.$export->organization_id, $lockSeconds);
 
         if (! $lock->get()) {
-            self::dispatch($this->exportId, $this->syncDeferCount)
+            dispatch(new self($this->exportId, $this->syncDeferCount))
                 ->delay(now()->addSeconds(30));
 
             return;
@@ -127,7 +127,8 @@ class GenerateOrganizationProcessExportJob implements ShouldQueue
         ]);
 
         $export->refresh();
-        app(NotifyAdminProcessExportFinishedService::class)->handle($export);
+
+        resolve(NotifyAdminProcessExportFinishedService::class)->handle($export);
     }
 
     private function shouldDeferForActiveSync(): bool

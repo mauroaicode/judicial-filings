@@ -38,6 +38,7 @@ return [
         'actividad_roja' => 'Actividad reciente que requiere atención',
         'actividad_amarilla' => 'Actividad moderada',
         'speaker_updated_from_sync' => 'El ponente se actualizó desde la consulta oficial',
+        'speaker_updated_from_action' => 'El ponente se actualizó por una actuación de cambio de ponente',
         'unknown' => 'Actualización del proceso',
     ],
 

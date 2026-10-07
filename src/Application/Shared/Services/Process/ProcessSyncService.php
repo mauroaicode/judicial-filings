@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
+use Src\Application\Shared\Exceptions\ApiProxyFailureException;
 use Src\Application\Shared\Exceptions\SamaiPublicPortalException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
@@ -18,6 +20,7 @@ use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Jobs\SendOrganizationNotificationJob;
 use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
+use Src\Application\Shared\Process\Services\ApplySpeakerChangeFromProcessActionService;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
 use Src\Application\Shared\Process\Timeline\Services\RecordSemaphoreTimelineEventService;
@@ -55,6 +58,7 @@ class ProcessSyncService
         private readonly ProcessTimelineRecorder $timelineRecorder,
         private readonly RecordSemaphoreTimelineEventService $recordSemaphoreTimelineEventService,
         private readonly RecordSpeakerChangedTimelineEventService $recordSpeakerChangedTimelineEventService,
+        private readonly ApplySpeakerChangeFromProcessActionService $applySpeakerChangeFromProcessActionService,
         private readonly StaleReplicationDetector $staleReplicationDetector,
     ) {}
 
@@ -647,6 +651,12 @@ class ProcessSyncService
             $hasNewActions = true;
             $latestNewAction = $action;
 
+            $this->applySpeakerChangeFromProcessActionService->handle(
+                $process,
+                $action,
+                ProcessTimelineEventSource::SAMAI,
+            );
+
             $actionDateStr = $attributes['action_date'];
             if ($maxActionDate === null || $actionDateStr > $maxActionDate) {
                 $maxActionDate = $actionDateStr;
@@ -784,6 +794,12 @@ class ProcessSyncService
             $action = ProcessAction::query()->create($attributes);
             $hasNewActions = true;
             $latestNewAction = $action;
+
+            $this->applySpeakerChangeFromProcessActionService->handle(
+                $process,
+                $action,
+                ProcessTimelineEventSource::JUDICIAL_BRANCH,
+            );
 
             $actionDate = Date::parse($attributes['action_date']);
             if (! $maxActionDate instanceof Carbon || $actionDate->greaterThan($maxActionDate)) {
@@ -1017,7 +1033,18 @@ class ProcessSyncService
             $onlyFirstPage = $process->actions()->exists();
             $notifyFromDate = ($onlyFirstPage || $registrationMode) ? null : $radicadoNotifyFromDate;
 
-            $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
+            try {
+                $actionsResult = $this->judicialService->fetchActionByProcess($apiProcessId, $onlyFirstPage);
+            } catch (ApiProxyFailureException|ApiForbiddenOrRateLimitException $e) {
+                Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
+                    'process_number' => $processNumber,
+                    'process_id' => $process->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                continue;
+            }
+
             if (! $actionsResult->isSuccessful) {
                 Log::channel($channel)->error('ProcessSyncService: failed to fetch actuaciones', [
                     'process_number' => $processNumber,
@@ -1039,14 +1066,23 @@ class ProcessSyncService
             );
 
             if (! $process->subjects()->exists()) {
-                $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
-                if (! $subjectsResult->isSuccessful) {
+                try {
+                    $subjectsResult = $this->judicialService->fetchSubjectsByProcess($apiProcessId);
+
+                    if (! $subjectsResult->isSuccessful) {
+                        Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
+                            'process_number' => $processNumber,
+                            'process_id' => $process->id,
+                        ]);
+                    } else {
+                        $this->syncSujetos($process, $subjectsResult->data);
+                    }
+                } catch (ApiProxyFailureException|ApiForbiddenOrRateLimitException $e) {
                     Log::channel($channel)->error('ProcessSyncService: failed to fetch sujetos', [
                         'process_number' => $processNumber,
                         'process_id' => $process->id,
+                        'error' => $e->getMessage(),
                     ]);
-                } else {
-                    $this->syncSujetos($process, $subjectsResult->data);
                 }
             }
 
@@ -1162,9 +1198,16 @@ class ProcessSyncService
             $process = Process::query()->where('process_id', $apiProcessId)->first();
 
             if ($process === null) {
-                $process = $this->createProcessFromApi($apiProceso);
-                $this->linkOrganizationsToNewProcess($process);
-                $created++;
+                $placeholder = $this->findJudicialBranchPlaceholder((string) ($apiProceso['llaveProceso'] ?? $processNumber));
+
+                if ($placeholder instanceof Process) {
+                    $this->claimJudicialBranchPlaceholder($placeholder, $apiProceso);
+                    $process = $placeholder->fresh() ?? $placeholder;
+                } else {
+                    $process = $this->createProcessFromApi($apiProceso);
+                    $this->linkOrganizationsToNewProcess($process);
+                    $created++;
+                }
             } else {
                 // If it already exists, update metadata from the process list info
                 $lastActivity = $this->parseDate($apiProceso['fechaUltimaActuacion'] ?? null);
@@ -1257,6 +1300,104 @@ class ProcessSyncService
                 $this->createMultipleInstancesNotifications($processesForRadicado);
             }
         }
+    }
+
+    /**
+     * Placeholder created by admin alta-manual with channel judicial_branch before the Portal
+     * published the radicado (process_id still null).
+     */
+    private function findJudicialBranchPlaceholder(string $processNumber): ?Process
+    {
+        if ($processNumber === '') {
+            return null;
+        }
+
+        return Process::query()
+            ->where('process_number', $processNumber)
+            ->whereNull('process_id')
+            ->where('is_manual_sync', false)
+            ->whereHas(
+                'processDataSource',
+                fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value)
+            )
+            ->latest()
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $apiProceso
+     */
+    private function claimJudicialBranchPlaceholder(Process $placeholder, array $apiProceso): void
+    {
+        $apiProcessId = (int) ($apiProceso['idProceso'] ?? 0);
+        if ($apiProcessId === 0) {
+            return;
+        }
+
+        $lastActivity = $this->parseDate($apiProceso['fechaUltimaActuacion'] ?? null);
+        $updateData = [
+            'process_id' => $apiProcessId,
+            'is_private' => (bool) ($apiProceso['esPrivado'] ?? false),
+            'last_api_update' => now(),
+            'is_manual_sync' => false,
+        ];
+
+        $apiCourt = trim((string) ($apiProceso['despacho'] ?? ''));
+        $apiSpeaker = trim((string) ($apiProceso['ponente'] ?? ''));
+        $apiDepartment = trim((string) ($apiProceso['departamento'] ?? ''));
+
+        if ($apiCourt !== '') {
+            $updateData['court'] = $apiCourt;
+        }
+
+        if ($apiSpeaker !== '') {
+            $updateData['speaker'] = $apiSpeaker;
+        }
+
+        if ($apiDepartment !== '') {
+            $updateData['department'] = $apiDepartment;
+        }
+
+        if ($lastActivity !== null) {
+            $updateData['last_activity_date'] = $lastActivity;
+        }
+
+        $detail = $this->judicialService->fetchDetailProcess($apiProcessId);
+        if ($detail->isSuccessful) {
+            $data = $detail->data;
+            if (isset($data['tipoProceso'])) {
+                $updateData['process_type'] = (string) $data['tipoProceso'];
+            }
+
+            if (isset($data['claseProceso'])) {
+                $updateData['process_class'] = (string) $data['claseProceso'];
+            }
+
+            if (isset($data['subclaseProceso'])) {
+                $updateData['subclass_process'] = (string) $data['subclaseProceso'];
+            }
+
+            if (isset($data['ubicacion'])) {
+                $updateData['location'] = (string) $data['ubicacion'];
+            }
+
+            if (array_key_exists('sujetosProcesales', $data)) {
+                $updateData['litigants'] = $data['sujetosProcesales'];
+            }
+
+            if (array_key_exists('esPrivado', $data)) {
+                $updateData['is_private'] = (bool) $data['esPrivado'];
+            }
+        }
+
+        $placeholder->update($updateData);
+
+        Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+            ->info('ProcessSyncService: claimed judicial_branch placeholder from Portal', [
+                'process_uuid' => $placeholder->id,
+                'process_number' => $placeholder->process_number,
+                'process_id' => $apiProcessId,
+            ]);
     }
 
     /**

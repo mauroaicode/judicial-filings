@@ -44,10 +44,15 @@ class ProcessExportResource extends Resource
             $requestedByName = trim($requester->name.' '.$requester->last_name) ?: $requester->email;
         }
 
+        $organizationName = '';
+        if ($export->relationLoaded('organization') && $export->getRelation('organization') !== null) {
+            $organizationName = (string) $export->getRelation('organization')->name;
+        }
+
         return new self(
             id: $export->id,
             organization_id: $export->organization_id,
-            organization_name: (string) ($export->organization?->name ?? ''),
+            organization_name: $organizationName,
             requested_by: $export->requested_by,
             requested_by_name: $requestedByName,
             status: $export->status->value,

@@ -28,6 +28,8 @@ class RecordSpeakerChangedTimelineEventService
         ProcessTimelineEventSource $source = ProcessTimelineEventSource::JUDICIAL_BRANCH,
         ?CarbonInterface $occurredAt = null,
         string $reason = 'speaker_updated_from_sync',
+        ?string $subjectType = 'process',
+        ?string $subjectId = null,
     ): void {
         $fromNormalized = $this->normalize($from);
         $toNormalized = $this->normalize($to);
@@ -41,6 +43,7 @@ class RecordSpeakerChangedTimelineEventService
         }
 
         $occurredAt ??= now();
+        $subjectId ??= $process->id;
 
         $this->timelineRecorder->handle($process, new RecordProcessTimelineEventData(
             eventType: ProcessTimelineEventType::SPEAKER_CHANGED,
@@ -58,8 +61,8 @@ class RecordSpeakerChangedTimelineEventService
                     ],
                 ],
             ],
-            subjectType: 'process',
-            subjectId: $process->id,
+            subjectType: $subjectType,
+            subjectId: $subjectId,
             actorType: 'job',
             occurredAt: $occurredAt,
         ));

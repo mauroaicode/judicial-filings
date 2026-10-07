@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
-use Src\Application\Admin\Process\Services\OrganizationProcessExportActionQueryService;
+use Src\Application\Admin\Process\Support\OrganizationProcessExportActionQueryService;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
