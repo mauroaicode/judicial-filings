@@ -20,6 +20,7 @@ class OrganizationSettingsResource extends Resource
         public ?int $default_max_active_processes,
         public int $active_processes_count,
         public ?int $remaining_slots,
+        public bool $can_view_action_documents = false,
     ) {}
 
     public static function fromOrganization(
@@ -33,6 +34,7 @@ class OrganizationSettingsResource extends Resource
             default_max_active_processes: $quotaService->defaultMaxActiveProcesses(),
             active_processes_count: $quotaService->countActiveProcesses($organization->id),
             remaining_slots: $quotaService->remainingSlots($organization->id),
+            can_view_action_documents: (bool) $organization->can_view_action_documents,
         );
     }
 }

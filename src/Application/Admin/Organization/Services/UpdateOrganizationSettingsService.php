@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Organization\Services;
 
+use Spatie\LaravelData\Optional;
 use Src\Application\Admin\Organization\Data\UpdateOrganizationSettingsData;
 use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\Organization\Models\Organization;
@@ -22,6 +23,12 @@ readonly class UpdateOrganizationSettingsService
         $settings->update([
             'max_active_processes' => $data->max_active_processes,
         ]);
+
+        if (! $data->can_view_action_documents instanceof Optional) {
+            $organization->update([
+                'can_view_action_documents' => $data->can_view_action_documents,
+            ]);
+        }
 
         return $settings->refresh();
     }

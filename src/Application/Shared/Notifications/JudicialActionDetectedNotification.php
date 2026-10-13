@@ -16,12 +16,14 @@ class JudicialActionDetectedNotification extends Notification implements ShouldQ
     use Queueable;
 
     /**
-     * @param  string  $notificationType  'actuacion' | 'actuacion_alerta'
+     * @param  string  $notificationType  'actuacion' | 'actuacion_alerta' | 'actuacion_documento'
      */
     public function __construct(
         private readonly ProcessAction $action,
         private readonly Process $process,
-        private readonly string $notificationType
+        private readonly string $notificationType,
+        private readonly ?int $mediaId = null,
+        private readonly ?string $originalFilename = null,
     ) {}
 
     /**
@@ -68,18 +70,42 @@ class JudicialActionDetectedNotification extends Notification implements ShouldQ
      */
     private function getData(): array
     {
-        $isAlert = $this->notificationType === 'actuacion_alerta';
+        [$title, $description, $type] = match ($this->notificationType) {
+            'actuacion_alerta' => [
+                __('process.internal_alert_title'),
+                __('process.internal_alert_description', ['number' => $this->process->process_number]),
+                'alert-keyword',
+            ],
+            'actuacion_documento' => [
+                __('process.internal_document_title'),
+                __('process.internal_document_description', [
+                    'filename' => $this->originalFilename ?: __('process.document_fallback_name'),
+                    'number' => $this->process->process_number,
+                ]),
+                'action-documents',
+            ],
+            default => [
+                __('process.internal_action_title'),
+                __('process.internal_action_description', ['number' => $this->process->process_number]),
+                'new-action',
+            ],
+        };
 
-        return [
-            'title' => $isAlert ? __('process.internal_alert_title') : __('process.internal_action_title'),
-            'description' => $isAlert
-                ? __('process.internal_alert_description', ['number' => $this->process->process_number])
-                : __('process.internal_action_description', ['number' => $this->process->process_number]),
-            'type' => $isAlert ? 'alert-keyword' : 'new-action',
+        $payload = [
+            'title' => $title,
+            'description' => $description,
+            'type' => $type,
             'process_id' => $this->process->id,
             'action_id' => $this->action->id,
             'process_number' => $this->process->process_number,
         ];
+
+        if ($this->notificationType === 'actuacion_documento') {
+            $payload['media_id'] = $this->mediaId;
+            $payload['original_filename'] = $this->originalFilename;
+        }
+
+        return $payload;
     }
 
     /**

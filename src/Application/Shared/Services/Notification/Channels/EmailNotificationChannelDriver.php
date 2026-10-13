@@ -6,9 +6,11 @@ namespace Src\Application\Shared\Services\Notification\Channels;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Src\Application\Admin\Process\Services\NotifyProcessActionDocumentUploadedService;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
 use Src\Application\Shared\Mail\JudicialActionDetectedMailable;
 use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
+use Src\Domain\Media\Models\Media;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Process\Models\Process;
@@ -45,6 +47,22 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
         }
 
         $process = $action->process;
+        $mediaId = null;
+        $originalFilename = null;
+
+        if ($type === NotifyProcessActionDocumentUploadedService::NOTIFICATION_TYPE) {
+            $media = Media::query()
+                ->where('collection_name', Media::COLLECTION_ACTION_DOCUMENTS)
+                ->where('model_type', $action->getMorphClass())
+                ->where('model_id', $action->id)
+                ->orderByDesc('id')
+                ->first(['id', 'file_name']);
+
+            if ($media instanceof Media) {
+                $mediaId = (int) $media->id;
+                $originalFilename = $media->file_name;
+            }
+        }
 
         // Add defensive delay to prevent Mailgun rate limiting for new accounts
         \Illuminate\Support\Sleep::sleep(2);
@@ -54,7 +72,9 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
                 $action,
                 $process,
                 $notification->organization_id,
-                $type
+                $type,
+                $mediaId,
+                $originalFilename,
             ));
 
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))

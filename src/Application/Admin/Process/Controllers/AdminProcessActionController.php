@@ -49,21 +49,35 @@ readonly class AdminProcessActionController
         /** @var LengthAwarePaginator $paginatedActions */
         $paginatedActions = $this->processActionFinderService->handle($processId, $filters, $perPage);
 
-        // Avoid N+1: resource reads process.organizations for alert_level.
+        // Avoid N+1: resource reads process.organizations for alert_level + media ACL.
         /** @var \Illuminate\Database\Eloquent\Collection<int, ProcessAction> $collection */
         $collection = $paginatedActions->getCollection();
-        $collection->load('process.organizations');
+        $collection->load(['process.organizations', 'media.organizations']);
 
         $paginatedActions->setCollection($collection);
 
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 
         $transformedItems = $paginatedActions->getCollection()
-            ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel($action, $offset + $key + 1)->toArray());
+            ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel(
+                $action,
+                $offset + $key + 1,
+                includeDocuments: true,
+                includeDocumentOrganizationIds: true,
+            )->toArray());
 
         // Fetch next-page context so cross-page fijación↔auto pairs can be resolved
         $contextActions = $this->pairingContextService->handle($paginatedActions);
-        $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel($action, 0)->toArray());
+        if ($contextActions instanceof \Illuminate\Database\Eloquent\Collection) {
+            $contextActions->load(['media.organizations']);
+        }
+
+        $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel(
+            $action,
+            0,
+            includeDocuments: true,
+            includeDocumentOrganizationIds: true,
+        )->toArray());
 
         // Agrupar Fijaciones con sus Autos (con contexto de página siguiente)
         $groupedItems = $this->groupProcessActionsService->handle($transformedItems, $contextItems->isNotEmpty() ? $contextItems : null);
@@ -83,11 +97,15 @@ readonly class AdminProcessActionController
     public function update(string $id, string $actionId, UpdateAdminProcessActionData $data): JsonResponse
     {
         $action = $this->updateAdminProcessActionService->handle($id, $actionId, $data);
-        $action->load('process.organizations');
+        $action->load(['process.organizations', 'media.organizations']);
 
         return response()->json([
             'message' => __('process.action_updated_successfully'),
-            'action' => ProcessActionResource::fromModel($action)->toArray(),
+            'action' => ProcessActionResource::fromModel(
+                $action,
+                includeDocuments: true,
+                includeDocumentOrganizationIds: true,
+            )->toArray(),
         ]);
     }
 

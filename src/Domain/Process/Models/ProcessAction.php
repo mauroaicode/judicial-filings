@@ -13,6 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Src\Domain\Media\Models\Media;
 use Src\Domain\Process\QueryBuilders\ProcessActionQueryBuilder;
 use Src\Domain\Shared\Traits\Uuid;
 
@@ -33,6 +36,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read Process $process
  * @property-read Collection<int, ProcessActionAlertHighlight> $alertHighlights
  * @property-read Collection<int, AlertActionKeyword> $alertActionKeywords
+ * @property-read Collection<int, Media> $media
  *
  * @method static ProcessActionQueryBuilder query()
  * @method ProcessActionQueryBuilder whereProcess(string $processId)
@@ -42,9 +46,10 @@ use Src\Domain\Shared\Traits\Uuid;
  * @method ProcessActionQueryBuilder orderedByRegistrationDate()
  * @method ProcessActionQueryBuilder orderedByConsActionDesc()
  */
-class ProcessAction extends Model
+class ProcessAction extends Model implements HasMedia
 {
     use HasFactory;
+    use InteractsWithMedia;
     use Uuid;
 
     protected $table = 'process_actions';
@@ -135,6 +140,13 @@ class ProcessAction extends Model
             'process_action_id',
             'alert_action_keyword_id'
         );
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection(Media::COLLECTION_ACTION_DOCUMENTS)
+            ->useDisk((string) config('media-library.disk_name', 'local'))
+            ->acceptsMimeTypes(['application/pdf']);
     }
 
     protected static function booted(): void

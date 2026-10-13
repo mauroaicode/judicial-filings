@@ -94,11 +94,22 @@ return [
     // Notifications
     'action_detected_subject' => 'New action detected: :number',
     'alert_detected_subject' => '⚠️ Keyword alert: :number',
+    'document_uploaded_subject' => 'New document on action: :number',
     'action_detected_title' => 'New Judicial Action',
     'alert_detected_title' => 'Judicial Action Alert',
+    'document_uploaded_title' => 'Action document available',
     'new_action_intro' => 'A new action has been recorded in one of your followed processes.',
     'keyword_alert_intro' => 'Attention! An action containing keywords of interest has been detected.',
+    'document_uploaded_intro' => 'A document was attached to an action in one of your processes. Open it in NotiJudicial on the process detail.',
+    'documents_uploaded_successfully' => 'Documents uploaded successfully.',
+    'document_organizations_updated' => 'Document organization access updated.',
+    'document_deleted_successfully' => 'Document deleted successfully.',
+    'document_not_found' => 'Document not found.',
+    'documents_organizations_not_linked' => 'One or more organizations are not linked to this process.',
     'view_process' => 'View Full Process',
+    'view_document' => 'View document',
+    'document_filename' => 'File',
+    'document_fallback_name' => 'document',
     'process_number' => 'Radicado',
     'action_date' => 'Action Date',
     'action_text' => 'Action',
@@ -108,8 +119,10 @@ return [
     // Internal/Websocket
     'internal_action_title' => 'New action',
     'internal_alert_title' => '⚠️ Keyword alert',
+    'internal_document_title' => 'New document available',
     'internal_action_description' => 'New action in radicado :number',
     'internal_alert_description' => 'Alert! Keyword detected in radicado :number',
+    'internal_document_description' => ':filename was attached to radicado :number',
 
     // Consolidated Notifications
     'consolidated_notifications_subject' => 'Action summary for :name - :date',

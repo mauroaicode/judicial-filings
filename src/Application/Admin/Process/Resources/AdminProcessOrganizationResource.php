@@ -28,6 +28,7 @@ class AdminProcessOrganizationResource extends Resource
         public string $interest_date,
         public ?string $inactivity_alert_level,
         public ?string $alert_level,
+        public bool $can_view_action_documents = false,
     ) {}
 
     public static function fromOrganizationAndProcess(Organization $organization, Process $process): self
@@ -62,6 +63,7 @@ class AdminProcessOrganizationResource extends Resource
                 $process->last_activity_date,
                 $lawyerRole,
             ),
+            can_view_action_documents: (bool) $organization->can_view_action_documents,
         );
     }
 }

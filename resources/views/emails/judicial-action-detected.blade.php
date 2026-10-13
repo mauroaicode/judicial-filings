@@ -1,15 +1,31 @@
-@php use Illuminate\Support\Str; @endphp
+@php
+    use Illuminate\Support\Str;
+    use Src\Application\Shared\Helpers\DateFormatHelper;
+@endphp
 @extends('emails.layouts.email')
 
-@section('title', $notificationType === 'actuacion_alerta' ? __('process.alert_detected_title') : __('process.action_detected_title'))
+@php
+    $emailTitle = match ($notificationType) {
+        'actuacion_alerta' => __('process.alert_detected_title'),
+        'actuacion_documento' => __('process.document_uploaded_title'),
+        default => __('process.action_detected_title'),
+    };
+    $emailIntro = match ($notificationType) {
+        'actuacion_alerta' => __('process.keyword_alert_intro'),
+        'actuacion_documento' => __('process.document_uploaded_intro'),
+        default => __('process.new_action_intro'),
+    };
+    $isDocument = $notificationType === 'actuacion_documento';
+@endphp
+@section('title', $emailTitle)
 
 @section('content')
     <div style="margin-bottom: 30px;">
         <h1 style="font-size: 22px; font-weight: 700; color: #24163E; margin: 0 0 10px 0;">
-            {{ $notificationType === 'actuacion_alerta' ? __('process.alert_detected_title') : __('process.action_detected_title') }}
+            {{ $emailTitle }}
         </h1>
         <p style="font-size: 15px; color: #6B7280; margin: 0;">
-            {{ $notificationType === 'actuacion_alerta' ? __('process.keyword_alert_intro') : __('process.new_action_intro') }}
+            {{ $emailIntro }}
         </p>
     </div>
 
@@ -28,16 +44,22 @@
                     </td>
                     <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{ $process->process_number }}</td>
                 </tr>
+                @if($isDocument && ! empty($originalFilename))
+                    <tr>
+                        <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.document_filename') }}:</td>
+                        <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{ $originalFilename }}</td>
+                    </tr>
+                @endif
                 <tr>
                     <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_date') }}:</td>
-                    <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->action_date->format('d/m/Y') }}</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ DateFormatHelper::formatDateWithDayOfWeek($action->action_date) }}</td>
                 </tr>
                 @if($action->start_date)
                     <tr>
                         <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_start_date') }}
                             :
                         </td>
-                        <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->start_date->format('d/m/Y') }}</td>
+                        <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ DateFormatHelper::formatDateWithDayOfWeek($action->start_date) }}</td>
                     </tr>
                 @endif
                 @if($action->end_date)
@@ -45,7 +67,7 @@
                         <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.action_end_date') }}
                             :
                         </td>
-                        <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $action->end_date->format('d/m/Y') }}</td>
+                        <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ DateFormatHelper::formatDateWithDayOfWeek($action->end_date) }}</td>
                     </tr>
                 @endif
                 @if($notificationType === 'actuacion_alerta')
@@ -79,9 +101,9 @@
     @endif
 
     <div style="text-align: center; margin-top: 40px;">
-        <a href="{{ config('app.url') }}/processes/{{ $process->id }}"
+        <a href="{{ $ctaUrl }}"
            style="background-color: #24163E; color: #FFFFFF; padding: 16px 32px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 15px; display: inline-block;">
-            {{ __('process.view_process') }}
+            {{ $ctaLabel }}
         </a>
     </div>
 @endsection

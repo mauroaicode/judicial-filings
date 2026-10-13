@@ -95,11 +95,22 @@ return [
     // Notifications
     'action_detected_subject' => 'Nueva actuación detectada: :number',
     'alert_detected_subject' => '⚠️ Alerta de palabra clave: :number',
+    'document_uploaded_subject' => 'Nuevo documento en actuación: :number',
     'action_detected_title' => 'Nueva Actuación Judicial',
     'alert_detected_title' => 'Alerta de Actuación Judicial',
+    'document_uploaded_title' => 'Documento de actuación disponible',
     'new_action_intro' => 'Se ha registrado una nueva actuación en uno de sus procesos seguidos.',
     'keyword_alert_intro' => '¡Atención! Se ha detectado una actuación que contiene palabras clave de su interés.',
+    'document_uploaded_intro' => 'Se adjuntó un documento a una actuación de uno de sus procesos. Ábralo en NotiJudicial para verlo en el detalle del proceso.',
+    'documents_uploaded_successfully' => 'Documentos cargados exitosamente.',
+    'document_organizations_updated' => 'Organizaciones con acceso al documento actualizadas.',
+    'document_deleted_successfully' => 'Documento eliminado exitosamente.',
+    'document_not_found' => 'Documento no encontrado.',
+    'documents_organizations_not_linked' => 'Una o más organizaciones no están vinculadas a este proceso.',
     'view_process' => 'Ver Proceso Completo',
+    'view_document' => 'Ver documento',
+    'document_filename' => 'Archivo',
+    'document_fallback_name' => 'documento',
     'process_number' => 'Radicado',
     'action_date' => 'Fecha de Actuación',
     'action_start_date' => 'Fecha Inicio Término',
@@ -111,8 +122,10 @@ return [
     // Internal/Websocket
     'internal_action_title' => 'Nueva actuación',
     'internal_alert_title' => '⚠️ Alerta de palabra clave',
+    'internal_document_title' => 'Nuevo documento disponible',
     'internal_action_description' => 'Nueva actuación en el radicado :number',
     'internal_alert_description' => '¡Alerta! Palabra clave detectada en el radicado :number',
+    'internal_document_description' => 'Se adjuntó :filename al radicado :number',
 
     // Consolidated Notifications
     'consolidated_notifications_subject' => 'Resumen de actuaciones para :name - :date',

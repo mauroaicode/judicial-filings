@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Src\Application\Admin\Process\Controllers\AdminManualRegistrationRequestController;
 use Src\Application\Admin\Process\Controllers\AdminProcessActionController;
+use Src\Application\Admin\Process\Controllers\AdminProcessActionDocumentController;
 use Src\Application\Admin\Process\Controllers\AdminProcessConfigController;
 use Src\Application\Admin\Process\Controllers\AdminProcessDetailController;
 use Src\Application\Admin\Process\Controllers\AdminProcessExportHistoryController;
@@ -40,6 +41,14 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('processes/{id}/actions', [AdminProcessActionController::class, 'index'])->whereUuid('id');
     Route::patch('processes/{id}/actions/{actionId}', [AdminProcessActionController::class, 'update'])
         ->whereUuid(['id', 'actionId']);
+    Route::post('processes/{processId}/actions/{actionId}/documents', [AdminProcessActionDocumentController::class, 'store'])
+        ->whereUuid(['processId', 'actionId']);
+    Route::get('media/{mediaId}/download', [AdminProcessActionDocumentController::class, 'download'])
+        ->whereNumber('mediaId');
+    Route::put('media/{mediaId}/organizations', [AdminProcessActionDocumentController::class, 'syncOrganizations'])
+        ->whereNumber('mediaId');
+    Route::delete('media/{mediaId}', [AdminProcessActionDocumentController::class, 'destroy'])
+        ->whereNumber('mediaId');
     Route::get('processes/{id}/instances', [AdminProcessInstancesController::class, 'index'])->whereUuid('id');
     Route::get('processes/{id}/alert-keywords', [AdminProcessActionController::class, 'alertKeywords'])->whereUuid('id');
     Route::get('processes/{id}/alert-keyword-stats', [AdminProcessActionController::class, 'alertKeywordStats'])->whereUuid('id');

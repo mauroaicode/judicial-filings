@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Notification;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
 use Src\Application\Shared\Notifications\JudicialActionDetectedNotification;
 use Src\Application\Shared\Notifications\ProcessBecamePrivateNotification;
+use Src\Domain\Media\Models\Media;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Process\Models\Process;
@@ -57,11 +58,28 @@ class InternalNotificationChannelDriver implements NotificationChannelDriverInte
         }
 
         $process = $action->process;
+        $mediaId = null;
+
+        $originalFilename = null;
+
+        if ($type === 'actuacion_documento') {
+            $media = Media::query()
+                ->where('collection_name', Media::COLLECTION_ACTION_DOCUMENTS)
+                ->where('model_type', $action->getMorphClass())
+                ->where('model_id', $action->id)
+                ->orderByDesc('id')
+                ->first(['id', 'file_name']);
+
+            if ($media instanceof Media) {
+                $mediaId = (int) $media->id;
+                $originalFilename = $media->file_name;
+            }
+        }
 
         try {
             Notification::send(
                 $users,
-                new JudicialActionDetectedNotification($action, $process, $type)
+                new JudicialActionDetectedNotification($action, $process, $type, $mediaId, $originalFilename)
             );
 
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))

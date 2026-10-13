@@ -6,12 +6,14 @@ namespace Src\Application\Shared\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Domain\Media\Models\Media;
 use Src\Domain\Process\Models\ProcessAction;
 
 class ProcessActionResource extends Resource
 {
     /**
      * @param  array<int, array{start: int, end: int, text: string}>|null  $alert_highlights
+     * @param  list<array<string, mixed>>  $documents
      */
     public function __construct(
         public int $index,
@@ -31,10 +33,19 @@ class ProcessActionResource extends Resource
         public ?array $alert_highlights = null,
         public ?string $process_number = null,
         public ?string $alert_level = null,
+        public array $documents = [],
     ) {}
 
-    public static function fromModel(ProcessAction $action, int $index = 0): self
-    {
+    /**
+     * @param  bool  $includeDocuments  When false, documents is always [].
+     * @param  bool  $includeDocumentOrganizationIds  Admin listings include ACL org ids.
+     */
+    public static function fromModel(
+        ProcessAction $action,
+        int $index = 0,
+        bool $includeDocuments = false,
+        bool $includeDocumentOrganizationIds = false,
+    ): self {
         $alertHighlights = self::buildAlertHighlights($action);
         $process = $action->relationLoaded('process') ? $action->process : $action->process()->first();
 
@@ -64,7 +75,36 @@ class ProcessActionResource extends Resource
             alert_highlights: $alertHighlights,
             process_number: $process?->process_number,
             alert_level: $alertLevel,
+            documents: $includeDocuments
+                ? self::buildDocuments($action, $includeDocumentOrganizationIds)
+                : [],
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildDocuments(
+        ProcessAction $action,
+        bool $includeDocumentOrganizationIds,
+    ): array {
+        if (! $action->relationLoaded('media')) {
+            return [];
+        }
+
+        // App-user visibility is gated by can_view_action_documents upstream ($includeDocuments).
+        // All action documents on the process are shared among interested orgs with that setting on.
+        $mediaItems = $action->media
+            ->where('collection_name', Media::COLLECTION_ACTION_DOCUMENTS)
+            ->values();
+
+        return $mediaItems
+            ->map(fn (Media $media): array => ProcessActionDocumentResource::fromMedia(
+                $media,
+                $includeDocumentOrganizationIds,
+            )->toArray())
+            ->values()
+            ->all();
     }
 
     /**

@@ -29,6 +29,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string|null $contact_person
  * @property-read bool $is_active
  * @property-read bool $is_ai_enabled
+ * @property-read bool $can_view_action_documents
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read OrganizationSetting|null $settings
@@ -69,6 +70,7 @@ class Organization extends Model
         'contact_person',
         'is_active',
         'is_ai_enabled',
+        'can_view_action_documents',
     ];
 
     /**
@@ -82,6 +84,7 @@ class Organization extends Model
             'type' => 'string',
             'is_active' => 'boolean',
             'is_ai_enabled' => 'boolean',
+            'can_view_action_documents' => 'boolean',
         ];
     }
 

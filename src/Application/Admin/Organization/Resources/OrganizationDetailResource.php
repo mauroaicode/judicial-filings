@@ -19,7 +19,8 @@ class OrganizationDetailResource extends Resource
      *     max_active_processes: int|null,
      *     max_active_processes_configured: int|null,
      *     default_max_active_processes: int|null,
-     *     remaining_slots: int|null
+     *     remaining_slots: int|null,
+     *     can_view_action_documents: bool
      * }  $settings
      */
     public function __construct(
@@ -60,6 +61,7 @@ class OrganizationDetailResource extends Resource
                 'max_active_processes_configured' => $quotaService->configuredMaxActiveProcesses($organization->id),
                 'default_max_active_processes' => $quotaService->defaultMaxActiveProcesses(),
                 'remaining_slots' => $quotaService->remainingSlots($organization->id),
+                'can_view_action_documents' => (bool) $organization->can_view_action_documents,
             ],
         );
     }

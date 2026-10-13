@@ -53,15 +53,36 @@ readonly class ProcessActionController
 
         $paginatedActions = $this->processActionFinderService->handle($processId, $filters, $perPage);
 
-        /** @var \Illuminate\Pagination\LengthAwarePaginator $paginatedActions */
+        $canViewDocuments = (bool) $organization->can_view_action_documents;
+
+        /** @var \Illuminate\Pagination\LengthAwarePaginator<int, ProcessAction> $paginatedActions */
+        if ($canViewDocuments) {
+            /** @var \Illuminate\Database\Eloquent\Collection<int, ProcessAction> $collection */
+            $collection = $paginatedActions->getCollection();
+            $collection->load(['media.organizations']);
+            $paginatedActions->setCollection($collection);
+        }
+
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 
         $transformedItems = $paginatedActions->getCollection()
-            ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel($action, $offset + $key + 1)->toArray());
+            ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel(
+                $action,
+                $offset + $key + 1,
+                includeDocuments: $canViewDocuments,
+            )->toArray());
 
         // Fetch next-page context so cross-page fijación↔auto pairs can be resolved
         $contextActions = $this->pairingContextService->handle($paginatedActions);
-        $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel($action, 0)->toArray());
+        if ($canViewDocuments && $contextActions instanceof \Illuminate\Database\Eloquent\Collection) {
+            $contextActions->load(['media.organizations']);
+        }
+
+        $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel(
+            $action,
+            0,
+            includeDocuments: $canViewDocuments,
+        )->toArray());
 
         // Agrupar Fijaciones con sus Autos (con contexto de página siguiente)
         $groupedItems = $this->groupProcessActionsService->handle($transformedItems, $contextItems->isNotEmpty() ? $contextItems : null);

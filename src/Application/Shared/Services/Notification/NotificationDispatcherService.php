@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Notification;
 
 use Illuminate\Support\Facades\Log;
+use Src\Application\Admin\Process\Services\NotifyProcessActionDocumentUploadedService;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
 use Src\Application\Shared\Jobs\DeliverNotificationChannelJob;
 use Src\Application\Shared\Services\Notification\Channels\EmailNotificationChannelDriver;
@@ -50,10 +51,11 @@ class NotificationDispatcherService
 
         foreach ($channels as $channel) {
             // Skip email and internal for immediate dispatch to allow for consolidated digest
-            // BUT ONLY IF it's a judicial action. Other notifications (like import finished) should be immediate.
+            // BUT ONLY IF it's a digestable judicial action. Document uploads notify immediately.
             $isJudicialAction = $notification->notifiable_type === (new ProcessAction)->getMorphClass();
+            $isImmediateDocumentNotify = $notification->notification_type === NotifyProcessActionDocumentUploadedService::NOTIFICATION_TYPE;
 
-            if ($isJudicialAction && in_array($channel->channel_type, ['email', 'internal'], true)) {
+            if ($isJudicialAction && ! $isImmediateDocumentNotify && in_array($channel->channel_type, ['email', 'internal'], true)) {
                 continue;
             }
 
