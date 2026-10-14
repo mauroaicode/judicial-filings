@@ -146,7 +146,7 @@ class JudicialActionDetectedMailable extends Mailable
             'registration_date' => $candidate->registration_date,
         ]);
 
-        $grouped = app(GroupProcessActionsService::class)->handle($items);
+        $grouped = resolve(GroupProcessActionsService::class)->handle($items);
         $current = $grouped->firstWhere('process_action_id', $this->action->id)
             ?? $grouped->firstWhere('id', $this->action->id);
 

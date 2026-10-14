@@ -157,6 +157,21 @@ return [
     'consolidated_notifications_registration' => 'Registration',
     'consolidated_notifications_cta' => 'View full detail in NotiJudicial',
 
+    // Consolidated PDF export
+    'consolidated_pdf_title' => 'Consolidated report for :date',
+    'consolidated_pdf_document_label' => 'Judicial actions consolidated export',
+    'consolidated_pdf_organization' => 'Organization',
+    'consolidated_pdf_published' => 'Published',
+    'consolidated_pdf_movements' => 'Detected movements',
+    'consolidated_pdf_processes' => 'Processes',
+    'consolidated_pdf_notified' => 'Notified',
+    'consolidated_pdf_notified_yes' => 'Yes',
+    'consolidated_pdf_notified_no' => 'No',
+    'consolidated_pdf_alert' => 'Alert',
+    'consolidated_pdf_empty' => 'This consolidated report has no actions to display.',
+    'consolidated_pdf_disclaimer' => 'Receiving this document does not exempt you from verifying the information directly on the official Judicial Branch portal. NotiJudicial helps with tracking, but the official source prevails.',
+    'consolidated_pdf_footer' => ':app · Generated on :generated',
+
     'config_updated_successfully' => 'Process configuration updated successfully.',
     'organizations_attached_successfully' => 'Interested organizations updated successfully.',
     'updated_successfully' => 'Process information updated successfully.',

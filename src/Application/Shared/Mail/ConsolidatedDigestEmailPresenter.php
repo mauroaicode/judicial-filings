@@ -57,6 +57,14 @@ final class ConsolidatedDigestEmailPresenter
         })->values();
     }
 
+    /**
+     * Deep-link to the consolidado detail in the app (same URL used in the digest email CTA).
+     */
+    public function digestUrl(string $digestId): string
+    {
+        return $this->resolveDigestUrl($digestId);
+    }
+
     private function resolveDigestUrl(string $digestId): string
     {
         $origin = $this->resolveFrontendOrigin();

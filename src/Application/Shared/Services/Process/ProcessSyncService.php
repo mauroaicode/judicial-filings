@@ -181,7 +181,9 @@ class ProcessSyncService
             }
 
             if ($dispatchDigest) {
-                $this->dispatchRegistrationDigestIfPending($organizationId);
+                // Solo el radicado que se está registrando. Sin este límite, un alta
+                // en medio del paquete pendiente vacía todo el consolidado de la org.
+                $this->dispatchRegistrationDigestIfPending($organizationId, [$processNumber]);
             }
         });
     }

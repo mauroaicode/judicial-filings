@@ -8,12 +8,14 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestHistoryResource;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
+use Src\Application\AppUser\Notification\Services\ExportNotificationDigestPdfService;
 use Src\Application\AppUser\Notification\Services\GetNotificationDigestDetailsService;
 use Src\Application\AppUser\Notification\Services\ListNotificationDigestHistoryService;
 use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Process\Services\GroupProcessActionsService;
+use Symfony\Component\HttpFoundation\Response;
 
 readonly class NotificationDigestController
 {
@@ -21,7 +23,8 @@ readonly class NotificationDigestController
         private NotificationDigestFinderService $notificationDigestFinderService,
         private ListNotificationDigestHistoryService $listNotificationDigestHistoryService,
         private GroupProcessActionsService $groupProcessActionsService,
-        private GetNotificationDigestDetailsService $getNotificationDigestDetailsService
+        private GetNotificationDigestDetailsService $getNotificationDigestDetailsService,
+        private ExportNotificationDigestPdfService $exportNotificationDigestPdfService,
     ) {}
 
     public function show(string $id, NotificationDigestFilterData $filters): LengthAwarePaginator
@@ -182,5 +185,22 @@ readonly class NotificationDigestController
         $digests->through(fn (NotificationDigest $digest): NotificationDigestHistoryResource => NotificationDigestHistoryResource::fromModel($digest));
 
         return $digests;
+    }
+
+    /**
+     * Download a professional PDF export of a consolidado for the user's organization.
+     */
+    public function exportPdf(string $id): Response
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        return $this->exportNotificationDigestPdfService->handle($organization->id, $id);
     }
 }
