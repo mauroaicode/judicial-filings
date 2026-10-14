@@ -25,6 +25,7 @@ class NotificationDigestService
     public function __construct(
         private readonly GroupProcessActionsService $groupProcessActionsService,
         private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+        private readonly AlreadySentDigestActuacionChecker $alreadySentDigestActuacionChecker,
     ) {}
 
     public function sendDigest(
@@ -82,10 +83,22 @@ class NotificationDigestService
             return;
         }
 
+        [$notifications, $alreadySentDuplicates] = $this->alreadySentDigestActuacionChecker
+            ->partitionPendingNotifications($organization->id, $notifications);
+
+        if ($alreadySentDuplicates->isNotEmpty()) {
+            $this->alreadySentDigestActuacionChecker->markSuppressedAsNotified($alreadySentDuplicates);
+        }
+
+        if ($notifications->isEmpty()) {
+            return;
+        }
+
         Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
             ->info('NotificationDigestService: Preparing digest', [
                 'organization_id' => $organization->id,
                 'count' => $notifications->count(),
+                'suppressed_already_sent' => $alreadySentDuplicates->count(),
             ]);
 
         // 2. Prepare structured data for the table

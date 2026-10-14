@@ -7,6 +7,7 @@ namespace Src\Application\Shared\Services\Process;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Src\Application\Shared\Services\Notification\AlreadySentDigestActuacionChecker;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Keyword\Enums\KeywordStatus;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -21,6 +22,7 @@ readonly class ProcessActionAlertNotificationService
     public function __construct(
         private ProcessActionKeywordDetectionService $keywordDetection,
         private OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+        private AlreadySentDigestActuacionChecker $alreadySentDigestActuacionChecker,
     ) {}
 
     /**
@@ -228,6 +230,18 @@ readonly class ProcessActionAlertNotificationService
                 'action_id' => $action->id,
                 'organization_id' => $organizationId,
                 'type' => $notificationType,
+            ]);
+
+            return;
+        }
+
+        if ($this->alreadySentDigestActuacionChecker->wasAlreadyIncludedInSentDigest($organizationId, $action)) {
+            Log::channel($logChannel)->info('ProcessActionAlertNotificationService: skipping actuación already sent in digest', [
+                'action_id' => $action->id,
+                'organization_id' => $organizationId,
+                'type' => $notificationType,
+                'action' => $action->action,
+                'registration_date' => $action->registration_date->format('Y-m-d'),
             ]);
 
             return;
