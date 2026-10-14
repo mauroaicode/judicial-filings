@@ -39,15 +39,19 @@
         <div style="padding: 20px;">
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
-                    <td style="padding: 8px 0; font-size: 14px; color: #6B7280; width: 40%;">{{ __('process.process_number') }}
-                        :
+                    <td style="padding: 8px 0; font-size: 14px; color: #6B7280; width: 40%;">
+                        {{ $isDocument ? __('process.filing_number') : __('process.process_number') }}:
                     </td>
                     <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{ $process->process_number }}</td>
                 </tr>
-                @if($isDocument && ! empty($originalFilename))
+                @if($isDocument)
                     <tr>
-                        <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.document_filename') }}:</td>
-                        <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{ $originalFilename }}</td>
+                        <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.plaintiffs') }}:</td>
+                        <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $plaintiffs ?? '---' }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 0; font-size: 14px; color: #6B7280;">{{ __('process.defendants') }}:</td>
+                        <td style="padding: 8px 0; font-size: 14px; color: #111827;">{{ $defendants ?? '---' }}</td>
                     </tr>
                 @endif
                 <tr>
@@ -86,7 +90,20 @@
         <p style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px;">{{ __('process.action_text') }}</p>
         <div
             style="background-color: #FFFFFF; border: 1px solid #E5E7EB; border-left: 4px solid #4B2A7D; padding: 20px; border-radius: 0 8px 8px 0; font-size: 15px; color: #374151; line-height: 1.6;">
-            {{ Str::limit($action->action, 150) }}
+            @if($isDocument && ! empty($pairedAction))
+                <div style="margin-bottom: 10px;">
+                    <span style="background-color: #F3E8FF; color: #6B21A8; font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: 800; text-transform: uppercase;">{{ __('process.consolidated_notifications_fijacion') }}</span>
+                    <div style="margin-top: 6px;">{{ $pairedAction['fijacion'] }}</div>
+                </div>
+                <div>
+                    <span style="background-color: #FFF7ED; color: #C2410C; font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: 800; text-transform: uppercase;">{{ __('process.consolidated_notifications_auto') }}</span>
+                    <div style="margin-top: 6px; font-weight: 600;">{{ $pairedAction['auto'] }}</div>
+                </div>
+            @elseif($isDocument)
+                {{ $action->action }}
+            @else
+                {{ Str::limit($action->action, 150) }}
+            @endif
         </div>
     </div>
 
@@ -95,7 +112,7 @@
             <p style="font-size: 12px; color: #9CA3AF; text-transform: uppercase; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px;">{{ __('process.annotation_text') }}</p>
             <div
                 style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-left: 4px solid {{ $notificationType === 'actuacion_alerta' ? '#EF4444' : '#9CA3AF' }}; padding: 18px; border-radius: 0 8px 8px 0; font-size: 14px; color: #4B5563; font-style: italic;">
-                {{ Str::limit($action->annotation, 80) }}
+                {{ $isDocument ? $action->annotation : Str::limit($action->annotation, 80) }}
             </div>
         </div>
     @endif

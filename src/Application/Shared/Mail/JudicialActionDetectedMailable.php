@@ -9,10 +9,13 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Collection;
 use Src\Application\Admin\Process\Services\NotifyProcessActionDocumentUploadedService;
+use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessActionAlertHighlight;
+use Src\Domain\Process\Services\GroupProcessActionsService;
 
 class JudicialActionDetectedMailable extends Mailable
 {
@@ -57,6 +60,8 @@ class JudicialActionDetectedMailable extends Mailable
                 ->implode(', ');
         }
 
+        $isDocument = $this->notificationType === NotifyProcessActionDocumentUploadedService::NOTIFICATION_TYPE;
+
         return new Content(
             view: 'emails.judicial-action-detected',
             with: [
@@ -64,6 +69,9 @@ class JudicialActionDetectedMailable extends Mailable
                 'ctaUrl' => $this->ctaUrl(),
                 'ctaLabel' => $this->ctaLabel(),
                 'originalFilename' => $this->originalFilename,
+                'plaintiffs' => $isDocument ? $this->partyNames('Demandante') : null,
+                'defendants' => $isDocument ? $this->partyNames('Demandado') : null,
+                'pairedAction' => $isDocument ? $this->resolvePairedAction() : null,
             ]
         );
     }
@@ -92,5 +100,85 @@ class JudicialActionDetectedMailable extends Mailable
         return $this->notificationType === NotifyProcessActionDocumentUploadedService::NOTIFICATION_TYPE
             ? __('process.view_document')
             : __('process.view_process');
+    }
+
+    private function partyNames(string $subjectType): string
+    {
+        $names = $this->process->subjects()
+            ->where('subject_type', $subjectType)
+            ->pluck('name_or_business_name')
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(fn (?string $name): ?string => StrParseHelper::toTitleCase($name))
+            ->filter()
+            ->implode(', ');
+
+        return $names !== '' ? $names : '---';
+    }
+
+    /**
+     * Resolve fijación ↔ auto pair for the document email actuación block.
+     *
+     * @return array{fijacion: string, auto: string}|null
+     */
+    private function resolvePairedAction(): ?array
+    {
+        $actions = ProcessAction::query()
+            ->where('process_id', $this->process->id)
+            ->orderByDesc('cons_action')
+            ->limit(80)
+            ->get(['id', 'action', 'annotation', 'cons_action', 'registration_date']);
+
+        if ($actions->count() < 2) {
+            return null;
+        }
+
+        /** @var Collection<int, array<string, mixed>> $items */
+        $items = $actions->map(fn (ProcessAction $candidate): array => [
+            'id' => $candidate->id,
+            'process_action_id' => $candidate->id,
+            'process_number' => $this->process->process_number,
+            'action' => $candidate->action,
+            'action_text' => $candidate->action,
+            'annotation' => $candidate->annotation,
+            'cons_action' => $candidate->cons_action,
+            'registration_date' => $candidate->registration_date,
+        ]);
+
+        $grouped = app(GroupProcessActionsService::class)->handle($items);
+        $current = $grouped->firstWhere('process_action_id', $this->action->id)
+            ?? $grouped->firstWhere('id', $this->action->id);
+
+        if (! is_array($current)) {
+            return null;
+        }
+
+        $fijacionId = $current['fijacion_action_id'] ?? null;
+        $autoId = $current['notified_action_id'] ?? null;
+
+        if ($autoId) {
+            $auto = $actions->firstWhere('id', $autoId);
+
+            return $auto instanceof ProcessAction
+                ? [
+                    'fijacion' => (string) $this->action->action,
+                    'auto' => (string) $auto->action,
+                ]
+                : null;
+        }
+
+        if ($fijacionId) {
+            $fijacion = $actions->firstWhere('id', $fijacionId);
+
+            return $fijacion instanceof ProcessAction
+                ? [
+                    'fijacion' => (string) $fijacion->action,
+                    'auto' => (string) $this->action->action,
+                ]
+                : null;
+        }
+
+        return null;
     }
 }
