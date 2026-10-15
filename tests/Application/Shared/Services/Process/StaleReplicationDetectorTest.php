@@ -13,6 +13,7 @@ beforeEach(function (): void {
     Cache::flush();
     config([
         'judicial-sync.replication_staleness.enabled' => true,
+        'judicial-sync.replication_staleness.split_runs' => false,
         'judicial-sync.replication_staleness.stale_after_hours' => 24,
         'judicial-sync.replication_staleness.exclude_weekends' => true,
         'judicial-sync.replication_staleness.exclude_colombia_holidays' => true,
@@ -138,4 +139,65 @@ it('fetches detail and evaluates for a process', function (): void {
     $detector->evaluateRadicado($process->process_number, $process);
 
     expect(app(StaleReplicationAlertCollector::class)->pullAll())->toHaveCount(1);
+});
+
+it('checks each radicado only once per day when runs are split', function (): void {
+    config([
+        'judicial-sync.replication_staleness.split_runs' => true,
+        'judicial-sync.replication_staleness.afternoon_starts_at_hour' => 12,
+    ]);
+
+    $processNumber = '76109333300220240012000';
+    $process = Process::factory()->create([
+        'process_id' => 9_001_001_002,
+        'process_number' => $processNumber,
+    ]);
+
+    $calls = 0;
+    $judicial = Mockery::mock(JudicialBranchConsultService::class);
+    $judicial->shouldReceive('fetchDetailProcess')
+        ->andReturnUsing(function () use (&$calls): object {
+            $calls++;
+
+            return (object) ['isSuccessful' => true, 'data' => []];
+        });
+
+    $detector = new StaleReplicationDetector(
+        $judicial,
+        app(StaleReplicationAlertCollector::class),
+        app(ColombiaHolidayCalendar::class),
+    );
+
+    $this->travelTo(now()->setTime(9, 0));
+    $detector->evaluateRadicado($processNumber, $process);
+    $morning = $calls;
+
+    $this->travelTo(now()->setTime(16, 0));
+    $detector->evaluateRadicado($processNumber, $process);
+    $afternoon = $calls - $morning;
+
+    expect($morning + $afternoon)->toBe(1);
+});
+
+it('checks every radicado on every run when split is disabled', function (): void {
+    $process = Process::factory()->create([
+        'process_id' => 9_001_001_003,
+        'process_number' => '76109333300220240012001',
+    ]);
+
+    $judicial = Mockery::mock(JudicialBranchConsultService::class);
+    $judicial->shouldReceive('fetchDetailProcess')
+        ->twice()
+        ->andReturn((object) ['isSuccessful' => true, 'data' => []]);
+
+    $detector = new StaleReplicationDetector(
+        $judicial,
+        app(StaleReplicationAlertCollector::class),
+        app(ColombiaHolidayCalendar::class),
+    );
+
+    $this->travelTo(now()->setTime(9, 0));
+    $detector->evaluateRadicado($process->process_number, $process);
+    $this->travelTo(now()->setTime(16, 0));
+    $detector->evaluateRadicado($process->process_number, $process);
 });

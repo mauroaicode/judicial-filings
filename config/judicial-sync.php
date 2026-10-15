@@ -232,9 +232,18 @@ return [
     |
     | Costs one extra detail API call per radicado that reaches actuacion sync.
     |
+    | split_runs: when true, each radicado is checked once per day instead of on
+    | every run (half of the radicados in the morning run, the other half in the
+    | afternoon run, split by a stable hash of the radicado number). This removes
+    | ~1 of every ~3.6 HTTP calls from each run. Set JUDICIAL_SYNC_REPLICATION_STALENESS_SPLIT_RUNS=false
+    | to check every radicado on every run (previous behavior).
+    | afternoon_starts_at_hour: runs starting at/after this hour (app timezone) use the second half.
+    |
     */
     'replication_staleness' => [
         'enabled' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALENESS_ENABLED', true),
+        'split_runs' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALENESS_SPLIT_RUNS', true),
+        'afternoon_starts_at_hour' => (int) env('JUDICIAL_SYNC_REPLICATION_STALENESS_AFTERNOON_HOUR', 12),
         'stale_after_hours' => (int) env('JUDICIAL_SYNC_REPLICATION_STALE_HOURS', 24),
         'exclude_weekends' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALE_EXCLUDE_WEEKENDS', true),
         'exclude_colombia_holidays' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALE_EXCLUDE_HOLIDAYS', true),

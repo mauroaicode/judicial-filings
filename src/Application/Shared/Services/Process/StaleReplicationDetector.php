@@ -35,6 +35,10 @@ final readonly class StaleReplicationDetector
             return;
         }
 
+        if (! $this->isDueForCheckInThisRun($processNumber)) {
+            return;
+        }
+
         try {
             $detail = $this->judicialService->fetchDetailProcess($apiProcessId);
         } catch (Throwable $e) {
@@ -52,6 +56,22 @@ final readonly class StaleReplicationDetector
         }
 
         $this->evaluateDetailPayload($processNumber, $detail->data, $process->court);
+    }
+
+    /**
+     * Each radicado is checked once per day: even hash → morning run, odd hash → afternoon run.
+     * Avoids one extra detail HTTP call per radicado on every run.
+     */
+    private function isDueForCheckInThisRun(string $processNumber): bool
+    {
+        if (! (bool) config('judicial-sync.replication_staleness.split_runs', true)) {
+            return true;
+        }
+
+        $afternoonHour = (int) config('judicial-sync.replication_staleness.afternoon_starts_at_hour', 12);
+        $slot = Date::now()->hour >= $afternoonHour ? 1 : 0;
+
+        return (crc32($processNumber) % 2) === $slot;
     }
 
     /**

@@ -172,8 +172,9 @@ return [
         'production' => [
             'supervisor-judicial-sync' => [
                 // Sync diario: arrancar más caliente para no esperar a que auto-scale suba de 4→8.
-                'minProcesses' => 6,
-                'maxProcesses' => 8,
+                // Ajustable por .env (HORIZON_JUDICIAL_SYNC_MIN/MAX_PROCESSES) sin tocar código.
+                'minProcesses' => (int) env('HORIZON_JUDICIAL_SYNC_MIN_PROCESSES', 6),
+                'maxProcesses' => (int) env('HORIZON_JUDICIAL_SYNC_MAX_PROCESSES', 8),
                 'balanceMaxShift' => 2,
                 'balanceCooldown' => 5,
             ],
