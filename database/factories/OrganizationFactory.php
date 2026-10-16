@@ -44,6 +44,7 @@ class OrganizationFactory extends Factory
             'email' => $this->faker->unique()->safeEmail(),
             'contact_person' => $type === 'juridical' ? $this->faker->name() : null,
             'is_active' => true,
+            'is_process_tracking_enabled' => true,
         ];
     }
 

@@ -44,6 +44,7 @@ class OrganizationCreatorService
                 'email' => $data->email,
                 'contact_person' => $data->contact_person,
                 'is_active' => true,
+                'is_process_tracking_enabled' => true,
             ]);
 
             [$ownerName, $ownerLastName] = $this->resolveOwnerNameAndLastName($data);

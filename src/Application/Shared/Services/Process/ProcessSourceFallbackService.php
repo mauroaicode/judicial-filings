@@ -286,6 +286,7 @@ readonly class ProcessSourceFallbackService
             ->where('processes.process_number', $processNumber)
             ->where('organization_processes.is_active', true)
             ->where('organizations.is_active', true)
+            ->where('organizations.is_process_tracking_enabled', true)
             ->select('organization_processes.organization_id', 'organization_processes.lawyer_role')
             ->get();
 

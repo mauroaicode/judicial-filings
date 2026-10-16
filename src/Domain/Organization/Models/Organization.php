@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
+use Src\Domain\Organization\Enums\OrganizationStatusMode;
 use Src\Domain\Organization\QueryBuilders\OrganizationQueryBuilder;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\Process;
@@ -28,6 +29,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string|null $email
  * @property-read string|null $contact_person
  * @property-read bool $is_active
+ * @property-read bool $is_process_tracking_enabled
  * @property-read bool $is_ai_enabled
  * @property-read bool $can_view_action_documents
  * @property-read Carbon $created_at
@@ -39,6 +41,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @method OrganizationQueryBuilder orderedByCreatedAt()
  * @method OrganizationQueryBuilder whereActive()
  * @method OrganizationQueryBuilder whereInactive()
+ * @method OrganizationQueryBuilder whereCanTrackProcesses()
  * @method OrganizationQueryBuilder whereNatural()
  * @method OrganizationQueryBuilder whereJuridical()
  * @method OrganizationQueryBuilder filters(\Src\Application\Admin\Organization\Data\OrganizationFilterData $data)
@@ -69,6 +72,7 @@ class Organization extends Model
         'email',
         'contact_person',
         'is_active',
+        'is_process_tracking_enabled',
         'is_ai_enabled',
         'can_view_action_documents',
     ];
@@ -83,9 +87,34 @@ class Organization extends Model
         return [
             'type' => 'string',
             'is_active' => 'boolean',
+            'is_process_tracking_enabled' => 'boolean',
             'is_ai_enabled' => 'boolean',
             'can_view_action_documents' => 'boolean',
         ];
+    }
+
+    /**
+     * Whether this organization should be included in process sync and actuación fan-out.
+     */
+    public function canTrackProcesses(): bool
+    {
+        return $this->is_active && $this->is_process_tracking_enabled;
+    }
+
+    /**
+     * Current product status mode derived from is_active + tracking flag.
+     */
+    public function statusMode(): OrganizationStatusMode
+    {
+        if (! $this->is_active) {
+            return OrganizationStatusMode::Inactive;
+        }
+
+        if (! $this->is_process_tracking_enabled) {
+            return OrganizationStatusMode::TrackingPaused;
+        }
+
+        return OrganizationStatusMode::Active;
     }
 
     /**

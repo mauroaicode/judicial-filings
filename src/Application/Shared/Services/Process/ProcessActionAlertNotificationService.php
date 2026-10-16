@@ -56,7 +56,7 @@ readonly class ProcessActionAlertNotificationService
     ): void {
         $organization = Organization::query()->find($organizationId);
 
-        if ($organization === null || ! $organization->is_active) {
+        if ($organization === null || ! $organization->canTrackProcesses()) {
             return;
         }
 
@@ -76,7 +76,7 @@ readonly class ProcessActionAlertNotificationService
     ): void {
         $organization = Organization::query()->find($organizationId);
 
-        if ($organization === null || ! $organization->is_active) {
+        if ($organization === null || ! $organization->canTrackProcesses()) {
             return;
         }
 
@@ -96,6 +96,7 @@ readonly class ProcessActionAlertNotificationService
     {
         return $process->organizations()
             ->where('organizations.is_active', true)
+            ->where('organizations.is_process_tracking_enabled', true)
             ->wherePivot('is_active', true)
             ->with(['keywords' => fn ($q) => $q->where('status', KeywordStatus::ACTIVE)])
             ->get();

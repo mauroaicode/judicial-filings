@@ -5,6 +5,7 @@ use Src\Application\Admin\Organization\Controllers\OrganizationActiveStatusContr
 use Src\Application\Admin\Organization\Controllers\OrganizationController;
 use Src\Application\Admin\Organization\Controllers\OrganizationSettingsController;
 use Src\Application\Admin\Organization\Controllers\OrganizationTypeController;
+use Src\Application\Admin\Organization\Controllers\OrganizationUpdateActiveStatusController;
 use Src\Application\Admin\Organization\Controllers\OrganizationUpdateNotificationStatusController;
 use Src\Application\Admin\Process\Controllers\OrganizationProcessExportController;
 use Src\Application\Shared\Process\Controllers\OrganizationProcessController;
@@ -18,6 +19,7 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('organizations/{organization}', [OrganizationController::class, 'show']);
     Route::get('organizations/{organization}/settings', [OrganizationSettingsController::class, 'show']);
     Route::put('organizations/{organization}/settings', [OrganizationSettingsController::class, 'update']);
+    Route::post('organizations/{organization}/active-status', OrganizationUpdateActiveStatusController::class);
     Route::post('organizations/{organization}/notifications-status', OrganizationUpdateNotificationStatusController::class);
     Route::get('organizations/{organizationId}/processes', [OrganizationProcessController::class, 'index']);
     Route::post('organizations/{organization}/processes/export', [OrganizationProcessExportController::class, 'store'])

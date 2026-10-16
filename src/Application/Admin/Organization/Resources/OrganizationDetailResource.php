@@ -34,6 +34,8 @@ class OrganizationDetailResource extends Resource
         public ?string $phone,
         public ?string $contact_person,
         public bool $is_active,
+        public bool $is_process_tracking_enabled,
+        public string $status_mode,
         public int $active_processes_count,
         public array $settings,
     ) {}
@@ -55,6 +57,8 @@ class OrganizationDetailResource extends Resource
             phone: $organization->phone,
             contact_person: $organization->contact_person,
             is_active: $organization->is_active,
+            is_process_tracking_enabled: $organization->is_process_tracking_enabled,
+            status_mode: $organization->statusMode()->value,
             active_processes_count: $quotaService->countActiveProcesses($organization->id),
             settings: [
                 'max_active_processes' => $quotaService->resolveLimit($organization->id),

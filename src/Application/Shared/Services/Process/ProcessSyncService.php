@@ -552,6 +552,7 @@ class ProcessSyncService
                 'organizations',
                 fn (Builder $q) => $q
                     ->where('organizations.is_active', true)
+                    ->where('organizations.is_process_tracking_enabled', true)
                     ->where('organization_processes.is_active', true)
             )
             ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::Samai->value))
@@ -947,6 +948,7 @@ class ProcessSyncService
                 'organizations',
                 fn (Builder $q) => $q
                     ->where('organizations.is_active', true)
+                    ->where('organizations.is_process_tracking_enabled', true)
                     ->where('organization_processes.is_active', true)
             )
             ->whereHas('processDataSource', fn (Builder $q) => $q->where('slug', ProcessDataSourceSlug::JudicialBranch->value))

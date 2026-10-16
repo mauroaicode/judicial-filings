@@ -163,7 +163,8 @@ class ProcessQueryBuilder extends Builder
             ->where('organization_processes.is_active', true)
             ->whereNull('organization_processes.deleted_at')
             ->join('organizations', 'organization_processes.organization_id', '=', 'organizations.id')
-            ->where('organizations.is_active', true);
+            ->where('organizations.is_active', true)
+            ->where('organizations.is_process_tracking_enabled', true);
 
         return $this;
     }

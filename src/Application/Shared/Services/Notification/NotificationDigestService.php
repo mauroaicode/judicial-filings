@@ -33,9 +33,9 @@ class NotificationDigestService
         ?array $limitToProcessNumbers = null,
         bool $skipRegistrationCutoff = false,
     ): void {
-        if (! $organization->is_active) {
+        if (! $organization->canTrackProcesses()) {
             Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
-                ->info('NotificationDigestService: Skipping digest for inactive organization', [
+                ->info('NotificationDigestService: Skipping digest for organization without process tracking', [
                     'organization_id' => $organization->id,
                 ]);
 

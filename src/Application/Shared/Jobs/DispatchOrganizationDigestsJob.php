@@ -32,7 +32,7 @@ class DispatchOrganizationDigestsJob implements ShouldQueue
         Log::channel($channel)->info('DispatchOrganizationDigestsJob: Starting global digest dispatch');
 
         $organizations = Organization::query()
-            ->whereActive()
+            ->whereCanTrackProcesses()
             ->whereHas('notifications', function (Builder $query): void {
                 $query->where('is_email_notified', false);
             })

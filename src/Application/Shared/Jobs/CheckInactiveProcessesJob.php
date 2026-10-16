@@ -87,6 +87,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
         $query = Process::query()
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
                 $q->where('organizations.is_active', true)
+                    ->where('organizations.is_process_tracking_enabled', true)
                     ->where('organization_processes.lawyer_role', $role)
                     ->where('organization_processes.is_active', true)
                     ->where('organization_processes.status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
@@ -123,6 +124,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
         $query = Process::query()
             ->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role, $targetAlertLevel): void {
                 $q->where('organizations.is_active', true)
+                    ->where('organizations.is_process_tracking_enabled', true)
                     ->where('organization_processes.lawyer_role', $role)
                     ->where('organization_processes.is_active', true)
                     ->where('organization_processes.status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)

@@ -66,6 +66,19 @@ class OrganizationQueryBuilder extends Builder
     }
 
     /**
+     * Organizations eligible for process sync and actuación notifications.
+     *
+     * @return $this
+     */
+    public function whereCanTrackProcesses(): self
+    {
+        $this->where('is_active', true)
+            ->where('is_process_tracking_enabled', true);
+
+        return $this;
+    }
+
+    /**
      * Organizations with type `natural`.
      *
      * @return $this

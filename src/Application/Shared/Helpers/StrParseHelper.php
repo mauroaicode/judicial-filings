@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Helpers;
 
+use Illuminate\Support\Str;
+
 class StrParseHelper
 {
     /**
@@ -26,7 +28,7 @@ class StrParseHelper
             ['__enie_lower__', '__enie_upper__'],
             $trimmed,
         );
-        $ascii = \Illuminate\Support\Str::ascii($protected);
+        $ascii = Str::ascii($protected);
 
         return str_replace(
             ['__enie_lower__', '__enie_upper__'],
@@ -112,7 +114,7 @@ class StrParseHelper
 
             // If it's the first word or not in lowercase list, capitalize first letter
             if ($index === 0 || ! in_array($lowerWord, $lowercaseWords, true)) {
-                $result[] = \Illuminate\Support\Str::ucfirst($lowerWord);
+                $result[] = Str::ucfirst($lowerWord);
 
                 continue;
             }
