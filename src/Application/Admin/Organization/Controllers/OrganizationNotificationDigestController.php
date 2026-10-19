@@ -1,0 +1,45 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Src\Application\Admin\Organization\Controllers;
+
+use Illuminate\Pagination\LengthAwarePaginator;
+use Src\Application\Admin\Organization\Data\OrganizationNotificationDigestFilterData;
+use Src\Application\Admin\Organization\Services\GetOrganizationNotificationDigestDetailsService;
+use Src\Application\Admin\Organization\Services\GetOrganizationPendingDigestDetailsService;
+use Src\Domain\Organization\Models\Organization;
+
+readonly class OrganizationNotificationDigestController
+{
+    public function __construct(
+        private GetOrganizationPendingDigestDetailsService $getOrganizationPendingDigestDetailsService,
+        private GetOrganizationNotificationDigestDetailsService $getOrganizationNotificationDigestDetailsService,
+    ) {}
+
+    /**
+     * Detail of the pending consolidado that would be sent for the organization
+     * (digest-packages drill-down). Does not send or mark notifications.
+     */
+    public function pending(
+        Organization $organization,
+        OrganizationNotificationDigestFilterData $filters,
+    ): LengthAwarePaginator {
+        return $this->getOrganizationPendingDigestDetailsService->handle($organization, $filters);
+    }
+
+    /**
+     * Detail of a persisted consolidado belonging to the organization.
+     */
+    public function show(
+        Organization $organization,
+        string $digest,
+        OrganizationNotificationDigestFilterData $filters,
+    ): LengthAwarePaginator {
+        return $this->getOrganizationNotificationDigestDetailsService->handle(
+            $organization,
+            $digest,
+            $filters,
+        );
+    }
+}

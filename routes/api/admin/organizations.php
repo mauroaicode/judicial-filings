@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Src\Application\Admin\Organization\Controllers\OrganizationActiveStatusController;
 use Src\Application\Admin\Organization\Controllers\OrganizationController;
+use Src\Application\Admin\Organization\Controllers\OrganizationNotificationDigestController;
 use Src\Application\Admin\Organization\Controllers\OrganizationSettingsController;
 use Src\Application\Admin\Organization\Controllers\OrganizationTypeController;
 use Src\Application\Admin\Organization\Controllers\OrganizationUpdateActiveStatusController;
@@ -21,6 +22,11 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::put('organizations/{organization}/settings', [OrganizationSettingsController::class, 'update']);
     Route::post('organizations/{organization}/active-status', OrganizationUpdateActiveStatusController::class);
     Route::post('organizations/{organization}/notifications-status', OrganizationUpdateNotificationStatusController::class);
+    Route::get('organizations/{organization}/notification-digests/pending', [OrganizationNotificationDigestController::class, 'pending'])
+        ->name('organizations.notification-digests.pending');
+    Route::get('organizations/{organization}/notification-digests/{digest}', [OrganizationNotificationDigestController::class, 'show'])
+        ->whereUuid('digest')
+        ->name('organizations.notification-digests.show');
     Route::get('organizations/{organizationId}/processes', [OrganizationProcessController::class, 'index']);
     Route::post('organizations/{organization}/processes/export', [OrganizationProcessExportController::class, 'store'])
         ->name('organizations.processes.export');
@@ -33,3 +39,4 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('organizations/{organization}/processes/exports/{processExport}/download', [OrganizationProcessExportController::class, 'download'])
         ->name('organizations.processes.exports.download');
 });
+
