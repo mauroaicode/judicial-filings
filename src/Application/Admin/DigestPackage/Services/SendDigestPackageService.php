@@ -8,14 +8,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackageSendResource;
 use Src\Application\Shared\Jobs\SendOrganizationDigestJob;
-use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
-use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Application\Shared\Services\Notification\CollectPendingDigestNotificationsService;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\ProcessAction;
 
 /**
  * Dispatches the pending digest package to organizations that have
- * digest-eligible unnotified actuaciones (ProcessAction + registration cutoff).
+ * digest-eligible unnotified actuaciones (same rules as preview / detail).
  *
  * Reuses the same SendOrganizationDigestJob → NotificationDigestService
  * pipeline as the automatic post-cron dispatch.
@@ -23,7 +22,7 @@ use Src\Domain\Process\Models\ProcessAction;
 class SendDigestPackageService
 {
     public function __construct(
-        private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+        private readonly CollectPendingDigestNotificationsService $collectPendingDigestNotificationsService,
     ) {}
 
     public function handle(): DigestPackageSendResource
@@ -66,20 +65,10 @@ class SendDigestPackageService
             ->get();
 
         return $candidates
-            ->filter(fn (Organization $org): bool => $this->hasEligiblePendingActuaciones($org->id))
+            ->filter(fn (Organization $org): bool => $this->collectPendingDigestNotificationsService
+                ->handle($org)
+                ->isNotEmpty())
             ->values();
-    }
-
-    private function hasEligiblePendingActuaciones(string $organizationId): bool
-    {
-        $query = OrganizationNotification::query()
-            ->where('organization_id', $organizationId)
-            ->where('is_email_notified', false)
-            ->forActiveOrganizationProcesses($organizationId);
-
-        $this->registrationCutoffService->applyDigestPendingCutoff($query, $organizationId);
-
-        return $query->exists();
     }
 
     /**

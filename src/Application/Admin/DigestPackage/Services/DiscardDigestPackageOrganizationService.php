@@ -6,7 +6,7 @@ namespace Src\Application\Admin\DigestPackage\Services;
 
 use Illuminate\Support\Facades\Log;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackageDiscardResource;
-use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
+use Src\Application\Shared\Services\Notification\CollectPendingDigestNotificationsService;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -16,12 +16,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * digest-eligible ProcessAction notifications without sending email.
  *
  * Same eligibility rules as {@see PreviewDigestPackageService} /
- * {@see SendDigestPackageService} (ProcessAction + registration cutoff).
+ * {@see SendDigestPackageService}. Also silences already-sent duplicates that
+ * would otherwise keep resurfacing in the raw pending queue.
  */
 class DiscardDigestPackageOrganizationService
 {
     public function __construct(
-        private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+        private readonly CollectPendingDigestNotificationsService $collectPendingDigestNotificationsService,
     ) {}
 
     public function handle(string $organizationId): DigestPackageDiscardResource
@@ -33,11 +34,14 @@ class DiscardDigestPackageOrganizationService
             throw new NotFoundHttpException(__('digest_package.organization_not_found'));
         }
 
-        $ids = $this->resolveEligiblePendingNotificationIds($organizationId);
-        $discarded = $ids->count();
+        [$keep, $alreadySentDuplicates] = $this->collectPendingDigestNotificationsService
+            ->collectPartitioned($organization);
+
+        $toSilence = $keep->merge($alreadySentDuplicates);
+        $discarded = $toSilence->count();
 
         if ($discarded > 0) {
-            $this->silenceNotifications($ids->all());
+            $this->silenceNotifications($toSilence->pluck('id')->all());
         }
 
         Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
@@ -59,21 +63,6 @@ class DiscardDigestPackageOrganizationService
                     'organization' => $organization->name,
                 ]),
         );
-    }
-
-    /**
-     * @return \Illuminate\Support\Collection<int, string>
-     */
-    private function resolveEligiblePendingNotificationIds(string $organizationId): \Illuminate\Support\Collection
-    {
-        $query = OrganizationNotification::query()
-            ->where('organization_id', $organizationId)
-            ->where('is_email_notified', false)
-            ->forActiveOrganizationProcesses($organizationId);
-
-        $this->registrationCutoffService->applyDigestPendingCutoff($query, $organizationId);
-
-        return $query->pluck('id');
     }
 
     /**

@@ -7,28 +7,28 @@ namespace Src\Application\Admin\DigestPackage\Services;
 use Illuminate\Support\Collection;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackageOrganizationResource;
 use Src\Application\Admin\DigestPackage\Resources\DigestPackagePreviewResource;
-use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
-use Src\Domain\Notification\Models\OrganizationNotification;
-use Src\Domain\Notification\QueryBuilders\OrganizationNotificationQueryBuilder;
+use Src\Application\Shared\Services\Notification\BuildNotificationDigestRowsService;
+use Src\Application\Shared\Services\Notification\CollectPendingDigestNotificationsService;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\ProcessAction;
 
 /**
  * Builds a read-only preview of the pending digest package.
  *
- * Aligns with {@see \Src\Application\Shared\Services\Notification\NotificationDigestService}:
- * only ProcessAction notifications that pass the registration cutoff are counted.
- * Other notifiable types (Process, Task, ProcessImportBatch, …) are excluded.
+ * Uses the same eligibility pipeline as the consolidado send and the admin
+ * pending-detail endpoint ({@see CollectPendingDigestNotificationsService}):
+ * active processes, registration cutoff, and already-sent suppression.
  */
 class PreviewDigestPackageService
 {
     public function __construct(
-        private readonly OrganizationNotificationRegistrationCutoffService $registrationCutoffService,
+        private readonly CollectPendingDigestNotificationsService $collectPendingDigestNotificationsService,
+        private readonly BuildNotificationDigestRowsService $buildNotificationDigestRowsService,
     ) {}
 
     public function handle(): DigestPackagePreviewResource
     {
-        $organizations = $this->resolveOrganizationsWithPendingActuacionNotifications();
+        $organizations = $this->resolveCandidateOrganizations();
 
         $orgResources = $organizations
             ->map(fn (Organization $org): DigestPackageOrganizationResource => $this->buildOrganizationResource($org))
@@ -57,11 +57,12 @@ class PreviewDigestPackageService
     /**
      * @return Collection<int, Organization>
      */
-    private function resolveOrganizationsWithPendingActuacionNotifications(): Collection
+    private function resolveCandidateOrganizations(): Collection
     {
         $morphClass = (new ProcessAction)->getMorphClass();
 
         return Organization::query()
+            ->whereActive()
             ->whereHas(
                 'notifications',
                 fn (\Illuminate\Contracts\Database\Query\Builder $q) => $q
@@ -75,7 +76,7 @@ class PreviewDigestPackageService
 
     private function buildOrganizationResource(Organization $org): DigestPackageOrganizationResource
     {
-        $counts = $this->countEligiblePending($org->id);
+        $counts = $this->countEligiblePending($org);
 
         return new DigestPackageOrganizationResource(
             organization_id: $org->id,
@@ -89,34 +90,20 @@ class PreviewDigestPackageService
     /**
      * @return array{processes: int, actions: int}
      */
-    private function countEligiblePending(string $organizationId): array
+    private function countEligiblePending(Organization $organization): array
     {
-        $query = $this->eligiblePendingQuery($organizationId);
+        $notifications = $this->collectPendingDigestNotificationsService->handle($organization);
 
-        $actions = (clone $query)->count();
+        if ($notifications->isEmpty()) {
+            return ['processes' => 0, 'actions' => 0];
+        }
 
-        $processes = (int) (clone $query)
-            ->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
-            ->distinct()
-            ->count('process_actions.process_id');
+        $rows = $this->buildNotificationDigestRowsService->handle($notifications, $organization->id);
 
         return [
-            'processes' => $processes,
-            'actions' => $actions,
+            'processes' => $rows->pluck('process_number')->unique()->filter()->count(),
+            'actions' => $rows->count(),
         ];
-    }
-
-    private function eligiblePendingQuery(string $organizationId): OrganizationNotificationQueryBuilder
-    {
-        /** @var OrganizationNotificationQueryBuilder $query */
-        $query = OrganizationNotification::query()
-            ->where('organization_id', $organizationId)
-            ->where('is_email_notified', false)
-            ->forActiveOrganizationProcesses($organizationId);
-
-        $this->registrationCutoffService->applyDigestPendingCutoff($query, $organizationId);
-
-        return $query;
     }
 
     /**
