@@ -125,7 +125,10 @@ class NotificationDigestResource extends Resource
             ->values()
             ->all();
 
-        $processesQuery = Process::query()->with('subjects');
+        $processesQuery = Process::query()->with([
+            'subjects',
+            'organizations' => fn ($q) => $q->where('organizations.id', $organizationId),
+        ]);
         if ($processIds !== [] || $processNumbers !== []) {
             $processesQuery->where(function (\Illuminate\Contracts\Database\Query\Builder $q) use ($processIds, $processNumbers): void {
                 if ($processIds !== []) {
