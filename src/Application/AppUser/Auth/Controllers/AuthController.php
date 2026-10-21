@@ -15,6 +15,7 @@ use Src\Application\AppUser\Auth\Data\VerifyPasswordData;
 use Src\Application\AppUser\Auth\Resources\AuthResource;
 use Src\Application\AppUser\Auth\Services\ForgotPasswordService;
 use Src\Application\AppUser\Auth\Services\ResetPasswordService;
+use Src\Application\Shared\Presence\AppUserActivityRecorder;
 use Src\Domain\AppUser\Models\AppUser;
 
 class AuthController
@@ -24,11 +25,13 @@ class AuthController
      *
      * @throws ValidationException
      */
-    public function login(LoginData $data): JsonResponse
+    public function login(LoginData $data, Request $request, AppUserActivityRecorder $recorder): JsonResponse
     {
         $appUser = AppUser::query()->where('identification', $data->identification)->first();
 
         $token = $appUser->createToken($appUser->identification)->plainTextToken;
+
+        $recorder->record($appUser->id, $request->ip(), true);
 
         $authResource = AuthResource::fromModel($appUser, $token, false, $appUser->must_change_password);
 

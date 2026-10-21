@@ -9,6 +9,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
@@ -23,6 +24,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $last_name
  * @property-read string $slug
  * @property-read string $email
+ * @property-read string $identification
  * @property-read string $password
  * @property-read string|null $profile_image
  * @property-read Carbon|null $email_verified_at
@@ -172,6 +174,16 @@ class AppUser extends Model implements Authenticatable
     public function ownedOrganizations(): BelongsToMany
     {
         return $this->organizations()->wherePivot('is_owner', true);
+    }
+
+    /**
+     * Daily presence rows: one per calendar day, not one per request.
+     *
+     * @return HasMany<AppUserDailyActivity, $this>
+     */
+    public function dailyActivities(): HasMany
+    {
+        return $this->hasMany(AppUserDailyActivity::class);
     }
 
     public function belongsToActiveOrganization(): bool

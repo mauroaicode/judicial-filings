@@ -40,6 +40,7 @@ return [
         'redis:process-import' => 120,
         'redis:exports' => 120,
         'redis:notifications' => 60,
+        'redis:presence' => 60,
     ],
 
     'trim' => [
@@ -166,6 +167,21 @@ return [
             'timeout' => 900,
             'nice' => 0,
         ],
+
+        'supervisor-presence' => [
+            'connection' => 'redis',
+            'queue' => ['presence'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 3,
+            'timeout' => 30,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -206,6 +222,10 @@ return [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],
+            'supervisor-presence' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
         ],
 
         'local' => [
@@ -230,6 +250,10 @@ return [
                 'maxProcesses' => 1,
             ],
             'supervisor-exports' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
+            'supervisor-presence' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],

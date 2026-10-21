@@ -10,7 +10,11 @@ use Illuminate\Support\ServiceProvider;
 use Opcodes\LogViewer\Facades\LogViewer;
 use Opcodes\LogViewer\Http\Middleware\ForwardRequestToHostMiddleware;
 use Opcodes\LogViewer\LogFile;
+use Src\Application\Admin\Presence\PresenceChannelRoster;
+use Src\Application\Admin\Presence\ReverbPresenceChannelRoster;
 use Src\Application\Shared\Contracts\Alert\AnnotationAlertDetectionInterface;
+use Src\Application\Shared\Presence\HttpIpLocationLookup;
+use Src\Application\Shared\Presence\IpLocationLookup;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\Services\RecordProcessTimelineEventService;
 use Src\Application\Shared\Services\Alert\OllamaAnnotationAlertDetectionProvider;
@@ -29,6 +33,8 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(ProcessTimelineRecorder::class, RecordProcessTimelineEventService::class);
+        $this->app->bind(IpLocationLookup::class, HttpIpLocationLookup::class);
+        $this->app->bind(PresenceChannelRoster::class, ReverbPresenceChannelRoster::class);
 
         $this->app->bind(AnnotationAlertDetectionInterface::class, function (): AnnotationAlertDetectionInterface {
             $provider = config('alert-ai.provider', 'openai');

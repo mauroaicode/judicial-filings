@@ -16,6 +16,8 @@ Schedule::command('tasks:send-urgency-alerts')->dailyAt('08:00');
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 
+Schedule::command('presence:purge-daily-activity')->daily();
+
 // Consolidados: only after judicial:sync-processes batch completes (dispatchSync in
 // SyncJudicialProcessesCommand). Do not schedule digest here — a fixed time (e.g. 09:30)
 // runs while the morning sync batch is still processing (~10:55) and sends incomplete data.

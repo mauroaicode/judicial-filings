@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin.role' => \App\Http\Middleware\EnsureAdminRole::class,
             'app_user.organization_active' => \App\Http\Middleware\EnsureAppUserOrganizationActive::class,
+            'app_user.activity' => \App\Http\Middleware\RecordAppUserActivity::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
