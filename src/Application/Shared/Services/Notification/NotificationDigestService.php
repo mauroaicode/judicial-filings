@@ -67,7 +67,7 @@ class NotificationDigestService
         // and links notifications regardless of whether delivery channels are active.
         $digest = NotificationDigest::query()->create([
             'organization_id' => $organization->id,
-            'data' => $digestData->toArray(),
+            'data' => $digestData->all(),
             // Channel timestamps are set individually AFTER each successful send.
         ]);
 

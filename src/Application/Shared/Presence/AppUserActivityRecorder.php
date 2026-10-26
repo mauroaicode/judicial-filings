@@ -6,7 +6,6 @@ namespace Src\Application\Shared\Presence;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Src\Application\Shared\Jobs\RecordAppUserDailyActivityJob;
 use Throwable;
 
 class AppUserActivityRecorder
@@ -16,7 +15,7 @@ class AppUserActivityRecorder
         try {
             if ($incrementLogin) {
                 $this->remember($appUserId);
-                RecordAppUserDailyActivityJob::dispatch($appUserId, $ip, true);
+                dispatch(new \Src\Application\Shared\Jobs\RecordAppUserDailyActivityJob($appUserId, $ip, true));
 
                 return;
             }
@@ -25,7 +24,7 @@ class AppUserActivityRecorder
                 return;
             }
 
-            RecordAppUserDailyActivityJob::dispatch($appUserId, $ip, false);
+            dispatch(new \Src\Application\Shared\Jobs\RecordAppUserDailyActivityJob($appUserId, $ip, false));
         } catch (Throwable $exception) {
             Log::warning('No se pudo encolar la actividad del app user.', [
                 'app_user_id' => $appUserId,

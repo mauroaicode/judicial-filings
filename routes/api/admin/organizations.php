@@ -39,4 +39,3 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('organizations/{organization}/processes/exports/{processExport}/download', [OrganizationProcessExportController::class, 'download'])
         ->name('organizations.processes.exports.download');
 });
-

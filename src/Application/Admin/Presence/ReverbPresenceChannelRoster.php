@@ -27,7 +27,7 @@ class ReverbPresenceChannelRoster implements PresenceChannelRoster
                 return null;
             }
 
-            $channel = 'presence-'.(string) config('presence.channel', 'app-users.online');
+            $channel = 'presence-'.config('presence.channel', 'app-users.online');
             $response = $broadcaster->getPusher()->get('/channels/'.rawurlencode($channel).'/users');
         } catch (ApiErrorException $exception) {
             if ($exception->getCode() === 404) {
@@ -78,7 +78,15 @@ class ReverbPresenceChannelRoster implements PresenceChannelRoster
         $ids = [];
 
         foreach ($users as $user) {
-            if (! is_array($user) || ! isset($user['id']) || ! is_scalar($user['id'])) {
+            if (! is_array($user)) {
+                continue;
+            }
+
+            if (! isset($user['id'])) {
+                continue;
+            }
+
+            if (! is_scalar($user['id'])) {
                 continue;
             }
 

@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\Presence\Controllers;
 
-use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Src\Application\Admin\Presence\Resources\OnlineAppUsersResource;
 use Src\Application\Admin\Presence\Services\ListAppUserPresenceSummaryService;
@@ -124,11 +122,7 @@ readonly class AppUserPresenceController
             ]);
         }
 
-        try {
-            $parsed = Carbon::createFromFormat('Y-m-d', $date);
-        } catch (InvalidFormatException) {
-            $parsed = false;
-        }
+        $parsed = \Illuminate\Support\Facades\Date::createFromFormat('Y-m-d', $date);
 
         if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
             throw ValidationException::withMessages([

@@ -27,8 +27,8 @@ readonly class ListTodayAppUserActivityService
                 $organizationId !== null,
                 fn ($query) => $query->where('organization_id', $organizationId),
             )
-            ->orderByDesc('activity_date')
-            ->orderByDesc('last_seen_at')
+            ->latest('activity_date')
+            ->latest('last_seen_at')
             ->paginate($perPage, ['*'], 'page', $page);
 
         $paginator->through(

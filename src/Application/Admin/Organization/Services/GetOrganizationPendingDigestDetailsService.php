@@ -7,8 +7,7 @@ namespace Src\Application\Admin\Organization\Services;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use Src\Application\Admin\Organization\Data\OrganizationNotificationDigestFilterData;
-use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
-use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
+use Src\Application\Shared\Notification\NotificationDigestAccess;
 use Src\Application\Shared\Services\Notification\BuildNotificationDigestRowsService;
 use Src\Application\Shared\Services\Notification\CollectPendingDigestNotificationsService;
 use Src\Domain\Notification\Models\NotificationDigest;
@@ -29,7 +28,7 @@ class GetOrganizationPendingDigestDetailsService
         Organization $organization,
         OrganizationNotificationDigestFilterData $filters,
     ): LengthAwarePaginator {
-        $appUserFilters = $this->toAppUserFilters($filters);
+        $digestFilters = NotificationDigestAccess::filters($filters->toArray());
 
         $notifications = $this->collectPendingDigestNotificationsService->handle($organization);
         $items = $this->buildNotificationDigestRowsService
@@ -37,8 +36,8 @@ class GetOrganizationPendingDigestDetailsService
             ->values()
             ->all();
 
-        $items = NotificationDigestResource::filterRawItems($items, $appUserFilters);
-        $items = NotificationDigestResource::sortRawItems($items);
+        $items = NotificationDigestAccess::filterRawItems($items, $digestFilters);
+        $items = NotificationDigestAccess::sortRawItems($items);
 
         $totalActions = count($items);
         $currentPage = max(1, (int) \Illuminate\Pagination\Paginator::resolveCurrentPage());
@@ -46,14 +45,14 @@ class GetOrganizationPendingDigestDetailsService
         $pageItems = array_slice($items, ($currentPage - 1) * $perPage, $perPage);
 
         $ephemeralDigest = $this->makeEphemeralDigest($organization->id, $items);
-        $enrichedPage = NotificationDigestResource::formatItemsForPage(
+        $enrichedPage = NotificationDigestAccess::formatItemsForPage(
             $ephemeralDigest,
             $pageItems,
             $organization->id,
         );
 
         $resource = array_merge(
-            NotificationDigestResource::buildMetadata($ephemeralDigest, $totalActions),
+            NotificationDigestAccess::buildMetadata($ephemeralDigest, $totalActions),
             [
                 'id' => null,
                 'organization_id' => $organization->id,
@@ -64,11 +63,6 @@ class GetOrganizationPendingDigestDetailsService
         );
 
         return $this->makePaginator([$resource], $totalActions, $perPage, $currentPage, $filters);
-    }
-
-    private function toAppUserFilters(OrganizationNotificationDigestFilterData $filters): NotificationDigestFilterData
-    {
-        return NotificationDigestFilterData::from($filters->toArray());
     }
 
     /**
@@ -99,10 +93,7 @@ class GetOrganizationPendingDigestDetailsService
         int $currentPage,
         OrganizationNotificationDigestFilterData $filters,
     ): LengthAwarePaginator {
-        return new class($items, $totalActions, $perPage, $currentPage, [
-            'path' => request()->url(),
-            'query' => array_merge(request()->query(), $filters->toArray()),
-        ]) extends LengthAwarePaginator
+        return new class($items, $totalActions, $perPage, $currentPage, ['path' => request()->url(), 'query' => array_merge(request()->query(), $filters->toArray())]) extends LengthAwarePaginator
         {
             public function toArray()
             {

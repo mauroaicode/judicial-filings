@@ -30,8 +30,6 @@ class RecordAppUserDailyActivityJob implements ShouldQueue
         public bool $incrementLogin,
     ) {
         $this->queue = (string) config('presence.queue', 'presence');
-        $this->tries = 3;
-        $this->timeout = 30;
 
         $connection = config('presence.connection');
 

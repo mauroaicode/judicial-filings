@@ -6,8 +6,7 @@ namespace Src\Application\Admin\Organization\Services;
 
 use Illuminate\Pagination\LengthAwarePaginator;
 use Src\Application\Admin\Organization\Data\OrganizationNotificationDigestFilterData;
-use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
-use Src\Application\AppUser\Notification\Services\GetNotificationDigestDetailsService;
+use Src\Application\Shared\Notification\NotificationDigestAccess;
 use Src\Domain\Organization\Models\Organization;
 
 /**
@@ -16,19 +15,15 @@ use Src\Domain\Organization\Models\Organization;
  */
 class GetOrganizationNotificationDigestDetailsService
 {
-    public function __construct(
-        private readonly GetNotificationDigestDetailsService $getNotificationDigestDetailsService,
-    ) {}
-
     public function handle(
         Organization $organization,
         string $digestId,
         OrganizationNotificationDigestFilterData $filters,
     ): LengthAwarePaginator {
-        $paginator = $this->getNotificationDigestDetailsService->handle(
+        $paginator = NotificationDigestAccess::details(
             $organization->id,
             $digestId,
-            NotificationDigestFilterData::from($filters->toArray()),
+            $filters->toArray(),
         );
 
         $paginator->setCollection(

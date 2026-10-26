@@ -7,7 +7,6 @@ namespace Src\Application\Shared\Presence\Services;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Src\Application\Shared\Presence\IpLocationLookup;
-use Src\Domain\AppUser\Events\AppUserActivityRecorded;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\AppUser\Models\AppUserDailyActivity;
 
@@ -29,7 +28,7 @@ readonly class RecordAppUserDailyActivityService
             }
         }
 
-        AppUserActivityRecorded::dispatch($appUserId, $incrementLogin, $activityDate);
+        event(new \Src\Domain\AppUser\Events\AppUserActivityRecorded($appUserId, $incrementLogin, $activityDate));
     }
 
     /**
@@ -115,7 +114,7 @@ readonly class RecordAppUserDailyActivityService
 
         $location = $this->ipLocationLookup->locate($activity->ip_address);
 
-        if ($location === null || $location->isEmpty()) {
+        if (! $location instanceof \Src\Application\Shared\Presence\IpLocation || $location->isEmpty()) {
             return;
         }
 

@@ -22,6 +22,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property Carbon|null $email_sent_at
  * @property Carbon|null $whatsapp_sent_at
  * @property Carbon|null $sms_sent_at
+ * @property Carbon|null $viewed_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
  *
@@ -62,6 +63,7 @@ class NotificationDigest extends Model
         'email_sent_at',
         'whatsapp_sent_at',
         'sms_sent_at',
+        'viewed_at',
     ];
 
     protected function casts(): array
@@ -71,6 +73,7 @@ class NotificationDigest extends Model
             'email_sent_at' => 'datetime',
             'whatsapp_sent_at' => 'datetime',
             'sms_sent_at' => 'datetime',
+            'viewed_at' => 'datetime',
         ];
     }
 
@@ -88,5 +91,13 @@ class NotificationDigest extends Model
     public function notifications(): HasMany
     {
         return $this->hasMany(OrganizationNotification::class, 'notification_digest_id');
+    }
+
+    /**
+     * @return HasMany<NotificationDigestView, $this>
+     */
+    public function views(): HasMany
+    {
+        return $this->hasMany(NotificationDigestView::class, 'notification_digest_id');
     }
 }

@@ -595,7 +595,7 @@ it('does not re-import sujetos when the radicado already exists in an organizati
     Queue::fake();
 
     $sourceUuid = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::PublicacionesProcesales);
-    $processNumber = '76233408900120240007000';
+    $processNumber = '76233408900120991107099';
 
     $process = Process::query()->create([
         'process_number' => $processNumber,

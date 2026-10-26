@@ -219,7 +219,7 @@ it('registers via judicial_branch channel as auto-sync placeholder when portal i
     $request = ManualRegistrationRequest::query()->create([
         'organization_id' => $this->organization->id,
         'app_user_id' => $this->appUser->id,
-        'process_number' => '76001400300220260112000',
+        'process_number' => '76001400300220991112099',
         'reason' => ManualRegistrationRequestReason::NotFound,
         'status' => ManualRegistrationRequestStatus::Pending,
         'lawyer_role' => ProcessLawyerRole::PLAINTIFF,
@@ -242,7 +242,7 @@ it('registers via judicial_branch channel as auto-sync placeholder when portal i
     $response->assertOk()->assertJsonPath('data.status', 'registered');
 
     $process = \Src\Domain\Process\Models\Process::query()
-        ->whereProcessNumber('76001400300220260112000')
+        ->whereProcessNumber('76001400300220991112099')
         ->first();
 
     expect($process)->not->toBeNull()

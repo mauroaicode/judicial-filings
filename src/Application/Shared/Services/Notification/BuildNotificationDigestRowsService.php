@@ -41,7 +41,8 @@ class BuildNotificationDigestRowsService
      */
     private function prepareData(Collection $notifications, string $organizationId): Collection
     {
-        return $notifications->groupBy(function (OrganizationNotification $notif): string {
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $notifications->groupBy(function (OrganizationNotification $notif): string {
             $action = $notif->notifiable;
 
             if (! $action instanceof ProcessAction) {
@@ -122,6 +123,8 @@ class BuildNotificationDigestRowsService
                 'alert_highlights' => $alertHighlights,
             ];
         })->filter()->values();
+
+        return $rows;
     }
 
     /**
@@ -156,6 +159,9 @@ class BuildNotificationDigestRowsService
             return $item;
         });
 
-        return $merged->reject(fn (array $item) => $toRemove->contains($item['process_action_id'] ?? $item['id']))->values();
+        /** @var Collection<int, array<string, mixed>> $rows */
+        $rows = $merged->reject(fn (array $item) => $toRemove->contains($item['process_action_id'] ?? $item['id']))->values();
+
+        return $rows;
     }
 }

@@ -55,7 +55,7 @@ readonly class ListOnlineAppUsersService
                 $organizationId !== null,
                 fn ($query) => $query->whereHas(
                     'organizations',
-                    fn ($organizations) => $organizations->where('organizations.id', $organizationId),
+                    fn (\Illuminate\Contracts\Database\Query\Builder $organizations) => $organizations->where('organizations.id', $organizationId),
                 ),
             )
             ->get()

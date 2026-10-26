@@ -64,7 +64,7 @@ it('prioritizes alerts and limits rows when digest_max_rows is configured', func
         ->and($presented['displayedActionsCount'])->toBe(3)
         ->and($presented['remainingActionsCount'])->toBe(2)
         ->and($presented['alertsCount'])->toBe(1)
-        ->and($presented['digestUrl'])->toBe('https://app.example.com/actuaciones-recientes?digest=digest-uuid')
+        ->and($presented['digestUrl'])->toBe('https://app.example.com/actuaciones-recientes?digest=digest-uuid&from=email')
         ->and($presented['displayedRows']->first()['action_text'])
         ->toBe('Alerta 1');
 });
@@ -86,7 +86,7 @@ it('renders scrollable table digest email markup', function (): void {
     expect($html)
         ->toContain('76001418900120220081900')
         ->toContain('Ver detalle completo en NotiJudicial')
-        ->toContain('https://app.example.com/actuaciones-recientes?digest=digest-uuid')
+        ->toContain('https://app.example.com/actuaciones-recientes?digest=digest-uuid&amp;from=email')
         ->toContain('-webkit-overflow-scrolling: touch')
         ->toContain('Desliza horizontalmente la tabla para ver todas las columnas.')
         ->toContain('<thead>')
@@ -106,7 +106,7 @@ it('builds the digest CTA with query param even if the override url points at ge
     ]), 'a1e4067d-12cf-49dd-871f-525f4a118776');
 
     expect($presented['digestUrl'])->toBe(
-        'https://app.notijudicial.com/actuaciones-recientes?digest=a1e4067d-12cf-49dd-871f-525f4a118776'
+        'https://app.notijudicial.com/actuaciones-recientes?digest=a1e4067d-12cf-49dd-871f-525f4a118776&from=email'
     );
 });
 

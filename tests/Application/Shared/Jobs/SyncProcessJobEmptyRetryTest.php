@@ -10,7 +10,7 @@ use Src\Domain\Process\Models\Process;
 it('requeues a known radicado when the portal returns an empty list', function (): void {
     $process = Process::factory()->create([
         'process_number' => '76001310500220170063501',
-        'process_id' => 1832590134,
+        'process_id' => unusedProcessId(),
     ]);
 
     $sync = Mockery::mock(ProcessSyncService::class);
@@ -58,7 +58,7 @@ it('does not retry an empty list when the radicado was never stored', function (
 it('stops retrying a known radicado after the last attempt', function (): void {
     $process = Process::factory()->create([
         'process_number' => '76001310500220170063502',
-        'process_id' => 1832590135,
+        'process_id' => unusedProcessId(),
     ]);
 
     $sync = Mockery::mock(ProcessSyncService::class);
@@ -83,3 +83,12 @@ it('stops retrying a known radicado after the last attempt', function (): void {
 
     expect($job->released)->toBeFalse();
 });
+
+function unusedProcessId(): int
+{
+    do {
+        $processId = random_int(1_000_000_000, 9_999_999_999);
+    } while (Process::query()->where('process_id', $processId)->exists());
+
+    return $processId;
+}

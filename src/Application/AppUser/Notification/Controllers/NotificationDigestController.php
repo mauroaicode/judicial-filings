@@ -12,7 +12,9 @@ use Src\Application\AppUser\Notification\Services\ExportNotificationDigestPdfSer
 use Src\Application\AppUser\Notification\Services\GetNotificationDigestDetailsService;
 use Src\Application\AppUser\Notification\Services\ListNotificationDigestHistoryService;
 use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
+use Src\Application\AppUser\Notification\Services\RecordNotificationDigestViewService;
 use Src\Domain\AppUser\Models\AppUser;
+use Src\Domain\Notification\Enums\NotificationDigestOpenedVia;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Process\Services\GroupProcessActionsService;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,6 +27,7 @@ readonly class NotificationDigestController
         private GroupProcessActionsService $groupProcessActionsService,
         private GetNotificationDigestDetailsService $getNotificationDigestDetailsService,
         private ExportNotificationDigestPdfService $exportNotificationDigestPdfService,
+        private RecordNotificationDigestViewService $recordNotificationDigestViewService,
     ) {}
 
     public function show(string $id, NotificationDigestFilterData $filters): LengthAwarePaginator
@@ -38,7 +41,17 @@ readonly class NotificationDigestController
             abort(422, __('process.user_has_no_organization'));
         }
 
-        return $this->getNotificationDigestDetailsService->handle($organization->id, $id, $filters);
+        $details = $this->getNotificationDigestDetailsService->handle($organization->id, $id, $filters);
+
+        $this->recordNotificationDigestViewService->handle(
+            $organization->id,
+            $organization->name,
+            $id,
+            $appUser,
+            NotificationDigestOpenedVia::fromRequest(request()->query('opened_via')),
+        );
+
+        return $details;
     }
 
     public function index(NotificationDigestFilterData $filters): LengthAwarePaginator

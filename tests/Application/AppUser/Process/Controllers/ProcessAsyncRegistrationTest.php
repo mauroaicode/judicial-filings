@@ -324,7 +324,7 @@ it('returns the manual registration modal for an existing private process while 
         'data_source' => JudicialSyncDataSource::JudicialBranch,
     ]);
 
-    $processNumber = '76520310500320260017700';
+    $processNumber = '76520310500320991117799';
     Process::factory()->private()->create([
         'process_number' => $processNumber,
         'process_id' => 6060606100,

@@ -74,7 +74,7 @@ final class ConsolidatedDigestEmailPresenter
             $path = 'actuaciones-recientes';
         }
 
-        return $origin.'/'.$path.'?digest='.rawurlencode($digestId);
+        return $origin.'/'.$path.'?digest='.rawurlencode($digestId).'&from=email';
     }
 
     private function resolveFrontendOrigin(): string
