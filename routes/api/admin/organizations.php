@@ -24,6 +24,9 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::post('organizations/{organization}/notifications-status', OrganizationUpdateNotificationStatusController::class);
     Route::get('organizations/{organization}/notification-digests/pending', [OrganizationNotificationDigestController::class, 'pending'])
         ->name('organizations.notification-digests.pending');
+    Route::get('organizations/{organization}/notification-digests/{digest}/export-pdf', [OrganizationNotificationDigestController::class, 'exportPdf'])
+        ->whereUuid('digest')
+        ->name('organizations.notification-digests.export-pdf');
     Route::get('organizations/{organization}/notification-digests/{digest}', [OrganizationNotificationDigestController::class, 'show'])
         ->whereUuid('digest')
         ->name('organizations.notification-digests.show');

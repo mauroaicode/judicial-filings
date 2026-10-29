@@ -108,6 +108,8 @@ Rutas (`routes/api/admin/digest-packages.php`):
 | GET | `/api/admin/digest-packages/preview` | Vista previa del paquete pendiente |
 | POST | `/api/admin/digest-packages/send` | Encola un digest por org elegible |
 | DELETE | `/api/admin/digest-packages/organizations/{organizationId}` | Descarta pendientes de esa org |
+| GET | `/api/admin/notification-digests/{id}/export-pdf` | PDF del consolidado (mismo diseño que app-user) |
+| GET | `/api/admin/organizations/{organization}/notification-digests/{digest}/export-pdf` | PDF del consolidado de esa organización |
 
 Servicios:
 
@@ -240,7 +242,7 @@ Rutas app-user:
 
 | Actor | Qué ve / hace |
 |-------|----------------|
-| **Admin** | Preview/send/discard del paquete; no recibe el consolidado del cliente |
+| **Admin** | Preview/send/discard del paquete y descarga del PDF del consolidado |
 | **Abogado (org)** | Email del consolidado + digests en app + campana de actuaciones |
 
 La notificación de campana **“Radicado importado”** (`ProcessDataImportedNotification`) **no es un consolidado**: va al `AppUser` que importó, con `type = process-imported` e `id` del proceso (sin URL; el FE navega).
@@ -261,7 +263,7 @@ La notificación de campana **“Radicado importado”** (`ProcessDataImportedNo
 | Dispatch global | `src/Application/Shared/Jobs/DispatchOrganizationDigestsJob.php` |
 | Digest por org | `src/Application/Shared/Jobs/SendOrganizationDigestJob.php` |
 | Paquete admin | `src/Application/Admin/DigestPackage/Services/*` |
-| Export PDF app-user | `src/Application/AppUser/Notification/Services/ExportNotificationDigestPdfService.php` |
+| Export PDF (app-user y admin) | `src/Application/AppUser/Notification/Services/ExportNotificationDigestPdfService.php` |
 | Vista PDF | `resources/views/pdfs/notification-digest.blade.php` |
 | API app digests | `src/Application/AppUser/Notification/Controllers/NotificationDigestController.php` |
 | Config | `config/judicial-sync.php` |

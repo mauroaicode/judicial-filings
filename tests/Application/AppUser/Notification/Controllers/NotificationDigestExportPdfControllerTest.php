@@ -84,8 +84,10 @@ it('downloads a pdf for an existing consolidado of the user organization', funct
 
     $disposition = (string) $response->headers->get('content-disposition');
     expect($disposition)->toContain('attachment')
-        ->and($disposition)->toContain('consolidado-bufete-export-pdf')
-        ->and($disposition)->toContain('.pdf');
+        ->and($disposition)->toContain('consolidado-')
+        ->and($disposition)->toContain('.pdf')
+        ->and($disposition)->not->toContain($this->digest->id)
+        ->and($disposition)->not->toContain('bufete-export-pdf');
 
     $content = $response->getContent();
     expect($content)->toBeString()

@@ -6,6 +6,7 @@ namespace Src\Application\Admin\Notification\Data;
 
 use Spatie\LaravelData\Attributes\Validation\Date;
 use Spatie\LaravelData\Attributes\Validation\Exists;
+use Spatie\LaravelData\Attributes\Validation\In;
 use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Attributes\Validation\Uuid;
 use Spatie\LaravelData\Data;
@@ -39,6 +40,8 @@ class NotificationDigestFilterData extends Data
         public ?string $term_end_date_from = null,
         #[Date]
         public ?string $term_end_date_to = null,
+        #[Nullable, In(['0', '1'])]
+        public ?string $is_viewed = null,
         public int $per_page = 20,
     ) {}
 }

@@ -8,13 +8,16 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Src\Application\Admin\Organization\Data\OrganizationNotificationDigestFilterData;
 use Src\Application\Admin\Organization\Services\GetOrganizationNotificationDigestDetailsService;
 use Src\Application\Admin\Organization\Services\GetOrganizationPendingDigestDetailsService;
+use Src\Application\AppUser\Notification\Services\ExportNotificationDigestPdfService;
 use Src\Domain\Organization\Models\Organization;
+use Symfony\Component\HttpFoundation\Response;
 
 readonly class OrganizationNotificationDigestController
 {
     public function __construct(
         private GetOrganizationPendingDigestDetailsService $getOrganizationPendingDigestDetailsService,
         private GetOrganizationNotificationDigestDetailsService $getOrganizationNotificationDigestDetailsService,
+        private ExportNotificationDigestPdfService $exportNotificationDigestPdfService,
     ) {}
 
     /**
@@ -41,5 +44,13 @@ readonly class OrganizationNotificationDigestController
             $digest,
             $filters,
         );
+    }
+
+    /**
+     * Download the same consolidado PDF used by the app user, scoped to this organization.
+     */
+    public function exportPdf(Organization $organization, string $digest): Response
+    {
+        return $this->exportNotificationDigestPdfService->handle($organization->id, $digest);
     }
 }

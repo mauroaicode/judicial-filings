@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Organization\Models\Organization;
@@ -245,8 +246,33 @@ it('returns persisted digest details scoped to the organization', function (): v
     expect($response->json('data.0.id'))->toBe($digest->id)
         ->and($response->json('data.0.organization_id'))->toBe($this->organization->id)
         ->and($response->json('data.0.is_pending'))->toBeFalse()
+        ->and($response->json('data.0.is_viewed'))->toBeFalse()
+        ->and($response->json('data.0.viewed_at'))->toBeNull()
         ->and($response->json('data.0.actions_count'))->toBe(1)
         ->and($response->json('data.0.data.0.process_number'))->toBe($process->process_number);
+});
+
+it('includes whether the organization already opened the consolidado and when', function (): void {
+    $viewedAt = '2030-01-16 09:30:00';
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'viewed_at' => $viewedAt,
+        'data' => [
+            [
+                'process_number' => '76001333301320170008888',
+                'action_text' => 'Auto',
+                'registration_date' => '2030-01-16',
+            ],
+        ],
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson("/api/admin/organizations/{$this->organization->id}/notification-digests/{$digest->id}");
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.is_viewed', true)
+        ->assertJsonPath('data.0.viewed_at', DateFormatHelper::formatDateWithTime($viewedAt));
 });
 
 it('returns 404 when persisted digest belongs to another organization', function (): void {

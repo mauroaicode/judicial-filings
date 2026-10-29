@@ -200,9 +200,8 @@ class ExportNotificationDigestPdfService
 
     private function buildFilename(NotificationDigest $digest, string $dateLabel): string
     {
-        $orgSlug = Str::slug($digest->organization->name ?? 'organizacion');
         $dateSlug = Str::slug($dateLabel) ?: $digest->created_at->format('Y-m-d');
 
-        return "consolidado-{$orgSlug}-{$dateSlug}.pdf";
+        return "consolidado-{$dateSlug}.pdf";
     }
 }

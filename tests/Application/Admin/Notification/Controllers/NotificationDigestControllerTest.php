@@ -89,6 +89,33 @@ it('lists digests from every organization with the same history fields and viewe
     expect($response->json('data.0.viewed_at'))->not->toBeNull();
 });
 
+it('filters notification digests by whether anyone has viewed them', function (): void {
+    $viewed = $this->actingAs($this->user)
+        ->getJson('/api/admin/notification-digests?is_viewed=1&created_at_from=2030-01-15&created_at_to=2030-01-15');
+
+    $viewed->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $this->viewed->id)
+        ->assertJsonPath('data.0.is_viewed', true)
+        ->assertJsonPath('meta.total', 1);
+
+    $unviewed = $this->actingAs($this->user)
+        ->getJson('/api/admin/notification-digests?is_viewed=0&created_at_from=2030-01-15&created_at_to=2030-01-15');
+
+    $unviewed->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $this->unviewed->id)
+        ->assertJsonPath('data.0.is_viewed', false)
+        ->assertJsonPath('meta.total', 1);
+});
+
+it('rejects an invalid viewed filter', function (): void {
+    $this->actingAs($this->user)
+        ->getJson('/api/admin/notification-digests?is_viewed=yes')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['is_viewed']);
+});
+
 it('filters notification digests by organization', function (): void {
     $response = $this->actingAs($this->user)
         ->getJson('/api/admin/notification-digests?organization_id='.$this->organizationA->id.'&created_at_from=2030-01-15&created_at_to=2030-01-15');

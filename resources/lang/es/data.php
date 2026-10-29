@@ -55,6 +55,7 @@ return [
     'type' => 'Tipo',
     'alert_slug' => 'Tipo de alerta (slug)',
     'viewed' => 'Visto',
+    'is_viewed' => 'Visto',
     'per_page' => 'Por página',
     'page' => 'Página',
     'notification_ids' => 'IDs de notificación',

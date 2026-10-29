@@ -29,6 +29,14 @@ class ListNotificationDigestsService
             $pageQuery->whereOrganization($filters->organization_id);
         }
 
+        if ($filters->is_viewed === '1') {
+            $pageQuery->whereNotNull('notification_digests.viewed_at');
+        }
+
+        if ($filters->is_viewed === '0') {
+            $pageQuery->whereNull('notification_digests.viewed_at');
+        }
+
         $pageQuery->filters(NotificationDigestAccess::filters([
             'process_number' => $filters->process_number,
             'registration_date_from' => $filters->registration_date_from,
