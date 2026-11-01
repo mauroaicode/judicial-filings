@@ -95,6 +95,40 @@ it('returns process actions for a process', function (): void {
     expect($response->json('data.1.cons_action'))->toBe(1);
 });
 
+it('exposes removed-from-judicial-branch flags on process actions', function (): void {
+    $process = Process::factory()->create();
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $removed = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 2,
+        'removed_from_judicial_branch_at' => now(),
+        'removed_from_judicial_branch_reason' => 'Error del juzgado',
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 1,
+        'removed_from_judicial_branch_at' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}/actions");
+
+    $response->assertOk();
+    $removedItem = collect($response->json('data'))->firstWhere('id', $removed->id);
+
+    expect($removedItem['removed_from_judicial_branch'])->toBeTrue()
+        ->and($removedItem['removed_from_judicial_branch_reason'])->toBe('Error del juzgado')
+        ->and($removedItem['removed_from_judicial_branch_at'])->not->toBeNull();
+
+    $activeItem = collect($response->json('data'))->firstWhere('id', '!=', $removed->id);
+    expect($activeItem['removed_from_judicial_branch'])->toBeFalse();
+});
+
 it('returns 404 when process does not exist', function (): void {
     $nonExistentId = '00000000-0000-0000-0000-000000000000';
 

@@ -124,10 +124,17 @@ class DeliverNotificationChannelJob implements ShouldQueue
         ]);
 
         if ($success) {
-            $notification->update([
+            $updates = [
                 'is_notified' => true,
                 'notified_at' => now(),
-            ]);
+            ];
+
+            if ($channel->channel_type === 'email') {
+                $updates['is_email_notified'] = true;
+                $updates['email_notified_at'] = now();
+            }
+
+            $notification->update($updates);
         }
     }
 }

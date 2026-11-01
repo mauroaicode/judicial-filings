@@ -144,6 +144,7 @@ class JudicialActionDetectedMailable extends Mailable
             'annotation' => $candidate->annotation,
             'cons_action' => $candidate->cons_action,
             'registration_date' => $candidate->registration_date,
+            'registration_date_iso' => $candidate->registration_date?->format('Y-m-d'),
         ]);
 
         $grouped = resolve(GroupProcessActionsService::class)->handle($items);

@@ -28,6 +28,7 @@ readonly class ProcessDetailService
                     $query->where('organization_id', $organizationId)
                         ->where('is_admin', false);
                 },
+                'actions as removed_from_judicial_branch_count' => fn ($query) => $query->whereNotNull('removed_from_judicial_branch_at'),
             ])
             ->first();
     }

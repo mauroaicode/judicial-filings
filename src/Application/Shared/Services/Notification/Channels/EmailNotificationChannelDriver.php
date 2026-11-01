@@ -6,9 +6,11 @@ namespace Src\Application\Shared\Services\Notification\Channels;
 
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Src\Application\Admin\Process\Services\MarkProcessActionRemovedFromJudicialBranchService;
 use Src\Application\Admin\Process\Services\NotifyProcessActionDocumentUploadedService;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
 use Src\Application\Shared\Mail\JudicialActionDetectedMailable;
+use Src\Application\Shared\Mail\ProcessActionRemovedFromJudicialBranchMailable;
 use Src\Application\Shared\Mail\ProcessBecamePrivateMailable;
 use Src\Domain\Media\Models\Media;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -49,6 +51,39 @@ class EmailNotificationChannelDriver implements NotificationChannelDriverInterfa
         $process = $action->process;
         $mediaId = null;
         $originalFilename = null;
+
+        if ($type === MarkProcessActionRemovedFromJudicialBranchService::NOTIFICATION_TYPE) {
+            \Illuminate\Support\Sleep::sleep(2);
+
+            try {
+                Mail::to($to)->send(new ProcessActionRemovedFromJudicialBranchMailable(
+                    $action,
+                    $process,
+                    $action->removed_from_judicial_branch_reason,
+                ));
+
+                Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                    ->info('Process action removed-from-Rama email sent', [
+                        'organization_id' => $notification->organization_id,
+                        'process_number' => $process->process_number,
+                        'action_id' => $action->id,
+                        'to' => $to,
+                    ]);
+            } catch (Throwable $e) {
+                Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                    ->error('Process action removed-from-Rama email failed', [
+                        'organization_id' => $notification->organization_id,
+                        'process_number' => $process->process_number,
+                        'action_id' => $action->id,
+                        'to' => $to,
+                        'message' => $e->getMessage(),
+                    ]);
+
+                throw $e;
+            }
+
+            return;
+        }
 
         if ($type === NotifyProcessActionDocumentUploadedService::NOTIFICATION_TYPE) {
             $media = Media::query()

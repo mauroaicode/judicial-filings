@@ -153,6 +153,7 @@ class ProcessActionQueryBuilder extends Builder
         $this->applyActionDateFilter($data->date_from, $data->date_to);
         $this->applyAlertLevelFilter($data->alert_level);
         $this->applyLawyerRoleFilter($data->lawyer_role);
+        $this->applyRemovedFromJudicialBranchFilter($data->removed_from_judicial_branch);
 
         return $this;
     }
@@ -242,6 +243,30 @@ class ProcessActionQueryBuilder extends Builder
         $this->whereHas('process.organizations', function (\Illuminate\Contracts\Database\Query\Builder $q) use ($role): void {
             $q->where('organization_processes.lawyer_role', $role);
         });
+    }
+
+    /**
+     * Filter by admin mark “retirada en Rama Judicial”.
+     */
+    private function applyRemovedFromJudicialBranchFilter(mixed $removed): void
+    {
+        if ($removed === null || $removed === '') {
+            return;
+        }
+
+        $flag = filter_var($removed, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        if ($flag === null) {
+            return;
+        }
+
+        if ($flag) {
+            $this->whereNotNull('removed_from_judicial_branch_at');
+
+            return;
+        }
+
+        $this->whereNull('removed_from_judicial_branch_at');
     }
 
     /**

@@ -84,6 +84,13 @@ class JudicialActionDetectedNotification extends Notification implements ShouldQ
                 ]),
                 'action-documents',
             ],
+            'actuacion_eliminada_rama' => [
+                __('process.internal_action_removed_from_judicial_branch_title'),
+                __('process.internal_action_removed_from_judicial_branch_description', [
+                    'number' => $this->process->process_number,
+                ]),
+                'action-removed-from-rama',
+            ],
             default => [
                 __('process.internal_action_title'),
                 __('process.internal_action_description', ['number' => $this->process->process_number]),

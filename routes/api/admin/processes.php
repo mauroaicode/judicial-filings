@@ -41,6 +41,8 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('processes/{id}/actions', [AdminProcessActionController::class, 'index'])->whereUuid('id');
     Route::patch('processes/{id}/actions/{actionId}', [AdminProcessActionController::class, 'update'])
         ->whereUuid(['id', 'actionId']);
+    Route::post('processes/{id}/actions/{actionId}/mark-removed-from-judicial-branch', [AdminProcessActionController::class, 'markRemovedFromJudicialBranch'])
+        ->whereUuid(['id', 'actionId']);
     Route::post('processes/{processId}/actions/{actionId}/documents', [AdminProcessActionDocumentController::class, 'store'])
         ->whereUuid(['processId', 'actionId']);
     Route::get('media/{mediaId}/download', [AdminProcessActionDocumentController::class, 'download'])

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Shared\Services\Notification;
 
 use Illuminate\Support\Facades\Log;
+use Src\Application\Admin\Process\Services\MarkProcessActionRemovedFromJudicialBranchService;
 use Src\Application\Admin\Process\Services\NotifyProcessActionDocumentUploadedService;
 use Src\Application\Shared\Contracts\Notification\NotificationChannelDriverInterface;
 use Src\Application\Shared\Jobs\DeliverNotificationChannelJob;
@@ -54,8 +55,9 @@ class NotificationDispatcherService
             // BUT ONLY IF it's a digestable judicial action. Document uploads notify immediately.
             $isJudicialAction = $notification->notifiable_type === (new ProcessAction)->getMorphClass();
             $isImmediateDocumentNotify = $notification->notification_type === NotifyProcessActionDocumentUploadedService::NOTIFICATION_TYPE;
+            $isImmediateRemovalNotify = $notification->notification_type === MarkProcessActionRemovedFromJudicialBranchService::NOTIFICATION_TYPE;
 
-            if ($isJudicialAction && ! $isImmediateDocumentNotify && in_array($channel->channel_type, ['email', 'internal'], true)) {
+            if ($isJudicialAction && ! $isImmediateDocumentNotify && ! $isImmediateRemovalNotify && in_array($channel->channel_type, ['email', 'internal'], true)) {
                 continue;
             }
 
@@ -68,7 +70,9 @@ class NotificationDispatcherService
                     'queue' => $queueName,
                 ]);
 
-            dispatch(new DeliverNotificationChannelJob($notification->id, $channel->id, $channel->channel_type))->onQueue($queueName);
+            dispatch(new DeliverNotificationChannelJob($notification->id, $channel->id, $channel->channel_type))
+                ->onQueue($queueName)
+                ->afterCommit();
         }
     }
 

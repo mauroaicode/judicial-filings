@@ -202,6 +202,7 @@ readonly class AlreadySentDigestActuacionChecker
             'action' => (string) $action->action,
             'annotation' => (string) ($action->annotation ?? ''),
             'registration_date' => $action->registration_date->format('Y-m-d'),
+            'registration_date_iso' => $action->registration_date->format('Y-m-d'),
             'cons_action' => $action->cons_action,
         ];
     }

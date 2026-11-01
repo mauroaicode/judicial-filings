@@ -8,7 +8,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Src\Application\Admin\Process\Data\MarkProcessActionRemovedFromJudicialBranchData;
 use Src\Application\Admin\Process\Data\UpdateAdminProcessActionData;
+use Src\Application\Admin\Process\Services\MarkProcessActionRemovedFromJudicialBranchService;
+use Src\Application\Admin\Process\Services\ResolveProcessActionNotifiedConsolidadosService;
 use Src\Application\Admin\Process\Services\UpdateAdminProcessActionService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
@@ -26,6 +29,8 @@ readonly class AdminProcessActionController
         private GroupProcessActionsService $groupProcessActionsService,
         private ProcessActionPairingContextService $pairingContextService,
         private UpdateAdminProcessActionService $updateAdminProcessActionService,
+        private MarkProcessActionRemovedFromJudicialBranchService $markProcessActionRemovedFromJudicialBranchService,
+        private ResolveProcessActionNotifiedConsolidadosService $resolveProcessActionNotifiedConsolidadosService,
     ) {}
 
     /**
@@ -56,6 +61,9 @@ readonly class AdminProcessActionController
 
         $paginatedActions->setCollection($collection);
 
+        $consolidadosByAction = $this->resolveProcessActionNotifiedConsolidadosService
+            ->forActions($collection);
+
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 
         $transformedItems = $paginatedActions->getCollection()
@@ -64,6 +72,7 @@ readonly class AdminProcessActionController
                 $offset + $key + 1,
                 includeDocuments: true,
                 includeDocumentOrganizationIds: true,
+                notifiedConsolidados: $consolidadosByAction[$action->id] ?? [],
             )->toArray());
 
         // Fetch next-page context so cross-page fijación↔auto pairs can be resolved
@@ -106,6 +115,44 @@ readonly class AdminProcessActionController
                 includeDocuments: true,
                 includeDocumentOrganizationIds: true,
             )->toArray(),
+        ]);
+    }
+
+    /**
+     * Mark an actuación as removed from Rama Judicial (admin correction when the court deletes it).
+     *
+     * Optionally notifies interested organizations by email. Pending consolidado rows for this
+     * actuación are silenced; sent consolidados remain linked and show the removal flag on read.
+     */
+    public function markRemovedFromJudicialBranch(
+        string $id,
+        string $actionId,
+        MarkProcessActionRemovedFromJudicialBranchData $data,
+    ): JsonResponse {
+        $adminUserId = (string) auth()->id();
+
+        $result = $this->markProcessActionRemovedFromJudicialBranchService->handle(
+            $id,
+            $actionId,
+            $data,
+            $adminUserId,
+        );
+
+        /** @var ProcessAction $action */
+        $action = $result['action'];
+        $action->load(['process.organizations', 'media.organizations']);
+
+        return response()->json([
+            'message' => __('process.action_marked_removed_from_judicial_branch'),
+            'action' => ProcessActionResource::fromModel(
+                $action,
+                includeDocuments: true,
+                includeDocumentOrganizationIds: true,
+                notifiedConsolidados: $result['notified_consolidados'],
+            )->toArray(),
+            'notified_consolidados' => $result['notified_consolidados'],
+            'pending_notifications_silenced' => $result['pending_notifications_silenced'],
+            'organizations_notified' => $result['organizations_notified'],
         ]);
     }
 

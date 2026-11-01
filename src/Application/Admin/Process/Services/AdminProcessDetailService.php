@@ -17,6 +17,9 @@ readonly class AdminProcessDetailService
             ->where('id', $processId)
             ->withSubjects()
             ->with('organizations')
+            ->withCount([
+                'actions as removed_from_judicial_branch_count' => fn ($query) => $query->whereNotNull('removed_from_judicial_branch_at'),
+            ])
             ->first();
     }
 }

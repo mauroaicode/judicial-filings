@@ -333,6 +333,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyPlaintiffFilter($data->plaintiff);
         $this->applyDefendantFilter($data->defendant);
         $this->applyOrganizationFilter($data->organization);
+        $this->applyOrganizationIdFilter($data->organization_id);
         $this->applyCreatedAtFilter($data->created_at, $data->created_at_from, $data->created_at_to);
         $this->applyProcessDateFilter($data->process_date, $data->process_date_from, $data->process_date_to);
         $this->applyLastApiUpdateFilter($data->last_api_update_from, $data->last_api_update_to);
@@ -340,6 +341,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyHasMultipleInstancesFilter($data->has_multiple_instances);
         $this->applyPrivacyFilter($data->privacy);
         $this->applyAltaManualFilter($data->alta_manual);
+        $this->applyRemovedFromJudicialBranchFilter($data->removed_from_judicial_branch);
         $this->applyRoleFilter($data->lawyer_role);
         $this->applySeverityColorFilter($data->severity_color);
 
@@ -430,6 +432,18 @@ class ProcessQueryBuilder extends Builder
         $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organization): void {
             $query->where('organizations.name', 'LIKE', "%{$organization}%");
         });
+    }
+
+    /**
+     * Filter processes linked to a specific organization (non-deleted pivot).
+     */
+    private function applyOrganizationIdFilter(?string $organizationId): void
+    {
+        if ($organizationId === null || trim($organizationId) === '') {
+            return;
+        }
+
+        $this->whereOrganization(trim($organizationId));
     }
 
     /**
@@ -587,6 +601,37 @@ class ProcessQueryBuilder extends Builder
                         ->whereNull('organization_processes.deleted_at');
                 });
         });
+    }
+
+    /**
+     * Processes with (or without) actuaciones marked as withdrawn on Rama Judicial.
+     */
+    private function applyRemovedFromJudicialBranchFilter(mixed $removed): void
+    {
+        if ($removed === null || $removed === '') {
+            return;
+        }
+
+        $flag = filter_var($removed, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+        if ($flag === null) {
+            return;
+        }
+
+        $exists = function (\Illuminate\Database\Query\Builder $query): void {
+            $query->selectRaw('1')
+                ->from('process_actions')
+                ->whereColumn('process_actions.process_id', 'processes.id')
+                ->whereNotNull('process_actions.removed_from_judicial_branch_at');
+        };
+
+        if ($flag) {
+            $this->whereExists($exists);
+
+            return;
+        }
+
+        $this->whereNotExists($exists);
     }
 
     /**

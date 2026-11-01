@@ -34,17 +34,24 @@ class ProcessActionResource extends Resource
         public ?string $process_number = null,
         public ?string $alert_level = null,
         public array $documents = [],
+        public bool $removed_from_judicial_branch = false,
+        public ?string $removed_from_judicial_branch_at = null,
+        public ?string $removed_from_judicial_branch_reason = null,
+        /** @var list<array<string, mixed>> */
+        public array $notified_consolidados = [],
     ) {}
 
     /**
      * @param  bool  $includeDocuments  When false, documents is always [].
      * @param  bool  $includeDocumentOrganizationIds  Admin listings include ACL org ids.
+     * @param  list<array<string, mixed>>  $notifiedConsolidados
      */
     public static function fromModel(
         ProcessAction $action,
         int $index = 0,
         bool $includeDocuments = false,
         bool $includeDocumentOrganizationIds = false,
+        array $notifiedConsolidados = [],
     ): self {
         $alertHighlights = self::buildAlertHighlights($action);
         $process = $action->relationLoaded('process') ? $action->process : $action->process()->first();
@@ -78,6 +85,12 @@ class ProcessActionResource extends Resource
             documents: $includeDocuments
                 ? self::buildDocuments($action, $includeDocumentOrganizationIds)
                 : [],
+            removed_from_judicial_branch: $action->removed_from_judicial_branch_at !== null,
+            removed_from_judicial_branch_at: $action->removed_from_judicial_branch_at
+                ? DateFormatHelper::formatDateTimeWithDayOfWeek($action->removed_from_judicial_branch_at)
+                : null,
+            removed_from_judicial_branch_reason: $action->removed_from_judicial_branch_reason,
+            notified_consolidados: $notifiedConsolidados,
         );
     }
 

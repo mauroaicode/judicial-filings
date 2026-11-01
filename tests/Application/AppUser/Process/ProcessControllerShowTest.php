@@ -126,6 +126,7 @@ it('returns process detail with subjects', function (): void {
             'term_start_date',
             'term_end_date',
             'tasks_count',
+            'removed_from_judicial_branch_count',
         ],
         'subjects' => [
             '*' => [
@@ -142,6 +143,7 @@ it('returns process detail with subjects', function (): void {
     expect($response->json('process.id'))->toBe($process->id);
     expect($response->json('process.process_number'))->toBe('76001333301320170009301');
     expect($response->json('process.tasks_count'))->toBe(0);
+    expect($response->json('process.removed_from_judicial_branch_count'))->toBe(0);
     expect($response->json('subjects'))->toHaveCount(2);
 
     $subjectIds = collect($response->json('subjects'))->pluck('id')->toArray();
@@ -186,6 +188,29 @@ it('returns tasks_count scoped to the user organization', function (): void {
 
     $response->assertOk();
     expect($response->json('process.tasks_count'))->toBe(3);
+});
+
+it('returns removed_from_judicial_branch_count in process detail', function (): void {
+    $process = Process::factory()->create();
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    \Src\Domain\Process\Models\ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'removed_from_judicial_branch_at' => now(),
+    ]);
+    \Src\Domain\Process\Models\ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'removed_from_judicial_branch_at' => null,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson("/api/app-user/processes/{$process->id}");
+
+    $response->assertOk();
+    expect($response->json('process.removed_from_judicial_branch_count'))->toBe(1);
 });
 
 it('returns paused semaphore and no alert_level when process is suspended', function (): void {

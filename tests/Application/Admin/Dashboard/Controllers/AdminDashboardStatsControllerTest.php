@@ -331,3 +331,34 @@ it('counts process linked to multiple organizations only once in total', functio
     $response->assertStatus(200);
     $response->assertJsonPath('total_processes', 1);
 });
+
+it('scopes KPI counts to organization_id filter like the process list', function (): void {
+    $orgA = Organization::factory()->create(['name' => 'Org KPI A']);
+    $orgB = Organization::factory()->create(['name' => 'Org KPI B']);
+
+    $processA = Process::factory()->create(['process_number' => '11001418901234567890111', 'status' => 'activo']);
+    $processB = Process::factory()->create(['process_number' => '11001418901234567890112', 'status' => 'activo']);
+
+    $processA->organizations()->attach($orgA->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'inactivity_alert_level' => 'red',
+        'lawyer_role' => 'plaintiff',
+    ]);
+
+    $processB->organizations()->attach($orgB->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'inactivity_alert_level' => 'yellow',
+        'lawyer_role' => 'plaintiff',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson("/api/admin/dashboard/stats?organization_id={$orgA->id}");
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+    $response->assertJsonPath('active_processes', 1);
+    $response->assertJsonPath('critical_alert_processes', 1);
+    $response->assertJsonPath('early_attention_processes', 0);
+});

@@ -115,6 +115,38 @@ it('filters actions by action_date_from (admin)', function (): void {
     expect($response->json('data'))->toHaveCount(2);
 });
 
+it('filters actions marked as removed from judicial branch (admin)', function (): void {
+    $process = Process::factory()->create();
+
+    $removed = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 2,
+        'removed_from_judicial_branch_at' => now(),
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'cons_action' => 1,
+        'removed_from_judicial_branch_at' => null,
+    ]);
+
+    $onlyRemoved = $this->actingAs($this->user)
+        ->getJson("/api/admin/processes/{$process->id}/actions?removed_from_judicial_branch=true");
+
+    $onlyRemoved->assertOk();
+    expect($onlyRemoved->json('data'))->toHaveCount(1)
+        ->and($onlyRemoved->json('data.0.id'))->toBe($removed->id)
+        ->and($onlyRemoved->json('data.0.removed_from_judicial_branch'))->toBeTrue();
+
+    $onlyActive = $this->actingAs($this->user)
+        ->getJson("/api/admin/processes/{$process->id}/actions?removed_from_judicial_branch=false");
+
+    $onlyActive->assertOk();
+    expect($onlyActive->json('data'))->toHaveCount(1)
+        ->and($onlyActive->json('data.0.id'))->not->toBe($removed->id)
+        ->and($onlyActive->json('data.0.removed_from_judicial_branch'))->toBeFalse();
+});
+
 it('returns paginated results (admin)', function (): void {
     $process = Process::factory()->create();
 

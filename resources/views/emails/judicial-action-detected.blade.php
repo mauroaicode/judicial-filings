@@ -1,6 +1,9 @@
 @php
     use Illuminate\Support\Str;
     use Src\Application\Shared\Helpers\DateFormatHelper;
+    use Src\Application\Shared\Helpers\ProcessNumberFormatHelper;
+
+    $formattedProcessNumber = ProcessNumberFormatHelper::display($process->process_number);
 @endphp
 @extends('emails.layouts.email')
 
@@ -42,7 +45,7 @@
                     <td style="padding: 8px 0; font-size: 14px; color: #6B7280; width: 40%;">
                         {{ $isDocument ? __('process.filing_number') : __('process.process_number') }}:
                     </td>
-                    <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600;">{{ $process->process_number }}</td>
+                    <td style="padding: 8px 0; font-size: 14px; color: #111827; font-weight: 600; word-break: break-word; font-family: 'SF Mono', 'Monaco', 'Consolas', monospace; letter-spacing: 0.02em;">{{ $formattedProcessNumber }}</td>
                 </tr>
                 @if($isDocument)
                     <tr>

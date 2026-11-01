@@ -46,6 +46,7 @@ class ProcessDetailResource extends Resource
         public ?string $alert_level = null,
         public ?string $lawyer_role = null,
         public int $tasks_count = 0,
+        public int $removed_from_judicial_branch_count = 0,
     ) {}
 
     /**
@@ -124,6 +125,7 @@ class ProcessDetailResource extends Resource
             alert_level: ProcessSemaphoreHelper::resolveAlertLevel($status, $calculatedAlertLevel),
             lawyer_role: $lawyerRoleLabel,
             tasks_count: (int) ($process->tasks_count ?? 0),
+            removed_from_judicial_branch_count: (int) ($process->removed_from_judicial_branch_count ?? 0),
         );
     }
 

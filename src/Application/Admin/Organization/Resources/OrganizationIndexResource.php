@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\Admin\Organization\Resources;
 
 use Spatie\LaravelData\Resource;
+use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\Organization\Models\Organization;
 
@@ -51,8 +52,8 @@ class OrganizationIndexResource extends Resource
             is_active: $organization->is_active,
             is_process_tracking_enabled: $organization->is_process_tracking_enabled,
             status_mode: $organization->statusMode()->value,
-            created_at: $organization->created_at->format('Y-m-d H:i:s'),
-            updated_at: $organization->updated_at->format('Y-m-d H:i:s'),
+            created_at: DateFormatHelper::formatDateTimeWithDayOfWeek($organization->created_at),
+            updated_at: DateFormatHelper::formatDateTimeWithDayOfWeek($organization->updated_at),
             is_receiving_notifications: (bool) ($organization->is_receiving_notifications ?? false),
             max_active_processes: $quota->resolveLimit($organization->id),
             default_max_active_processes: $quota->defaultMaxActiveProcesses(),

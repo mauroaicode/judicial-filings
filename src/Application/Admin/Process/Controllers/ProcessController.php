@@ -18,6 +18,8 @@ readonly class ProcessController
     /**
      * Display a listing of all processes from all organizations.
      * Grouped by radicado (one row per process_number) with instances array for multiple instances.
+     *
+     * Query filters include `organization_id` (UUID) and `organization` (partial name match).
      */
     public function index(Request $request): LengthAwarePaginator
     {

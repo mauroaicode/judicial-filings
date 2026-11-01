@@ -9,6 +9,7 @@ use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
 use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\ManualRegistrationRequest;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessDataSource;
 use Src\Domain\Process\Models\ProcessSubject;
 use Src\Domain\Role\Models\Role;
@@ -562,6 +563,47 @@ it('filters processes by organization name with exact match', function (): void 
     expect($response->json('data.0.id'))->toBe($process1->id);
 });
 
+it('filters processes by organization_id uuid', function (): void {
+    $organizationA = Organization::factory()->create(['name' => 'Org Alpha']);
+    $organizationB = Organization::factory()->create(['name' => 'Org Beta']);
+
+    $processA = Process::factory()->create(['process_number' => '11001418901234567890101']);
+    $processB = Process::factory()->create(['process_number' => '11001418901234567890102']);
+    $processBoth = Process::factory()->create(['process_number' => '11001418901234567890103']);
+
+    $processA->organizations()->attach($organizationA->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $processB->organizations()->attach($organizationB->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $processBoth->organizations()->attach($organizationA->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $processBoth->organizations()->attach($organizationB->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson("/api/admin/processes?organization_id={$organizationA->id}");
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(2);
+    $ids = collect($response->json('data'))->pluck('id')->all();
+    expect($ids)->toContain($processA->id, $processBoth->id)
+        ->not->toContain($processB->id);
+});
+
+it('validates organization_id when filtering admin processes', function (): void {
+    $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?organization_id=not-a-uuid')
+        ->assertStatus(422);
+});
+
 it('filters processes by privacy query param private or public', function (): void {
     $organization = Organization::factory()->create();
     $private = Process::factory()->create([
@@ -639,6 +681,45 @@ it('filters processes added through a completed alta manual request', function (
     $response->assertOk();
     expect($response->json('total'))->toBe(1)
         ->and($response->json('data.0.process_number'))->toBe($manual->process_number);
+});
+
+it('filters processes that have actuaciones removed from judicial branch', function (): void {
+    $organization = Organization::factory()->create();
+
+    $withRemoved = Process::factory()->create([
+        'process_number' => '55001418901234567890123',
+    ]);
+    $withoutRemoved = Process::factory()->create([
+        'process_number' => '66001418901234567890123',
+    ]);
+
+    foreach ([$withRemoved, $withoutRemoved] as $process) {
+        $process->organizations()->attach($organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+        ]);
+    }
+
+    ProcessAction::factory()->create([
+        'process_id' => $withRemoved->id,
+        'removed_from_judicial_branch_at' => now(),
+    ]);
+    ProcessAction::factory()->create([
+        'process_id' => $withoutRemoved->id,
+        'removed_from_judicial_branch_at' => null,
+    ]);
+
+    $onlyRemoved = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?removed_from_judicial_branch=true');
+    $onlyRemoved->assertOk();
+    expect($onlyRemoved->json('total'))->toBe(1)
+        ->and($onlyRemoved->json('data.0.id'))->toBe($withRemoved->id);
+
+    $onlyActive = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?removed_from_judicial_branch=false');
+    $onlyActive->assertOk();
+    expect($onlyActive->json('total'))->toBe(1)
+        ->and($onlyActive->json('data.0.id'))->toBe($withoutRemoved->id);
 });
 
 it('rejects invalid privacy query value', function (): void {

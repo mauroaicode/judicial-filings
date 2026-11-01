@@ -19,7 +19,10 @@ class ProcessFilterData extends Data
         public ?string $process_class = null,
         public ?string $plaintiff = null,
         public ?string $defendant = null,
+        /** Partial match on organization name (admin / shared lists). */
         public ?string $organization = null,
+        /** Exact organization UUID (admin list). */
+        public ?string $organization_id = null,
         #[Date]
         public ?string $created_at = null,
         #[Date]
@@ -50,5 +53,17 @@ class ProcessFilterData extends Data
         public ?string $privacy = null,
         /** `1`/`true` = only radicados given de alta via a registered manual request. */
         public mixed $alta_manual = null,
+        /** `1`/`true` = has actuaciones withdrawn on Rama; `0`/`false` = none. Omit for all. */
+        public mixed $removed_from_judicial_branch = null,
     ) {}
+
+    /**
+     * @return array<string, list<string>>
+     */
+    public static function rules(): array
+    {
+        return [
+            'organization_id' => ['nullable', 'uuid', 'exists:organizations,id'],
+        ];
+    }
 }

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Hash;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessSubject;
 
 beforeEach(function (): void {
@@ -480,6 +481,41 @@ it('filters processes by has_multiple_instances', function (): void {
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
     expect($response->json('data.0.has_multiple_instances'))->toBeTrue();
+});
+
+it('filters processes that have actuaciones removed from judicial branch', function (): void {
+    $withRemoved = Process::factory()->create();
+    $withoutRemoved = Process::factory()->create();
+
+    $withRemoved->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $withoutRemoved->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $withRemoved->id,
+        'removed_from_judicial_branch_at' => now(),
+    ]);
+    ProcessAction::factory()->create([
+        'process_id' => $withoutRemoved->id,
+        'removed_from_judicial_branch_at' => null,
+    ]);
+
+    $onlyRemoved = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?removed_from_judicial_branch=true');
+    $onlyRemoved->assertOk();
+    expect($onlyRemoved->json('data'))->toHaveCount(1)
+        ->and($onlyRemoved->json('data.0.id'))->toBe($withRemoved->id);
+
+    $onlyActive = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?removed_from_judicial_branch=false');
+    $onlyActive->assertOk();
+    expect($onlyActive->json('data'))->toHaveCount(1)
+        ->and($onlyActive->json('data.0.id'))->toBe($withoutRemoved->id);
 });
 
 it('filters processes by severity_color green including simulated moving plaintiffs', function (): void {

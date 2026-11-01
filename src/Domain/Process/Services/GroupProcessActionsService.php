@@ -4,12 +4,19 @@ declare(strict_types=1);
 
 namespace Src\Domain\Process\Services;
 
+use DateTimeInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Date;
 
 class GroupProcessActionsService
 {
     /**
      * Pair fijaciones with their corresponding autos.
+     *
+     * A pair is only valid on the same calendar day. When several autos share
+     * one fijación (Excel “Fijación Estado Auto …” split), leftover autos stay
+     * unpaired instead of claiming an older fijación.
      *
      * @param  Collection  $actions  The actions to pair and return.
      * @param  Collection|null  $context  Extra actions used only as pairing context (not returned).
@@ -17,8 +24,7 @@ class GroupProcessActionsService
      */
     public function handle(Collection $actions, ?Collection $context = null): Collection
     {
-        if ($context instanceof \Illuminate\Support\Collection && $context->isNotEmpty()) {
-            // Merge primary + context for pairing, then strip context from output
+        if ($context instanceof Collection && $context->isNotEmpty()) {
             $merged = $actions->merge($context)->values();
             $data = $merged->toArray();
             $count = count($data);
@@ -26,7 +32,6 @@ class GroupProcessActionsService
             $this->processPairing($data, $count, true);
             $this->processPairing($data, $count, false);
 
-            // Keep only the original primary items (identified by their array position)
             $primaryCount = $actions->count();
             $primary = array_slice($data, 0, $primaryCount);
 
@@ -36,58 +41,63 @@ class GroupProcessActionsService
         $data = $actions->toArray();
         $count = count($data);
 
-        // Realizamos el proceso en dos pases para manejar prioridades
-        // Pase 1: Alta prioridad (Fijaciones/Estados oficiales)
         $this->processPairing($data, $count, true);
-
-        // Pase 2: Baja prioridad (Envíos de notificación / Comunicaciones)
         $this->processPairing($data, $count, false);
 
         return collect($data);
     }
 
     /**
-     * Procesa el emparejamiento basándose en prioridad.
+     * @param  array<int, array<string, mixed>>  $data
      */
     private function processPairing(array &$data, int $count, bool $highPriorityOnly): void
     {
         for ($i = 0; $i < $count; $i++) {
-            // Saltamos si ya tiene pareja
             if (isset($data[$i]['notified_action_id'])) {
                 continue;
             }
 
-            // Validamos si es una Fijación/Notificación
             if (! $this->isFijacion($data[$i])) {
                 continue;
             }
 
-            // Si estamos en modo alta prioridad, solo procesamos estados/fijaciones
             if ($highPriorityOnly && ! $this->isHighPriorityFijacion($data[$i])) {
                 continue;
             }
 
-            // Buscamos su Auto correspondiente
+            $bestIndex = null;
+            $bestScore = null;
+
             for ($j = 0; $j < $count; $j++) {
                 if ($i === $j) {
                     continue;
                 }
 
-                // El Auto NO debe estar ya reclamado por otra notificación
                 if (isset($data[$j]['fijacion_action_id'])) {
                     continue;
                 }
 
-                if ($this->isActionPair($data[$i], $data[$j])) {
-                    $fijId = $data[$i]['process_action_id'] ?? $data[$i]['id'] ?? null;
-                    $autoId = $data[$j]['process_action_id'] ?? $data[$j]['id'] ?? null;
-
-                    if ($fijId && $autoId) {
-                        $data[$i]['notified_action_id'] = $autoId;
-                        $data[$j]['fijacion_action_id'] = $fijId;
-                        break;
-                    }
+                if (! $this->isEligiblePair($data[$i], $data[$j])) {
+                    continue;
                 }
+
+                $score = $this->pairScore($data[$i], $data[$j]);
+                if ($bestScore === null || $score > $bestScore) {
+                    $bestScore = $score;
+                    $bestIndex = $j;
+                }
+            }
+
+            if ($bestIndex === null) {
+                continue;
+            }
+
+            $fijId = $data[$i]['process_action_id'] ?? $data[$i]['id'] ?? null;
+            $autoId = $data[$bestIndex]['process_action_id'] ?? $data[$bestIndex]['id'] ?? null;
+
+            if ($fijId && $autoId) {
+                $data[$i]['notified_action_id'] = $autoId;
+                $data[$bestIndex]['fijacion_action_id'] = $fijId;
             }
         }
     }
@@ -111,18 +121,13 @@ class GroupProcessActionsService
                str_contains($text, 'publicación estado');
     }
 
-    private function isActionPair(array $action1, array $action2): bool
+    private function isEligiblePair(array $action1, array $action2): bool
     {
-        // 1. Deben ser del mismo proceso
         $rad1 = $action1['process_number'] ?? '';
         $rad2 = $action2['process_number'] ?? '';
         if ($rad1 === '' || $rad1 !== $rad2) {
             return false;
         }
-
-        // 2. Uno debe ser Fijación/Notificación y el otro Auto o similar
-        $text1 = strtolower($action1['action_text'] ?? $action1['action'] ?? '');
-        $text2 = strtolower($action2['action_text'] ?? $action2['action'] ?? '');
 
         $isFij1 = $this->isFijacion($action1);
         $isFij2 = $this->isFijacion($action2);
@@ -131,61 +136,163 @@ class GroupProcessActionsService
             return false;
         }
 
-        // 3. El que NO es fijación debe ser Auto/Sentencia/Decide/etc.
-        $otherText = $isFij1 ? $text2 : $text1;
-        $fijAction = $isFij1 ? $action1 : $action2;
+        $other = $isFij1 ? $action2 : $action1;
+        $otherText = strtolower($other['action_text'] ?? $other['action'] ?? '');
 
-        $isAutoOk = str_contains($otherText, 'auto') ||
-                    str_contains($otherText, 'sentencia') ||
-                    str_contains($otherText, 'decide') ||
-                    str_contains($otherText, 'requiere') ||
-                    str_contains($otherText, 'reconoce') ||
-                    str_contains($otherText, 'admite') ||
-                    str_contains($otherText, 'resolución') ||
-                    str_contains($otherText, 'resolucion') ||
-                    str_contains($otherText, 'rechaza') ||
-                    str_contains($otherText, 'niega') ||
-                    str_contains($otherText, 'ordena') ||
-                    str_contains($otherText, 'decreta') ||
-                    str_contains($otherText, 'inadmite') ||
-                    str_contains($otherText, 'condena');
-
-        if (! $isAutoOk) {
+        if (! $this->looksLikeLinkedDecision($otherText)) {
             return false;
         }
 
-        // 4. Verificación por Contenido (Fuzzy match de alta prioridad)
-        // En Colombia, la "Notificación" suele decir qué Auto está notificando en su anotación.
-        $fijAnnotation = strtolower($fijAction['annotation'] ?? '');
-        if ($fijAnnotation !== '' && str_contains($fijAnnotation, $otherText)) {
-            return true;
-        }
+        $date1 = $this->resolveDate($action1);
+        $date2 = $this->resolveDate($action2);
 
-        // 5. Verificación por cons_action si están disponibles (tolerancia aumentada a 10)
-        $cons1 = (int) ($action1['cons_action'] ?? 0);
-        $cons2 = (int) ($action2['cons_action'] ?? 0);
-
-        if ($cons1 > 0 && $cons2 > 0 && abs($cons1 - $cons2) > 10) {
+        if ($date1 === null || $date2 === null) {
             return false;
         }
 
-        // 6. Deben ser relativamente cercanos en fecha (máximo 30 días para Notificaciones)
-        $date1Str = $action1['registration_date'] ?? null;
-        $date2Str = $action2['registration_date'] ?? null;
+        return $date1->isSameDay($date2);
+    }
 
-        if ($date1Str && $date2Str) {
-            try {
-                $d1 = \Illuminate\Support\Facades\Date::parse($date1Str);
-                $d2 = \Illuminate\Support\Facades\Date::parse($date2Str);
+    /**
+     * Higher is better. Prefer annotation/content match, then closer cons_action.
+     *
+     * @param  array<string, mixed>  $fijacion
+     * @param  array<string, mixed>  $auto
+     */
+    private function pairScore(array $fijacion, array $auto): int
+    {
+        $score = 0;
 
-                if ($d1->diffInDays($d2) > 30) {
-                    return false;
-                }
-            } catch (\Throwable) {
-                // Si hay error en fechas, ignoramos este filtro pero seguimos
+        $autoText = strtolower(trim((string) ($auto['action_text'] ?? $auto['action'] ?? '')));
+        $fijAnnotation = strtolower(trim((string) ($fijacion['annotation'] ?? '')));
+
+        if ($autoText !== '' && $fijAnnotation !== '' && str_contains($fijAnnotation, $autoText)) {
+            $score += 1000;
+        }
+
+        $cons1 = (int) ($fijacion['cons_action'] ?? 0);
+        $cons2 = (int) ($auto['cons_action'] ?? 0);
+
+        if ($cons1 > 0 && $cons2 > 0) {
+            $score += max(0, 100 - abs($cons1 - $cons2));
+        }
+
+        return $score;
+    }
+
+    private function looksLikeLinkedDecision(string $text): bool
+    {
+        foreach ([
+            'auto',
+            'sentencia',
+            'edicto',
+            'traslado',
+            'decide',
+            'requiere',
+            'reconoce',
+            'admite',
+            'resolución',
+            'resolucion',
+            'rechaza',
+            'niega',
+            'ordena',
+            'decreta',
+            'inadmite',
+            'condena',
+        ] as $needle) {
+            if (str_contains($text, $needle)) {
+                return true;
             }
         }
 
-        return true;
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $action
+     */
+    private function resolveDate(array $action): ?Carbon
+    {
+        foreach (['registration_date_iso', 'action_date_iso', 'registration_date', 'action_date'] as $key) {
+            $parsed = $this->parseDate($action[$key] ?? null);
+            if ($parsed instanceof Carbon) {
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseDate(mixed $value): ?Carbon
+    {
+        if ($value instanceof Carbon) {
+            return $value->copy()->startOfDay();
+        }
+
+        if ($value instanceof DateTimeInterface) {
+            return Date::instance(\DateTimeImmutable::createFromInterface($value))->startOfDay();
+        }
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '' || in_array($trimmed, ['-', '---', '—', 'n/a', 'N/A'], true)) {
+            return null;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $trimmed) === 1) {
+            try {
+                return Date::parse($trimmed)->startOfDay();
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        if (preg_match('/^\d{1,2}\/\d{1,2}\/\d{4}$/', $trimmed) === 1) {
+            $parsed = Date::createFromFormat('d/m/Y', $trimmed);
+
+            return $parsed instanceof Carbon ? $parsed->startOfDay() : null;
+        }
+
+        return $this->parseSpanishLongDate($trimmed);
+    }
+
+    private function parseSpanishLongDate(string $value): ?Carbon
+    {
+        if (preg_match('/^(\d{1,2})\s+de\s+(\p{L}+)\s+de\s+(\d{4})/ui', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $months = [
+            'enero' => 1,
+            'febrero' => 2,
+            'marzo' => 3,
+            'abril' => 4,
+            'mayo' => 5,
+            'junio' => 6,
+            'julio' => 7,
+            'agosto' => 8,
+            'septiembre' => 9,
+            'setiembre' => 9,
+            'octubre' => 10,
+            'noviembre' => 11,
+            'diciembre' => 12,
+        ];
+
+        $month = $months[mb_strtolower($matches[2])] ?? null;
+        if ($month === null) {
+            return null;
+        }
+
+        $day = (int) $matches[1];
+        $year = (int) $matches[3];
+
+        if (! checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return Date::create($year, $month, $day)->startOfDay();
     }
 }

@@ -31,6 +31,9 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read Carbon|null $start_date
  * @property-read Carbon|null $end_date
  * @property-read Carbon $registration_date
+ * @property-read Carbon|null $removed_from_judicial_branch_at
+ * @property-read string|null $removed_from_judicial_branch_by
+ * @property-read string|null $removed_from_judicial_branch_reason
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  * @property-read Process $process
@@ -73,6 +76,9 @@ class ProcessAction extends Model implements HasMedia
         'start_date',
         'end_date',
         'registration_date',
+        'removed_from_judicial_branch_at',
+        'removed_from_judicial_branch_by',
+        'removed_from_judicial_branch_reason',
     ];
 
     /**
@@ -88,6 +94,7 @@ class ProcessAction extends Model implements HasMedia
             'end_date' => 'date',
             'registration_date' => 'date',
             'cons_action' => 'integer',
+            'removed_from_judicial_branch_at' => 'datetime',
         ];
     }
 

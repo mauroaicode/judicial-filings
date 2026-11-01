@@ -58,7 +58,8 @@ class OrganizationNotificationQueryBuilder extends Builder
                     ->join('organization_processes', 'organization_processes.process_id', '=', 'processes.id')
                     ->where('organization_processes.organization_id', $organizationId)
                     ->where('organization_processes.is_active', true)
-                    ->whereNull('organization_processes.deleted_at');
+                    ->whereNull('organization_processes.deleted_at')
+                    ->whereNull('process_actions.removed_from_judicial_branch_at');
             });
     }
 
@@ -80,7 +81,8 @@ class OrganizationNotificationQueryBuilder extends Builder
                 $sub->select('process_actions.id')
                     ->from('process_actions')
                     ->join('processes', 'processes.id', '=', 'process_actions.process_id')
-                    ->whereIn('processes.process_number', $processNumbers);
+                    ->whereIn('processes.process_number', $processNumbers)
+                    ->whereNull('process_actions.removed_from_judicial_branch_at');
             });
     }
 
@@ -111,7 +113,8 @@ class OrganizationNotificationQueryBuilder extends Builder
                     ->whereIn('organization_notifications.notifiable_id', function ($sub): void {
                         $sub->select('process_actions.id')
                             ->from('process_actions')
-                            ->where('action_registration_id', '<', 0);
+                            ->where('action_registration_id', '<', 0)
+                            ->whereNull('process_actions.removed_from_judicial_branch_at');
                     });
             });
         });
@@ -136,6 +139,7 @@ class OrganizationNotificationQueryBuilder extends Builder
             ): void {
                 $sub->select('process_actions.id')
                     ->from('process_actions')
+                    ->whereNull('process_actions.removed_from_judicial_branch_at')
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $query) use (
                         $registrationFloorDate,
                         $discoveredSince,
@@ -167,6 +171,7 @@ class OrganizationNotificationQueryBuilder extends Builder
             ->whereIn('organization_notifications.notifiable_id', function ($sub) use ($date): void {
                 $sub->select('process_actions.id')
                     ->from('process_actions')
+                    ->whereNull('process_actions.removed_from_judicial_branch_at')
                     ->whereDate('registration_date', '>=', $date);
             });
     }
@@ -180,6 +185,7 @@ class OrganizationNotificationQueryBuilder extends Builder
 
         return $this->join('process_actions', 'organization_notifications.notifiable_id', '=', 'process_actions.id')
             ->where('organization_notifications.notifiable_type', $morphClass)
+            ->whereNull('process_actions.removed_from_judicial_branch_at')
             ->latest('process_actions.registration_date')
             ->orderByDesc('process_actions.cons_action')
             ->select('organization_notifications.*');

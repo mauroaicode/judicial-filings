@@ -30,5 +30,7 @@ class ProcessActionFilterData extends Data
         public ?string $date_to = null,
         public ?string $alert_level = null,
         public ?string $lawyer_role = null,
+        /** `1`/`true` = only removed from Rama; `0`/`false` = exclude them. Omit for all. */
+        public mixed $removed_from_judicial_branch = null,
     ) {}
 }

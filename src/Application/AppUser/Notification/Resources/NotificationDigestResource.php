@@ -148,9 +148,14 @@ class NotificationDigestResource extends Resource
         $processIdsByNumber = $processes->pluck('id', 'process_number')->all();
         $processesById = $processes->keyBy('id');
 
-        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber, $organizationId, $processesById): array {
+        $removedLookup = ProcessAction::query()
+            ->whereIn('id', $actionIds)
+            ->get(['id', 'removed_from_judicial_branch_at', 'removed_from_judicial_branch_reason'])
+            ->keyBy('id');
+
+        return array_map(static function (array $item) use ($notifLookup, $processIdsByNumber, $organizationId, $processesById, $removedLookup): array {
             $item = self::applyKeyMappings($item);
-            $item = self::enrichItemData($item, $notifLookup, $organizationId, $processIdsByNumber, $processesById);
+            $item = self::enrichItemData($item, $notifLookup, $organizationId, $processIdsByNumber, $processesById, $removedLookup);
             $item = self::applyTitleCaseFormatting($item);
 
             return self::applyFinalDateFormatting($item);
@@ -360,6 +365,7 @@ class NotificationDigestResource extends Resource
         string $organizationId,
         array $processIdsByNumber = [],
         \Illuminate\Support\Collection|array $processesById = [],
+        \Illuminate\Support\Collection|array $removedLookup = [],
     ): array {
         /** @var OrganizationNotification|null $matchedNotif */
         $matchedNotif = null;
@@ -479,6 +485,28 @@ class NotificationDigestResource extends Resource
                 $item[$singular] ??= '---';
             }
         }
+
+        $resolvedActionId = is_string($item['process_action_id'] ?? null) ? $item['process_action_id'] : null;
+        $removedModel = null;
+
+        if (is_string($resolvedActionId) && $resolvedActionId !== '' && ! str_starts_with($resolvedActionId, 'synth-')) {
+            if ($removedLookup instanceof \Illuminate\Support\Collection) {
+                $removedModel = $removedLookup->get($resolvedActionId);
+            }
+        }
+
+        if (! $removedModel instanceof ProcessAction && $matchedNotif?->notifiable instanceof ProcessAction) {
+            $removedModel = $matchedNotif->notifiable;
+        }
+
+        $item['removed_from_judicial_branch'] = $removedModel instanceof ProcessAction
+            && $removedModel->removed_from_judicial_branch_at !== null;
+        $item['removed_from_judicial_branch_at'] = ($removedModel instanceof ProcessAction && $removedModel->removed_from_judicial_branch_at)
+            ? DateFormatHelper::formatDateTimeWithDayOfWeek($removedModel->removed_from_judicial_branch_at)
+            : null;
+        $item['removed_from_judicial_branch_reason'] = $removedModel instanceof ProcessAction
+            ? $removedModel->removed_from_judicial_branch_reason
+            : null;
 
         return $item;
     }

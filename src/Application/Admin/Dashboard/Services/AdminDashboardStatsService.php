@@ -6,24 +6,24 @@ namespace Src\Application\Admin\Dashboard\Services;
 
 use Illuminate\Contracts\Database\Query\Builder;
 use Src\Application\Admin\Dashboard\Resources\AdminDashboardStatsResource;
+use Src\Application\Shared\Data\ProcessFilterData;
 use Src\Domain\Process\Enums\ManualRegistrationRequestStatus;
 use Src\Domain\Process\Models\ManualRegistrationRequest;
 use Src\Domain\Process\Models\Process;
+use Src\Domain\Process\QueryBuilders\ProcessQueryBuilder;
 
 readonly class AdminDashboardStatsService
 {
     private const OUTDATED_HOURS = 48;
 
-    public function handle(): AdminDashboardStatsResource
+    public function handle(ProcessFilterData $filters): AdminDashboardStatsResource
     {
-        $processCounts = $this->getProcessCounts();
-        $outdatedProcesses = $this->getOutdatedProcessesCount();
-        $criticalAlertProcesses = $this->getCriticalAlertProcessesCount();
-        $earlyAttentionProcesses = $this->getEarlyAttentionProcessesCount();
+        $processCounts = $this->getProcessCounts($filters);
+        $outdatedProcesses = $this->getOutdatedProcessesCount($filters);
+        $criticalAlertProcesses = $this->getCriticalAlertProcessesCount($filters);
+        $earlyAttentionProcesses = $this->getEarlyAttentionProcessesCount($filters);
 
-        $pendingManualRegistrations = ManualRegistrationRequest::query()
-            ->where('status', ManualRegistrationRequestStatus::Pending->value)
-            ->count();
+        $pendingManualRegistrations = $this->countPendingManualRegistrations($filters);
 
         return AdminDashboardStatsResource::fromCounts(
             totalProcesses: $processCounts['total'],
@@ -39,36 +39,44 @@ readonly class AdminDashboardStatsService
     }
 
     /**
-     * Admin KPIs sobre radicado único (process_number); activo/huérfano solo tabla processes.status.
-     *
+     * Same filter stack as {@see \Src\Application\Admin\Process\Controllers\ProcessController::index}.
+     */
+    private function filteredProcessesQuery(ProcessFilterData $filters): ProcessQueryBuilder
+    {
+        return Process::query()->filters($filters);
+    }
+
+    private function countDistinctRadicados(ProcessQueryBuilder $query): int
+    {
+        return (int) (clone $query)->distinct()->count('process_number');
+    }
+
+    /**
      * @return array{total: int, active: int, orphans: int, private_processes: int, multiple_instances: int}
      */
-    private function getProcessCounts(): array
+    private function getProcessCounts(ProcessFilterData $filters): array
     {
-        $total = (int) Process::query()
-            ->distinct()
-            ->count('process_number');
+        $base = $this->filteredProcessesQuery($filters);
 
-        $active = (int) Process::query()
-            ->whereJudiciallyActive()
-            ->distinct()
-            ->count('process_number');
+        $total = $this->countDistinctRadicados($base);
 
-        $orphans = (int) Process::query()
-            ->whereJudiciallyInactive()
-            ->distinct()
-            ->count('process_number');
+        $active = $this->countDistinctRadicados(
+            (clone $base)->whereJudiciallyActive(),
+        );
 
-        $privateProcesses = (int) Process::query()
-            ->where('is_private', true)
-            ->distinct()
-            ->count('process_number');
+        $orphans = $this->countDistinctRadicados(
+            (clone $base)->whereJudiciallyInactive(),
+        );
 
-        $multipleInstances = (int) Process::query()
-            ->whereHas('organizations')
-            ->where('has_multiple_instances', true)
-            ->distinct()
-            ->count('process_number');
+        $privateProcesses = $this->countDistinctRadicados(
+            (clone $base)->where('is_private', true),
+        );
+
+        $multipleInstances = $this->countDistinctRadicados(
+            (clone $base)
+                ->whereHas('organizations')
+                ->where('has_multiple_instances', true),
+        );
 
         return [
             'total' => $total,
@@ -79,51 +87,49 @@ readonly class AdminDashboardStatsService
         ];
     }
 
-    /**
-     * Counts processes that have not been synced with the Rama Judicial in the last 48 hours.
-     * A process is considered outdated if last_api_update is null or older than 48 hours.
-     * This indicates the scraper/proxy may be failing for those processes.
-     */
-    private function getOutdatedProcessesCount(): int
+    private function getOutdatedProcessesCount(ProcessFilterData $filters): int
     {
         $threshold = now()->subHours(self::OUTDATED_HOURS);
 
-        return (int) Process::query()
-            ->whereHas('organizations')
-            ->where(function (Builder $query) use ($threshold): void {
-                $query->whereNull('last_api_update')
-                    ->orWhere('last_api_update', '<', $threshold);
-            })
-            ->distinct()
-            ->count('process_number');
+        return $this->countDistinctRadicados(
+            $this->filteredProcessesQuery($filters)
+                ->whereHas('organizations')
+                ->where(function (Builder $query) use ($threshold): void {
+                    $query->whereNull('last_api_update')
+                        ->orWhere('last_api_update', '<', $threshold);
+                }),
+        );
     }
 
-    /**
-     * Counts processes globally flagged as critical (semáforo rojo).
-     * A process is critical when it has at least one organization link with
-     * inactivity_alert_level = 'red', meaning it has been inactive for >= 90 days
-     * where the organization acts as plaintiff (demandante).
-     */
-    private function getCriticalAlertProcessesCount(): int
+    private function getCriticalAlertProcessesCount(ProcessFilterData $filters): int
     {
-        return (int) Process::query()
-            ->whereHas('organizations', function (Builder $query): void {
-                $query->where('organization_processes.inactivity_alert_level', 'red');
-            })
-            ->distinct()
-            ->count('process_number');
+        return $this->countDistinctRadicados(
+            $this->filteredProcessesQuery($filters)
+                ->whereHas('organizations', function (Builder $query): void {
+                    $query->where('organization_processes.inactivity_alert_level', 'red');
+                }),
+        );
     }
 
-    /**
-     * Counts processes with early attention alerts (semáforo amarillo).
-     */
-    private function getEarlyAttentionProcessesCount(): int
+    private function getEarlyAttentionProcessesCount(ProcessFilterData $filters): int
     {
-        return (int) Process::query()
-            ->whereHas('organizations', function (Builder $query): void {
-                $query->where('organization_processes.inactivity_alert_level', 'yellow');
-            })
-            ->distinct()
-            ->count('process_number');
+        return $this->countDistinctRadicados(
+            $this->filteredProcessesQuery($filters)
+                ->whereHas('organizations', function (Builder $query): void {
+                    $query->where('organization_processes.inactivity_alert_level', 'yellow');
+                }),
+        );
+    }
+
+    private function countPendingManualRegistrations(ProcessFilterData $filters): int
+    {
+        $query = ManualRegistrationRequest::query()
+            ->where('status', ManualRegistrationRequestStatus::Pending->value);
+
+        if ($filters->organization_id !== null && trim($filters->organization_id) !== '') {
+            $query->where('organization_id', trim($filters->organization_id));
+        }
+
+        return (int) $query->count();
     }
 }
