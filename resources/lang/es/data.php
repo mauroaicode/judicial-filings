@@ -81,6 +81,9 @@ return [
     'severity_color' => 'Color del Semáforo',
     'privacy' => 'Privacidad (filtro de listado)',
     'reason' => 'Motivo',
+    'notify_organizations' => 'Notificar organizaciones',
+    'removed_from_judicial_branch' => 'Eliminado de la Rama Judicial',
+
     'id' => 'ID',
     'is_ai_enabled' => 'IA Habilitada',
     'can_view_action_documents' => 'Puede ver documentos de actuaciones',

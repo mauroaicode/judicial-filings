@@ -146,7 +146,7 @@ class GroupProcessActionsService
         $date1 = $this->resolveDate($action1);
         $date2 = $this->resolveDate($action2);
 
-        if ($date1 === null || $date2 === null) {
+        if (! $date1 instanceof \Illuminate\Support\Carbon || ! $date2 instanceof \Illuminate\Support\Carbon) {
             return false;
         }
 

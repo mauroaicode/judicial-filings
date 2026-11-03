@@ -81,6 +81,12 @@ class SyncJudicialProcessesCommand extends Command
         try {
             $laravelBatch = Bus::batch($jobs)
                 ->name('Sync Judicial Processes Batch')
+                ->progress(function (Batch $batch) use ($runId): void {
+                    $record = JudicialSyncRun::query()->find($runId);
+                    if ($record !== null) {
+                        $record->broadcastBatchProgress($batch);
+                    }
+                })
                 ->finally(function (Batch $batch) use ($runId, $channel): void {
                     // Run digest dispatch synchronously: async dispatch() from this batch
                     // callback was not being processed reliably after large sync batches.

@@ -8,7 +8,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Src\Application\Admin\Organization\Data\OrganizationNotificationDigestFilterData;
 use Src\Application\Admin\Organization\Services\GetOrganizationNotificationDigestDetailsService;
 use Src\Application\Admin\Organization\Services\GetOrganizationPendingDigestDetailsService;
-use Src\Application\AppUser\Notification\Services\ExportNotificationDigestPdfService;
+use Src\Application\Shared\Services\Notification\ExportNotificationDigestPdfService;
 use Src\Domain\Organization\Models\Organization;
 use Symfony\Component\HttpFoundation\Response;
 

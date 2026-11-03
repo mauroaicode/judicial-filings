@@ -11,7 +11,6 @@ use Illuminate\Validation\ValidationException;
 use Src\Application\Admin\Process\Data\MarkProcessActionRemovedFromJudicialBranchData;
 use Src\Application\Shared\Services\Notification\NotificationDispatcherService;
 use Src\Domain\Notification\Models\OrganizationNotification;
-use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 
@@ -94,7 +93,7 @@ readonly class MarkProcessActionRemovedFromJudicialBranchService
         $action->refresh();
 
         $notifiedConsolidados = $this->resolveProcessActionNotifiedConsolidadosService
-            ->forActions(collect([$action]))[$action->id] ?? [];
+            ->handle(collect([$action]))[$action->id] ?? [];
 
         Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
             ->info('MarkProcessActionRemovedFromJudicialBranchService: actuación marcada como retirada en Rama', [
@@ -179,7 +178,7 @@ readonly class MarkProcessActionRemovedFromJudicialBranchService
         $notified = 0;
 
         foreach ($organizations as $organization) {
-            if (! $organization instanceof Organization || ! $organization->canTrackProcesses()) {
+            if (! $organization->canTrackProcesses()) {
                 continue;
             }
 

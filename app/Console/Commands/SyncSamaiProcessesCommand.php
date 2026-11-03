@@ -86,6 +86,12 @@ class SyncSamaiProcessesCommand extends Command
         try {
             $laravelBatch = Bus::batch($jobs)
                 ->name('Sync SAMAI Processes Batch')
+                ->progress(function (Batch $batch) use ($runId): void {
+                    $record = JudicialSyncRun::query()->find($runId);
+                    if ($record !== null) {
+                        $record->broadcastBatchProgress($batch);
+                    }
+                })
                 ->finally(function (Batch $batch) use ($runId, $channel): void {
                     // Skipped when JUDICIAL_SYNC_AUTO_DIGEST=false so the admin can send
                     // one consolidated package after all sources (Rama + SAMAI + Excel) finish.

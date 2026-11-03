@@ -9,7 +9,7 @@ use Spatie\LaravelData\PaginatedDataCollection;
 use Src\Application\Admin\Notification\Data\NotificationDigestFilterData;
 use Src\Application\Admin\Notification\Resources\NotificationDigestHistoryResource;
 use Src\Application\Admin\Notification\Services\ListNotificationDigestsService;
-use Src\Application\AppUser\Notification\Services\ExportNotificationDigestPdfService;
+use Src\Application\Shared\Services\Notification\ExportNotificationDigestPdfService;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Symfony\Component\HttpFoundation\Response;
 

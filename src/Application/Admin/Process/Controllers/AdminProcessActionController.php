@@ -62,7 +62,7 @@ readonly class AdminProcessActionController
         $paginatedActions->setCollection($collection);
 
         $consolidadosByAction = $this->resolveProcessActionNotifiedConsolidadosService
-            ->forActions($collection);
+            ->handle($collection);
 
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 

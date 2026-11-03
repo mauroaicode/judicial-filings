@@ -30,6 +30,14 @@ final class NotificationDigestAccess
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function resourceArray(NotificationDigest $digest): array
+    {
+        return NotificationDigestResource::fromModel($digest)->toArray();
+    }
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
     public static function details(string $organizationId, string $digestId, array $attributes): LengthAwarePaginator

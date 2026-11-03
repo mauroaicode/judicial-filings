@@ -94,9 +94,12 @@ it('marks an actuación as removed from judicial branch and exposes flags in adm
     expect($action->removed_from_judicial_branch_at)->not->toBeNull()
         ->and($action->removed_from_judicial_branch_reason)->toBe('Error del juzgado');
 
-    $pending->refresh();
-    expect($pending->is_email_notified)->toBeTrue()
-        ->and($pending->notification_digest_id)->toBeNull();
+    // OrganizationNotification uses a composite primary key; refresh()/find() resolve by
+    // organization_id only and can load a sibling row. Reload explicitly by UUID `id`.
+    $pendingReloaded = OrganizationNotification::query()->where('id', $pending->id)->first();
+    expect($pendingReloaded)->not->toBeNull()
+        ->and($pendingReloaded->is_email_notified)->toBeTrue()
+        ->and($pendingReloaded->notification_digest_id)->toBeNull();
 
     expect(
         OrganizationNotification::query()

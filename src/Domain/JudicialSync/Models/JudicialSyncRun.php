@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Services\Notification\Channels\JudicialSyncDiscordNotificationService;
+use Src\Application\Shared\Services\Process\JudicialSyncLiveStatusBroadcaster;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\QueryBuilders\JudicialSyncRunQueryBuilder;
@@ -31,6 +32,7 @@ use Symfony\Component\Console\Command\Command as ConsoleCommand;
  * @property-read string|null $dispatch_error
  * @property-read int|null $failed_jobs_count
  * @property-read int|null $queue_pending_jobs
+ * @property-read int|null $queue_failed_jobs
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
  *
@@ -117,12 +119,16 @@ class JudicialSyncRun extends Model
         ?string $radicadoFilter,
         JudicialSyncDataSource $dataSource = JudicialSyncDataSource::JudicialBranch,
     ): self {
-        return self::query()->create([
+        $run = self::query()->create([
             'started_at' => now(),
             'radicado_filter' => $radicadoFilter,
             'data_source' => $dataSource,
             'status' => JudicialSyncRunStatus::Started,
         ]);
+
+        $run->broadcastLiveStatus(force: true);
+
+        return $run;
     }
 
     public function markNoProcesses(): void
@@ -135,6 +141,7 @@ class JudicialSyncRun extends Model
         ]);
 
         resolve(JudicialSyncDiscordNotificationService::class)->notifyNoProcesses($this->fresh());
+        $this->broadcastLiveStatus(force: true);
     }
 
     public function markDispatchFailed(string $message): void
@@ -154,6 +161,7 @@ class JudicialSyncRun extends Model
         ]);
 
         resolve(JudicialSyncDiscordNotificationService::class)->notifyDispatchFailed($this->fresh());
+        $this->broadcastLiveStatus(force: true);
     }
 
     /**
@@ -175,6 +183,7 @@ class JudicialSyncRun extends Model
         }
 
         $this->update($payload);
+        $this->broadcastLiveStatus($batch, force: true);
     }
 
     public function completeBatch(Batch $batch): void
@@ -206,5 +215,20 @@ class JudicialSyncRun extends Model
                     'message' => $e->getMessage(),
                 ]);
         }
+
+        $this->broadcastLiveStatus($batch, force: true);
+    }
+
+    /**
+     * Broadcast live remaining/failed counts while the Laravel batch is processing.
+     */
+    public function broadcastBatchProgress(Batch $batch): void
+    {
+        resolve(JudicialSyncLiveStatusBroadcaster::class)->broadcastProgress($this, $batch);
+    }
+
+    private function broadcastLiveStatus(?Batch $batch = null, bool $force = false): void
+    {
+        resolve(JudicialSyncLiveStatusBroadcaster::class)->broadcast($this->fresh() ?? $this, $batch, $force);
     }
 }

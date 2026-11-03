@@ -16,7 +16,7 @@ readonly class ResolveProcessActionNotifiedConsolidadosService
      * @param  Collection<int, ProcessAction>|list<ProcessAction>  $actions
      * @return array<string, list<array<string, mixed>>>
      */
-    public function forActions(Collection|array $actions): array
+    public function handle(Collection|array $actions): array
     {
         $collection = $actions instanceof Collection ? $actions : collect($actions);
 

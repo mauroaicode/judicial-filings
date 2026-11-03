@@ -82,6 +82,9 @@ return [
     'severity_color' => 'Severity Color',
     'privacy' => 'Privacy (process list filter)',
     'reason' => 'Reason',
+    'notify_organizations' => 'Notify organizations',
+    'removed_from_judicial_branch' => 'Removed from judicial branch',
+
     'id' => 'ID',
     'is_ai_enabled' => 'AI Enabled',
     'can_view_action_documents' => 'Can view action documents',

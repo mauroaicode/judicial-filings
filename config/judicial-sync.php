@@ -248,4 +248,18 @@ return [
         'exclude_weekends' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALE_EXCLUDE_WEEKENDS', true),
         'exclude_colombia_holidays' => (bool) env('JUDICIAL_SYNC_REPLICATION_STALE_EXCLUDE_HOLIDAYS', true),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Live Status (admin header WebSocket)
+    |--------------------------------------------------------------------------
+    |
+    | Throttle mid-batch progress broadcasts so Reverb is not flooded when
+    | thousands of SyncProcessJob / SyncSamaiProcessJob finish in parallel.
+    | Start / queued / finished / failed always broadcast immediately.
+    |
+    */
+    'live_status' => [
+        'broadcast_throttle_seconds' => (int) env('JUDICIAL_SYNC_LIVE_STATUS_THROTTLE_SECONDS', 2),
+    ],
 ];

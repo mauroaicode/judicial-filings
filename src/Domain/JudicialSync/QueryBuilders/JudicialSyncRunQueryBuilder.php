@@ -82,4 +82,21 @@ class JudicialSyncRunQueryBuilder extends Builder
 
         return $this;
     }
+
+    /**
+     * Include pending and failed job counts from `job_batches` for live status.
+     *
+     * @return $this
+     */
+    public function withQueueBatchStats(): self
+    {
+        $this->leftJoin('job_batches', 'job_batches.id', '=', 'judicial_sync_runs.laravel_batch_id')
+            ->addSelect(
+                'judicial_sync_runs.*',
+                'job_batches.pending_jobs as queue_pending_jobs',
+                'job_batches.failed_jobs as queue_failed_jobs'
+            );
+
+        return $this;
+    }
 }

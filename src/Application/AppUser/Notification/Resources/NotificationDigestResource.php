@@ -489,10 +489,8 @@ class NotificationDigestResource extends Resource
         $resolvedActionId = is_string($item['process_action_id'] ?? null) ? $item['process_action_id'] : null;
         $removedModel = null;
 
-        if (is_string($resolvedActionId) && $resolvedActionId !== '' && ! str_starts_with($resolvedActionId, 'synth-')) {
-            if ($removedLookup instanceof \Illuminate\Support\Collection) {
-                $removedModel = $removedLookup->get($resolvedActionId);
-            }
+        if (is_string($resolvedActionId) && $resolvedActionId !== '' && ! str_starts_with($resolvedActionId, 'synth-') && $removedLookup instanceof \Illuminate\Support\Collection) {
+            $removedModel = $removedLookup->get($resolvedActionId);
         }
 
         if (! $removedModel instanceof ProcessAction && $matchedNotif?->notifiable instanceof ProcessAction) {

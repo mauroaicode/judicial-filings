@@ -23,6 +23,11 @@ Broadcast::channel('admin.presence', function ($user) {
         && $user->hasRole('admin', 'admin');
 });
 
+Broadcast::channel('admin.judicial-sync', function ($user) {
+    return $user instanceof \Src\Domain\User\Models\User
+        && $user->hasRole('admin', 'admin');
+});
+
 Broadcast::channel('organization.{id}', function ($user, $id) {
     if ($user->hasRole('admin')) {
         return true;

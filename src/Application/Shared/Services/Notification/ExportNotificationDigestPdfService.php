@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Src\Application\AppUser\Notification\Services;
+namespace Src\Application\Shared\Services\Notification;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
-use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessNumberFormatHelper;
 use Src\Application\Shared\Mail\ConsolidatedDigestEmailPresenter;
+use Src\Application\Shared\Notification\NotificationDigestAccess;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Process\Services\GroupProcessActionsService;
 use Symfony\Component\HttpFoundation\Response;
@@ -50,7 +50,7 @@ class ExportNotificationDigestPdfService
      */
     private function buildViewData(NotificationDigest $digest): array
     {
-        $resource = NotificationDigestResource::fromModel($digest)->toArray();
+        $resource = NotificationDigestAccess::resourceArray($digest);
         $rows = is_array($resource['data'] ?? null) ? $resource['data'] : [];
 
         if ($rows !== []) {
