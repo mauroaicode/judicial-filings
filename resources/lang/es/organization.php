@@ -3,6 +3,18 @@
 return [
     'not_found' => 'Organización no encontrada.',
     'settings_updated' => 'Configuración de la organización actualizada.',
+    'notification_channel_limits_updated' => 'Límites de canales de notificación actualizados.',
+    'notification_channel_limit_reached' => 'Solo está permitido tener :limit :channel.',
+    'notification_channel_invalid_type' => 'El canal no está disponible.',
+    'notification_channel_invalid_email' => 'Ingresa un correo electrónico válido.',
+    'notification_channel_invalid_phone' => 'Ingresa un número válido, de 8 a 15 dígitos. Puede incluir +.',
+    'notification_channel_duplicate' => 'Ese destino ya está registrado en este canal.',
+    'notification_channel_not_found' => 'Canal de notificación no encontrado.',
+    'notification_channel_types' => [
+        'email' => '{1} correo electrónico|[2,*] correos electrónicos',
+        'whatsapp' => '{1} número de WhatsApp|[2,*] números de WhatsApp',
+        'sms' => '{1} número de SMS|[2,*] números de SMS',
+    ],
 
     'status_email_greeting' => 'Hola :name,',
     'status_email_details_title' => 'Detalle',

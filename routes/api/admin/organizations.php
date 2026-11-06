@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Src\Application\Admin\Organization\Controllers\OrganizationActiveStatusController;
 use Src\Application\Admin\Organization\Controllers\OrganizationController;
+use Src\Application\Admin\Organization\Controllers\OrganizationNotificationChannelLimitController;
 use Src\Application\Admin\Organization\Controllers\OrganizationNotificationDigestController;
 use Src\Application\Admin\Organization\Controllers\OrganizationSettingsController;
 use Src\Application\Admin\Organization\Controllers\OrganizationTypeController;
@@ -20,6 +21,8 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::get('organizations/{organization}', [OrganizationController::class, 'show']);
     Route::get('organizations/{organization}/settings', [OrganizationSettingsController::class, 'show']);
     Route::put('organizations/{organization}/settings', [OrganizationSettingsController::class, 'update']);
+    Route::get('organizations/{organization}/notification-channel-limits', [OrganizationNotificationChannelLimitController::class, 'show']);
+    Route::put('organizations/{organization}/notification-channel-limits', [OrganizationNotificationChannelLimitController::class, 'update']);
     Route::post('organizations/{organization}/active-status', OrganizationUpdateActiveStatusController::class);
     Route::post('organizations/{organization}/notifications-status', OrganizationUpdateNotificationStatusController::class);
     Route::get('organizations/{organization}/notification-digests/pending', [OrganizationNotificationDigestController::class, 'pending'])

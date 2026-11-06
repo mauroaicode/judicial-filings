@@ -126,4 +126,8 @@ return [
     'all' => 'Todos',
     'process_ids' => 'IDs de procesos',
     'organization_ids' => 'Organizaciones',
+    'channel_type' => 'Tipo de canal',
+    'channel_value' => 'Destino del canal',
+    'whatsapp' => 'WhatsApp',
+    'sms' => 'SMS',
 ];

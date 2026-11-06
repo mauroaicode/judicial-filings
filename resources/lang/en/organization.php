@@ -3,6 +3,18 @@
 return [
     'not_found' => 'Organization not found.',
     'settings_updated' => 'Organization settings updated.',
+    'notification_channel_limits_updated' => 'Notification channel limits updated.',
+    'notification_channel_limit_reached' => 'Only :limit :channel are allowed.',
+    'notification_channel_invalid_type' => 'This channel is not available.',
+    'notification_channel_invalid_email' => 'Enter a valid email address.',
+    'notification_channel_invalid_phone' => 'Enter a valid number with 8 to 15 digits. A leading + is allowed.',
+    'notification_channel_duplicate' => 'That destination is already registered on this channel.',
+    'notification_channel_not_found' => 'Notification channel not found.',
+    'notification_channel_types' => [
+        'email' => '{1} email address|[2,*] email addresses',
+        'whatsapp' => '{1} WhatsApp number|[2,*] WhatsApp numbers',
+        'sms' => '{1} SMS number|[2,*] SMS numbers',
+    ],
 
     'status_email_greeting' => 'Hi :name,',
     'status_email_details_title' => 'Details',

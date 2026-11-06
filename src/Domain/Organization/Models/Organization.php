@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
+use Src\Domain\Notification\Models\OrganizationNotificationChannelLimit;
 use Src\Domain\Organization\Enums\OrganizationStatusMode;
 use Src\Domain\Organization\QueryBuilders\OrganizationQueryBuilder;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
@@ -187,6 +188,16 @@ class Organization extends Model
     public function notificationChannels(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(OrganizationNotificationChannel::class, 'organization_id');
+    }
+
+    /**
+     * Per-channel destination quotas. Missing types fall back to the env default.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<\Src\Domain\Notification\Models\OrganizationNotificationChannelLimit, $this>
+     */
+    public function notificationChannelLimits(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrganizationNotificationChannelLimit::class, 'organization_id');
     }
 
     /**
