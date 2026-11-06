@@ -74,6 +74,7 @@ class OrganizationNotificationChannelSeeder extends Seeder
             [
                 'channel_value' => $channelValue,
                 'is_active' => true,
+                'validated_at' => now(),
             ]
         );
     }

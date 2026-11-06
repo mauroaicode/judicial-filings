@@ -6,6 +6,7 @@ namespace Src\Application\AppUser\Config\Services;
 
 use Spatie\LaravelData\Optional;
 use Src\Application\AppUser\Config\Data\UpdateOrganizationNotificationChannelData;
+use Src\Application\Shared\Services\Notification\OrganizationNotificationChannelEmailVerificationService;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationChannelQuotaService;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationChannelValueService;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
@@ -15,6 +16,7 @@ readonly class UpdateOrganizationNotificationChannelService
     public function __construct(
         private OrganizationNotificationChannelQuotaService $quotaService,
         private OrganizationNotificationChannelValueService $valueService,
+        private OrganizationNotificationChannelEmailVerificationService $emailVerificationService,
     ) {}
 
     public function handle(
@@ -32,11 +34,19 @@ readonly class UpdateOrganizationNotificationChannelService
         }
 
         $this->valueService->assertAvailable($channel->organization_id, $type, $value, $channel->id);
+        $this->emailVerificationService->rememberPrevious($channel, $value);
+
+        $valueChanged = $type !== $channel->channel_type
+            || strtolower($value) !== strtolower($channel->channel_value);
 
         $payload = [
             'channel_type' => $type,
             'channel_value' => $value,
         ];
+
+        if ($valueChanged) {
+            $payload['validated_at'] = $this->emailVerificationService->validatedAtFor($type, $value);
+        }
 
         if (! $data->is_active instanceof Optional) {
             $payload['is_active'] = $data->is_active;
@@ -47,7 +57,12 @@ readonly class UpdateOrganizationNotificationChannelService
         }
 
         $channel->update($payload);
+        $channel->refresh();
 
-        return $channel->refresh();
+        if ($valueChanged) {
+            $this->emailVerificationService->sendIfPending($channel);
+        }
+
+        return $channel;
     }
 }

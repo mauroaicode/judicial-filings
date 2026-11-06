@@ -69,6 +69,16 @@ class DeliverNotificationChannelJob implements ShouldQueue
 
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
+        if ($channel !== null && $channel->validated_at === null) {
+            Log::channel($logChannel)->info('DeliverNotificationChannelJob: Skipping unconfirmed channel', [
+                'notification_id' => $this->notificationId,
+                'channel_id' => $this->channelId,
+                'channel_type' => $this->channelType,
+            ]);
+
+            return;
+        }
+
         if ($channel === null || $notification === null) {
             Log::channel($logChannel)->warning('DeliverNotificationChannelJob: Record not found', [
                 'notification_id' => $this->notificationId,

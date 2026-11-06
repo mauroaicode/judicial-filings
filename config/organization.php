@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 $defaultNotificationChannelLimit = env('ORGANIZATION_DEFAULT_MAX_NOTIFICATION_CHANNELS', 3);
+$emailVerificationTtl = env('NOTIFICATION_CHANNEL_EMAIL_VERIFICATION_TTL_HOURS', 72);
 
 return [
     /*
@@ -28,4 +29,11 @@ return [
             ? 3
             : max(0, (int) $defaultNotificationChannelLimit),
     ],
+
+    /*
+    | How long the notification-email confirmation link stays valid.
+    */
+    'notification_channel_email_verification_ttl_hours' => ($emailVerificationTtl === null || $emailVerificationTtl === '')
+        ? 72
+        : max(1, (int) $emailVerificationTtl),
 ];

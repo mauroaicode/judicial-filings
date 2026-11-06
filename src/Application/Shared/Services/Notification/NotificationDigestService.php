@@ -75,10 +75,10 @@ class NotificationDigestService
         // This prevents double-sending if a channel later fails and we retry.
         $this->markAsNotified($notifications, $digest->id);
 
-        // Send the consolidated email to every active email channel (priority order).
+        // Send the consolidated email to every active and confirmed email channel.
         $emailChannels = $organization->notificationChannels()
             ->where('channel_type', 'email')
-            ->where('is_active', true)
+            ->deliverable()
             ->orderBy('priority')
             ->get();
 

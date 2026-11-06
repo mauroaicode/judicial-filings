@@ -169,7 +169,7 @@ readonly class ResendDigestEmailsService
     ): array {
         $channels = $organization->notificationChannels()
             ->where('channel_type', 'email')
-            ->where('is_active', true)
+            ->deliverable()
             ->orderBy('priority')
             ->get();
 

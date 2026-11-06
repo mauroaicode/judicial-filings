@@ -15,6 +15,7 @@ class OrganizationNotificationChannelResource extends Resource
         public string $channel_type,
         public string $channel_value,
         public bool $is_active,
+        public bool $is_validated,
         public int $priority,
     ) {}
 
@@ -26,6 +27,7 @@ class OrganizationNotificationChannelResource extends Resource
             channel_type: $channel->channel_type,
             channel_value: $channel->channel_value,
             is_active: (bool) $channel->is_active,
+            is_validated: $channel->validated_at !== null,
             priority: (int) $channel->priority,
         );
     }

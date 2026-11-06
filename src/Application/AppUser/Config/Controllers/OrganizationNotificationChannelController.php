@@ -12,6 +12,7 @@ use Src\Application\AppUser\Config\Services\StoreOrganizationNotificationChannel
 use Src\Application\AppUser\Config\Services\UpdateOrganizationNotificationChannelService;
 use Src\Application\Shared\Notification\Resources\OrganizationNotificationChannelLimitResource;
 use Src\Application\Shared\Notification\Resources\OrganizationNotificationChannelResource;
+use Src\Application\Shared\Services\Notification\OrganizationNotificationChannelEmailVerificationService;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationChannelQuotaService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
@@ -24,6 +25,7 @@ readonly class OrganizationNotificationChannelController
         private StoreOrganizationNotificationChannelService $storeOrganizationNotificationChannelService,
         private UpdateOrganizationNotificationChannelService $updateOrganizationNotificationChannelService,
         private DeleteOrganizationNotificationChannelService $deleteOrganizationNotificationChannelService,
+        private OrganizationNotificationChannelEmailVerificationService $emailVerificationService,
     ) {}
 
     public function index(): JsonResponse
@@ -68,6 +70,14 @@ readonly class OrganizationNotificationChannelController
         $channel = $this->updateOrganizationNotificationChannelService->handle($channel, $data);
 
         return response()->json(OrganizationNotificationChannelResource::fromModel($channel)->toArray());
+    }
+
+    public function resendVerification(OrganizationNotificationChannel $notificationChannel): JsonResponse
+    {
+        $channel = $this->channelForOrganization($notificationChannel);
+        $this->emailVerificationService->resend($channel);
+
+        return response()->json(OrganizationNotificationChannelResource::fromModel($channel->refresh())->toArray());
     }
 
     public function destroy(OrganizationNotificationChannel $notificationChannel): JsonResponse

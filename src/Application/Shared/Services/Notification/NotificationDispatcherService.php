@@ -34,7 +34,7 @@ class NotificationDispatcherService
     {
         $organization = $notification->organization;
         $channels = $organization->notificationChannels()
-            ->where('is_active', true)
+            ->deliverable()
             ->orderBy('priority')
             ->get();
 

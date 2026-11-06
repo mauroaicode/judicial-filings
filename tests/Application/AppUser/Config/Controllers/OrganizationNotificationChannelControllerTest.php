@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Application\AppUser\Config\Controllers;
 
+use Illuminate\Support\Facades\Mail;
+use Src\Application\Shared\Mail\OrganizationNotificationChannelEmailVerificationMailable;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Models\OrganizationNotificationChannel;
 use Src\Domain\Notification\Models\OrganizationNotificationChannelLimit;
+use Src\Domain\Notification\Models\ValidatedNotificationEmail;
 use Src\Domain\Organization\Models\Organization;
 
 beforeEach(function (): void {
+    Mail::fake();
     config(['organization.defaults.notification_channel_limit' => 3]);
 
     $this->organization = Organization::factory()->create();
@@ -100,7 +104,22 @@ it('creates an email channel and assigns the next priority', function (): void {
         ->assertJsonPath('channel_type', 'email')
         ->assertJsonPath('channel_value', 'segundo@example.com')
         ->assertJsonPath('is_active', true)
+        ->assertJsonPath('is_validated', false)
         ->assertJsonPath('priority', 2);
+
+    Mail::assertSent(OrganizationNotificationChannelEmailVerificationMailable::class, function (OrganizationNotificationChannelEmailVerificationMailable $mail): bool {
+        return $mail->hasTo('segundo@example.com');
+    });
+
+    $html = (new OrganizationNotificationChannelEmailVerificationMailable(
+        email: 'segundo@example.com',
+        confirmUrl: 'https://app.example.com/confirmar',
+        expiresInHours: 72,
+    ))->render();
+
+    expect($html)->toContain('Confirma este correo')
+        ->and($html)->toContain('segundo@example.com')
+        ->and($html)->toContain('logo-notijudicial');
 });
 
 it('creates a whatsapp channel', function (): void {
@@ -112,7 +131,10 @@ it('creates a whatsapp channel', function (): void {
         ])
         ->assertCreated()
         ->assertJsonPath('channel_value', '+573001234567')
-        ->assertJsonPath('is_active', false);
+        ->assertJsonPath('is_active', false)
+        ->assertJsonPath('is_validated', true);
+
+    Mail::assertNothingSent();
 });
 
 it('rejects an invalid email and a duplicate destination', function (): void {
@@ -208,7 +230,12 @@ it('updates and deletes a channel that belongs to the organization', function ()
         ])
         ->assertOk()
         ->assertJsonPath('channel_value', 'nuevo@example.com')
-        ->assertJsonPath('is_active', false);
+        ->assertJsonPath('is_active', false)
+        ->assertJsonPath('is_validated', false);
+
+    Mail::assertSent(OrganizationNotificationChannelEmailVerificationMailable::class, function (OrganizationNotificationChannelEmailVerificationMailable $mail): bool {
+        return $mail->hasTo('nuevo@example.com');
+    });
 
     $this->actingAs($this->appUser, 'sanctum')
         ->deleteJson("/api/app-user/config/notification-channels/{$channel->id}")
@@ -232,4 +259,91 @@ it('does not allow managing a channel from another organization', function (): v
             'channel_value' => 'hack@example.com',
         ])
         ->assertNotFound();
+});
+
+it('activates a new email immediately when that address was already confirmed', function (): void {
+    ValidatedNotificationEmail::remember('conocido@example.com');
+
+    $this->actingAs($this->appUser, 'sanctum')
+        ->postJson('/api/app-user/config/notification-channels', [
+            'channel_type' => 'email',
+            'channel_value' => 'Conocido@Example.com',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('channel_value', 'conocido@example.com')
+        ->assertJsonPath('is_validated', true);
+
+    Mail::assertNothingSent();
+});
+
+it('keeps a confirmed email validated when only the active flag changes', function (): void {
+    $channel = OrganizationNotificationChannel::query()->create([
+        'organization_id' => $this->organization->id,
+        'channel_type' => 'email',
+        'channel_value' => 'fijo@example.com',
+        'is_active' => true,
+        'priority' => 1,
+    ]);
+
+    $this->actingAs($this->appUser, 'sanctum')
+        ->putJson("/api/app-user/config/notification-channels/{$channel->id}", [
+            'is_active' => false,
+        ])
+        ->assertOk()
+        ->assertJsonPath('is_active', false)
+        ->assertJsonPath('is_validated', true);
+
+    Mail::assertNothingSent();
+});
+
+it('resends the confirmation email only while the address is pending', function (): void {
+    $channel = OrganizationNotificationChannel::query()->create([
+        'organization_id' => $this->organization->id,
+        'channel_type' => 'email',
+        'channel_value' => 'pendiente@example.com',
+        'is_active' => true,
+        'validated_at' => null,
+        'priority' => 1,
+    ]);
+
+    $this->actingAs($this->appUser, 'sanctum')
+        ->postJson("/api/app-user/config/notification-channels/{$channel->id}/resend-verification")
+        ->assertOk()
+        ->assertJsonPath('is_validated', false);
+
+    Mail::assertSent(OrganizationNotificationChannelEmailVerificationMailable::class, function (OrganizationNotificationChannelEmailVerificationMailable $mail): bool {
+        return $mail->hasTo('pendiente@example.com');
+    });
+
+    $channel->update(['validated_at' => now()]);
+
+    $this->actingAs($this->appUser, 'sanctum')
+        ->postJson("/api/app-user/config/notification-channels/{$channel->id}/resend-verification")
+        ->assertStatus(422);
+});
+
+it('does not deliver a notification email until it is confirmed', function (): void {
+    $pending = OrganizationNotificationChannel::query()->create([
+        'organization_id' => $this->organization->id,
+        'channel_type' => 'email',
+        'channel_value' => 'pendiente@example.com',
+        'is_active' => true,
+        'validated_at' => null,
+        'priority' => 1,
+    ]);
+    $ready = OrganizationNotificationChannel::query()->create([
+        'organization_id' => $this->organization->id,
+        'channel_type' => 'email',
+        'channel_value' => 'listo@example.com',
+        'is_active' => true,
+        'priority' => 2,
+    ]);
+
+    $ids = OrganizationNotificationChannel::query()
+        ->where('organization_id', $this->organization->id)
+        ->deliverable()
+        ->pluck('id');
+
+    expect($ids->contains($ready->id))->toBeTrue()
+        ->and($ids->contains($pending->id))->toBeFalse();
 });

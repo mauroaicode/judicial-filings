@@ -46,7 +46,7 @@ class TaskDueDateReminderNotificationService
 
         $activeChannels = OrganizationNotificationChannel::query()
             ->where('organization_id', $organizationId)
-            ->where('is_active', true)
+            ->deliverable()
             ->whereIn('channel_type', array_keys(self::CHANNEL_DRIVERS))
             ->orderBy('priority')
             ->get();
