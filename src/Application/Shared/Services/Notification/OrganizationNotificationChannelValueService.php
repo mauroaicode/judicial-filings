@@ -37,7 +37,7 @@ readonly class OrganizationNotificationChannelValueService
 
         $phone = preg_replace('/[\s\-()]/', '', $value) ?? '';
 
-        if (! preg_match('/^\+?[0-9]{8,15}$/', $phone)) {
+        if (! preg_match('/^\+?\d{8,15}$/', $phone)) {
             throw ValidationException::withMessages([
                 'channel_value' => __('organization.notification_channel_invalid_phone'),
             ]);

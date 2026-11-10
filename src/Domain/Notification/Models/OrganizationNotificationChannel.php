@@ -19,7 +19,7 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $channel_type
  * @property-read string $channel_value
  * @property-read bool $is_active
- * @property-read Carbon|null $validated_at
+ * @property Carbon|null $validated_at
  * @property-read int $priority
  * @property-read Carbon $created_at
  * @property-read Carbon $updated_at
@@ -82,7 +82,7 @@ class OrganizationNotificationChannel extends Model
      * @param  Builder<self>  $query
      * @return Builder<self>
      */
-    public function scopeDeliverable(Builder $query): Builder
+    protected function scopeDeliverable(Builder $query): Builder
     {
         return $query->where('is_active', true)->whereNotNull('validated_at');
     }

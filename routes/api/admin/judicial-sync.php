@@ -7,6 +7,7 @@ use Src\Application\Admin\JudicialSync\Controllers\AdminJudicialSyncLiveStatusCo
 
 Route::middleware(['auth:sanctum', 'admin.role'])->group(function () {
     Route::post('judicial-sync', [AdminJudicialSyncController::class, 'sync']);
+    Route::post('judicial-sync/organizations/{organization}', [AdminJudicialSyncController::class, 'syncOrganization']);
     Route::get('judicial-sync/status', AdminJudicialSyncLiveStatusController::class);
     Route::get('judicial-sync/runs', [AdminJudicialSyncHistoryController::class, 'index']);
 });

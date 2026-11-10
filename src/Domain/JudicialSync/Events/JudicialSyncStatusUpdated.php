@@ -35,6 +35,8 @@ class JudicialSyncStatusUpdated implements ShouldBroadcastNow
         public bool $isActive,
         public ?string $laravelBatchId = null,
         public ?string $startedAt = null,
+        public ?string $organizationId = null,
+        public ?string $organizationName = null,
     ) {}
 
     /**
@@ -69,6 +71,8 @@ class JudicialSyncStatusUpdated implements ShouldBroadcastNow
             'failed_jobs_count' => $this->failedJobsCount,
             'laravel_batch_id' => $this->laravelBatchId,
             'started_at' => $this->startedAt,
+            'organization_id' => $this->organizationId,
+            'organization_name' => $this->organizationName,
         ];
     }
 }

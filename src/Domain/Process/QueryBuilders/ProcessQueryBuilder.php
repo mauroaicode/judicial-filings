@@ -88,6 +88,20 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
+     * Radicados de Rama Judicial activos para una organización.
+     * Incluye procesos compartidos con otras organizaciones.
+     *
+     * @return $this
+     */
+    public function forJudicialDailySyncOfOrganization(string $organizationId, ?string $radicadoFilter = null): self
+    {
+        $this->forJudicialDailySync($radicadoFilter);
+        $this->where('organization_processes.organization_id', $organizationId);
+
+        return $this;
+    }
+
+    /**
      * Procesos de Rama Judicial que quedaron "atrapados" como privados
      * sin haber sido migrados a SAMAI todavía.
      *

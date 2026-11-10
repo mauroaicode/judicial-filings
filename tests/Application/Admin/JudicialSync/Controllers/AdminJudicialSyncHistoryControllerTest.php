@@ -8,6 +8,7 @@ use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunDayMoment;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
+use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Role\Models\Role;
 use Src\Domain\User\Enums\UserStatus;
@@ -100,6 +101,33 @@ it('exposes moment of day derived from started_at', function (): void {
         'data.0.started_at',
         DateFormatHelper::formatDateTimeWithDayOfWeek($run->fresh()->started_at)
     );
+});
+
+it('exposes the organization on a scoped run and leaves global runs empty', function (): void {
+    $organization = Organization::factory()->create(['name' => 'Organización Alfa']);
+
+    $global = JudicialSyncRun::factory()->create([
+        'organization_id' => null,
+        'status' => JudicialSyncRunStatus::BatchCompleted,
+        'started_at' => now()->subHour(),
+    ]);
+
+    $scoped = JudicialSyncRun::factory()->create([
+        'organization_id' => $organization->id,
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now(),
+    ]);
+
+    $response = $this->actingAs($this->user)->getJson('/api/admin/judicial-sync/runs');
+
+    $response->assertStatus(200);
+
+    $runs = collect($response->json('data'))->keyBy('id');
+
+    expect($runs->get($scoped->id)['organization_id'])->toBe($organization->id)
+        ->and($runs->get($scoped->id)['organization_name'])->toBe('Organización Alfa')
+        ->and($runs->get($global->id)['organization_id'])->toBeNull()
+        ->and($runs->get($global->id)['organization_name'])->toBeNull();
 });
 
 it('filters by status', function (): void {

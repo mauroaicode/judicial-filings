@@ -24,6 +24,8 @@ class JudicialSyncLiveSourceResource extends Resource
         public ?string $laravel_batch_id,
         public ?string $started_at,
         public ?string $radicado_filter,
+        public ?string $organization_id,
+        public ?string $organization_name,
     ) {}
 
     public static function idle(JudicialSyncDataSource $source): self
@@ -42,6 +44,8 @@ class JudicialSyncLiveSourceResource extends Resource
             laravel_batch_id: null,
             started_at: null,
             radicado_filter: null,
+            organization_id: null,
+            organization_name: null,
         );
     }
 
@@ -64,22 +68,30 @@ class JudicialSyncLiveSourceResource extends Resource
             laravel_batch_id: $run->laravel_batch_id,
             started_at: $run->started_at->toIso8601String(),
             radicado_filter: $run->radicado_filter,
+            organization_id: $run->organization_id,
+            organization_name: $run->organization?->name,
         );
     }
 
     /**
      * @param  list<self>  $sources
+     * @param  list<self>  $organizationRuns
      * @return array{has_active: bool, active_count: int, sources: list<array<string, mixed>>, active: list<array<string, mixed>>}
      */
-    public static function wrapCollection(array $sources): array
+    public static function wrapCollection(array $sources, array $organizationRuns = []): array
     {
         $payload = array_map(
             static fn (self $source): array => $source->toArray(),
             $sources,
         );
 
+        $organizationPayload = array_map(
+            static fn (self $source): array => $source->toArray(),
+            $organizationRuns,
+        );
+
         $active = array_values(array_filter(
-            $payload,
+            array_merge($payload, $organizationPayload),
             static fn (array $source): bool => ($source['is_active'] ?? false) === true,
         ));
 

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\Services\Process;
 
+use Illuminate\Broadcasting\BroadcastException;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\Events\JudicialSyncStatusUpdated;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
@@ -37,7 +39,9 @@ readonly class JudicialSyncLiveStatusBroadcaster
             JudicialSyncRunStatus::BatchPending,
         ], true);
 
-        event(new JudicialSyncStatusUpdated(
+        $run->loadMissing('organization');
+
+        $this->publish(new JudicialSyncStatusUpdated(
             runId: $run->id,
             dataSource: $run->data_source,
             status: $run->status,
@@ -47,7 +51,22 @@ readonly class JudicialSyncLiveStatusBroadcaster
             isActive: $isActive,
             laravelBatchId: $run->laravel_batch_id,
             startedAt: $run->started_at->toIso8601String(),
+            organizationId: $run->organization_id,
+            organizationName: $run->organization?->name,
         ));
+    }
+
+    private function publish(JudicialSyncStatusUpdated $event): void
+    {
+        try {
+            event($event);
+        } catch (BroadcastException $exception) {
+            Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                ->warning('JudicialSyncLiveStatusBroadcaster: live status was not published', [
+                    'run_id' => $event->runId,
+                    'message' => $exception->getMessage(),
+                ]);
+        }
     }
 
     public function broadcastProgress(JudicialSyncRun $run, Batch $batch): void

@@ -206,3 +206,41 @@ it('includes radicado when at least one linked organization is active for daily 
 
     expect($numbers)->toContain('76001333301320170003300');
 });
+
+it('limits judicial daily sync to radicados of one organization including shared ones', function (): void {
+    $organizationA = Organization::factory()->create(['is_active' => true]);
+    $organizationB = Organization::factory()->create(['is_active' => true]);
+
+    $shared = Process::factory()->create([
+        'process_number' => '76001333301320170005500',
+        'is_manual_sync' => false,
+    ]);
+    $onlyA = Process::factory()->create([
+        'process_number' => '76001333301320170006600',
+        'is_manual_sync' => false,
+    ]);
+    $onlyB = Process::factory()->create([
+        'process_number' => '76001333301320170007700',
+        'is_manual_sync' => false,
+    ]);
+
+    $pivot = [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ];
+
+    $shared->organizations()->attach($organizationA->id, $pivot);
+    $shared->organizations()->attach($organizationB->id, $pivot);
+    $onlyA->organizations()->attach($organizationA->id, $pivot);
+    $onlyB->organizations()->attach($organizationB->id, $pivot);
+
+    $numbers = Process::query()
+        ->forJudicialDailySyncOfOrganization($organizationA->id)
+        ->pluck('process_number')
+        ->all();
+
+    expect($numbers)
+        ->toContain('76001333301320170005500')
+        ->toContain('76001333301320170006600')
+        ->not->toContain('76001333301320170007700');
+});

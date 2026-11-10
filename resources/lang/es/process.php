@@ -205,6 +205,7 @@ return [
     'judicial_sync_command_failed' => 'No se pudo ejecutar la sincronización con la Rama Judicial. Intente de nuevo o revise los registros del sistema.',
     'sync_command_failed' => 'No se pudo ejecutar la sincronización de :source. Intente de nuevo o revise los registros del sistema.',
     'sync_source_not_implemented' => 'La sincronización de :source aún no está disponible.',
+    'organization_tracking_disabled' => 'La organización no tiene el seguimiento de procesos activo.',
 
     'actuaciones_import_success' => 'Importación de actuaciones completada.',
     'actuaciones_import_skipped_duplicate' => 'Ya estaba registrada (mismo radicado, fecha, actuación y anotación). El detalle distinto del Auto sí se importa cuando el Excel une “Fijación Estado” + “Auto…”; solo se omite el “Fijación Estado” repetido.',

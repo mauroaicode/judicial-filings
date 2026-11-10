@@ -202,6 +202,7 @@ return [
     'judicial_sync_command_failed' => 'Could not run judicial branch sync. Please try again or check the system logs.',
     'sync_command_failed' => 'Could not run :source sync. Please try again or check the system logs.',
     'sync_source_not_implemented' => ':source sync is not available yet.',
+    'organization_tracking_disabled' => 'This organization cannot track processes.',
 
     'actuaciones_import_success' => 'Actuaciones import completed.',
     'actuaciones_import_skipped_duplicate' => 'Already registered (same filing number, date, proceeding and annotation). When Excel combines “Fijación Estado” + “Auto…”, the distinct Auto is still imported; only the repeated estado label is omitted.',

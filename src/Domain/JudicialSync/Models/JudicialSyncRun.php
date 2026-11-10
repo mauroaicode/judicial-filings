@@ -8,6 +8,7 @@ use Database\Factories\JudicialSyncRunFactory;
 use Illuminate\Bus\Batch;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Services\Notification\Channels\JudicialSyncDiscordNotificationService;
@@ -15,6 +16,7 @@ use Src\Application\Shared\Services\Process\JudicialSyncLiveStatusBroadcaster;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\QueryBuilders\JudicialSyncRunQueryBuilder;
+use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Shared\Traits\Uuid;
 use Symfony\Component\Console\Command\Command as ConsoleCommand;
 
@@ -25,6 +27,8 @@ use Symfony\Component\Console\Command\Command as ConsoleCommand;
  * @property-read Carbon|null $batch_finished_at
  * @property-read string|null $radicado_filter
  * @property-read JudicialSyncDataSource $data_source
+ * @property-read string|null $organization_id
+ * @property-read Organization|null $organization
  * @property-read int $processes_queued
  * @property-read string|null $laravel_batch_id
  * @property-read JudicialSyncRunStatus $status
@@ -58,6 +62,7 @@ class JudicialSyncRun extends Model
         'batch_finished_at',
         'radicado_filter',
         'data_source',
+        'organization_id',
         'processes_queued',
         'laravel_batch_id',
         'status',
@@ -115,14 +120,24 @@ class JudicialSyncRun extends Model
         return $query->exists();
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\Src\Domain\Organization\Models\Organization, $this>
+     */
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
+    }
+
     public static function startRun(
         ?string $radicadoFilter,
         JudicialSyncDataSource $dataSource = JudicialSyncDataSource::JudicialBranch,
+        ?string $organizationId = null,
     ): self {
         $run = self::query()->create([
             'started_at' => now(),
             'radicado_filter' => $radicadoFilter,
             'data_source' => $dataSource,
+            'organization_id' => $organizationId,
             'status' => JudicialSyncRunStatus::Started,
         ]);
 

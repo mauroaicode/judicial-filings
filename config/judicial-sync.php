@@ -261,5 +261,8 @@ return [
     */
     'live_status' => [
         'broadcast_throttle_seconds' => (int) env('JUDICIAL_SYNC_LIVE_STATUS_THROTTLE_SECONDS', 2),
+        // A run stays in "started" only while the command is still building the batch.
+        // Older rows without a batch are aborted requests and must not keep the header on "preparando…".
+        'started_without_batch_seconds' => (int) env('JUDICIAL_SYNC_LIVE_STATUS_STARTED_SECONDS', 90),
     ],
 ];

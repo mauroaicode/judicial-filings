@@ -31,7 +31,9 @@ Authorization: Bearer {admin_token}
       "failed_jobs_count": 2,
       "laravel_batch_id": "a30d0b78-...",
       "started_at": "2026-10-23T09:03:00-05:00",
-      "radicado_filter": null
+      "radicado_filter": null,
+      "organization_id": null,
+      "organization_name": null
     },
     {
       "data_source": "samai",
@@ -75,9 +77,14 @@ Authorization: Bearer {admin_token}
 | `processes_queued` | Total encolado al inicio del batch. |
 | `queue_pending_jobs` | **Cuántos faltan** (viene de `job_batches.pending_jobs`). |
 | `data_source` / `data_source_label` | Rama vs SAMAI vs futuro. |
+| `organization_id` / `organization_name` | `null` en el cron global. En un cron de organización traen el UUID y el nombre. |
 | `is_executable` | `false` para fuentes reservadas (p. ej. TYBA) aún no implementadas. |
 
-`sources` siempre lista **todas** las fuentes del enum (`judicial_branch`, `samai`, `tyba`) para que el front no hardcodee la lista.
+`sources` siempre lista **todas** las fuentes del enum (`judicial_branch`, `samai`, `tyba`) y solo el cron **global** de cada una (`organization_id` null).
+
+Un cron `judicial:sync-processes-for-organization` no ocupa el puesto de Rama. Entra como ítem extra de `active`, con la misma forma y `organization_name` informado. El chip se identifica por `run_id`, no por `data_source`, para que no reemplace el cron global si ambos corren.
+
+Texto sugerido cuando hay organización: `Sincronizando {data_source_label} · {organization_name}: quedan {queue_pending_jobs} de {processes_queued}`.
 
 ---
 
@@ -111,11 +118,15 @@ Echo.private('admin.judicial-sync')
   "queue_pending_jobs": 429,
   "failed_jobs_count": 2,
   "laravel_batch_id": "...",
-  "started_at": "2026-10-23T09:03:00-05:00"
+  "started_at": "2026-10-23T09:03:00-05:00",
+  "organization_id": null,
+  "organization_name": null
 }
 ```
 
-Cuando `is_active` pasa a `false` (batch terminado / cancelado / sin procesos / dispatch fallido), quitar ese chip del header. Si `active_count` queda en 0, ocultar el banner.
+Cuando `is_active` pasa a `false` (batch terminado / cancelado / sin procesos / dispatch fallido), quitar el chip de ese `run_id`. Si `active_count` queda en 0, ocultar el banner.
+
+Si `organization_id` viene informado, el evento es de un cron de organización. No reemplazar el chip global de la misma `data_source`.
 
 Los updates de progreso mid-batch están **throttled** (~2 s por run, configurable con `JUDICIAL_SYNC_LIVE_STATUS_THROTTLE_SECONDS`). Inicio, encolado y fin siempre emiten de inmediato.
 
@@ -128,7 +139,7 @@ Los updates de progreso mid-batch están **throttled** (~2 s por run, configurab
 3. Banner visible solo si `has_active === true` (o `active.length > 0`).
 4. **Una sola fuente activa:** mostrar un chip estático, sin carrusel.
 5. **Dos o más fuentes activas:** carrusel / scroll horizontal infinito (Rama ↔ SAMAI ↔ …).
-6. Texto sugerido por chip: `Sincronizando {data_source_label}: quedan {queue_pending_jobs} de {processes_queued}`.
+6. Texto sugerido por chip global: `Sincronizando {data_source_label}: quedan {queue_pending_jobs} de {processes_queued}`. Si `organization_name` no es null: `Sincronizando {data_source_label} · {organization_name}: quedan {queue_pending_jobs} de {processes_queued}`.
 7. Si `queue_pending_jobs` es `null` (status `started` antes de encolar el batch), mostrar “preparando…” o solo el label de la fuente.
 8. Opcional: al recuperar foco / reconectar Echo, volver a pedir el snapshot.
 
@@ -148,7 +159,43 @@ El historial de la página `/admin/judicial-sync` sigue usando `GET /api/admin/j
 
 ---
 
-## 5. Requisitos de entorno
+## 5. Disparar el cron de una organización
+
+```http
+POST /api/admin/judicial-sync/organizations/{organization}
+Authorization: Bearer {admin_token}
+Content-Type: application/json
+```
+
+`{organization}` es el UUID. Body opcional:
+
+```json
+{ "radicado": "23 dígitos" }
+```
+
+Sin body sincroniza todos los radicados activos de esa organización en Rama Judicial, incluidos los compartidos con otra organización.
+
+```json
+{
+  "jobs_dispatched": 2,
+  "batch_dispatched": true,
+  "radicado_filter": null,
+  "data_source": "judicial_branch",
+  "data_source_label": "Rama Judicial",
+  "organization_id": "uuid",
+  "organization_name": "Nombre"
+}
+```
+
+`batch_dispatched: false` y `jobs_dispatched: 0` cuando esa organización no tiene radicados elegibles. `422` si el radicado no tiene 23 dígitos o si la organización no puede trackear procesos. `404` si el UUID no existe.
+
+`POST /api/admin/judicial-sync` sigue siendo el cron global y no acepta `organization_id`.
+
+El progreso de esta ejecución llega por el mismo `GET /api/admin/judicial-sync/status` y por `JudicialSyncStatusUpdated`, identificado por `run_id` y `organization_name`.
+
+---
+
+## 6. Requisitos de entorno
 
 - `BROADCAST_CONNECTION=reverb` (u otro driver compatible).
 - Reverb corriendo en el entorno del admin.

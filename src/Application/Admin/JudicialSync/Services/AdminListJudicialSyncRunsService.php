@@ -27,6 +27,7 @@ readonly class AdminListJudicialSyncRunsService
     private function buildBaseQuery(): JudicialSyncRunQueryBuilder
     {
         return JudicialSyncRun::query()
+            ->with('organization')
             ->withQueuePendingJobs()
             ->orderedByCreatedAtDesc();
     }

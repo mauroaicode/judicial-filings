@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus;
 use Src\Domain\JudicialSync\Events\JudicialSyncStatusUpdated;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
+use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Role\Models\Role;
 use Src\Domain\User\Enums\UserStatus;
 use Src\Domain\User\Models\User;
@@ -98,6 +100,92 @@ it('returns active rama and samai runs concurrently for the header', function ()
         ->and($samaiRow['processes_queued'])->toBe(28);
 });
 
+it('keeps the global rama chip and adds the organization run to the header', function (): void {
+    $organization = Organization::factory()->create(['name' => 'Organización Beta']);
+    $batchId = 'org-batch-'.uniqid();
+
+    DB::table('job_batches')->insert([
+        'id' => $batchId,
+        'name' => 'Organization sync batch',
+        'total_jobs' => 12,
+        'pending_jobs' => 7,
+        'failed_jobs' => 1,
+        'failed_job_ids' => '[]',
+        'options' => null,
+        'cancelled_at' => null,
+        'created_at' => time(),
+        'finished_at' => null,
+    ]);
+
+    $global = JudicialSyncRun::factory()->create([
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'processes_queued' => 100,
+        'organization_id' => null,
+        'started_at' => now()->subMinutes(10),
+        'batch_finished_at' => null,
+    ]);
+
+    $scoped = JudicialSyncRun::factory()->create([
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'processes_queued' => 12,
+        'organization_id' => $organization->id,
+        'laravel_batch_id' => $batchId,
+        'started_at' => now()->subMinutes(2),
+        'batch_finished_at' => null,
+    ]);
+
+    $response = $this->actingAs($this->user)->getJson('/api/admin/judicial-sync/status');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('has_active', true);
+    $response->assertJsonPath('active_count', 2);
+    $response->assertJsonCount(3, 'sources');
+
+    $ramaRow = collect($response->json('sources'))->firstWhere('data_source', JudicialSyncDataSource::JudicialBranch->value);
+    expect($ramaRow['run_id'])->toBe($global->id)
+        ->and($ramaRow['organization_id'])->toBeNull()
+        ->and($ramaRow['organization_name'])->toBeNull();
+
+    $organizationRow = collect($response->json('active'))->firstWhere('run_id', $scoped->id);
+    expect($organizationRow)->not->toBeNull()
+        ->and($organizationRow['organization_id'])->toBe($organization->id)
+        ->and($organizationRow['organization_name'])->toBe('Organización Beta')
+        ->and($organizationRow['processes_queued'])->toBe(12)
+        ->and($organizationRow['queue_pending_jobs'])->toBe(7);
+});
+
+it('hides aborted organization runs that never queued a batch', function (): void {
+    $organization = Organization::factory()->create(['name' => 'Organización Detenida']);
+
+    $running = JudicialSyncRun::factory()->create([
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'processes_queued' => 40,
+        'organization_id' => $organization->id,
+        'started_at' => now()->subMinutes(5),
+        'batch_finished_at' => null,
+    ]);
+
+    JudicialSyncRun::factory()->create([
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+        'status' => JudicialSyncRunStatus::Started,
+        'processes_queued' => 0,
+        'organization_id' => $organization->id,
+        'laravel_batch_id' => null,
+        'started_at' => now()->subMinutes(10),
+        'batch_finished_at' => null,
+    ]);
+
+    $response = $this->actingAs($this->user)->getJson('/api/admin/judicial-sync/status');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('active_count', 1);
+    $response->assertJsonPath('active.0.run_id', $running->id);
+    $response->assertJsonPath('active.0.processes_queued', 40);
+});
+
 it('ignores finished runs in live status', function (): void {
     JudicialSyncRun::factory()->create([
         'data_source' => JudicialSyncDataSource::JudicialBranch,
@@ -123,6 +211,24 @@ it('broadcasts judicial sync status when a run starts', function (): void {
         fn (JudicialSyncStatusUpdated $event): bool => $event->runId === $run->id
             && $event->isActive === true
             && $event->dataSource === JudicialSyncDataSource::JudicialBranch
-            && $event->broadcastAs() === 'JudicialSyncStatusUpdated',
+            && $event->organizationId === null
+            && $event->organizationName === null
+            && $event->broadcastAs() === 'JudicialSyncStatusUpdated'
+            && $event->broadcastWith()['organization_id'] === null,
+    );
+});
+
+it('broadcasts the organization name when a scoped run starts', function (): void {
+    Event::fake([JudicialSyncStatusUpdated::class]);
+
+    $organization = Organization::factory()->create(['name' => 'Organización Gamma']);
+    $run = JudicialSyncRun::startRun(null, JudicialSyncDataSource::JudicialBranch, $organization->id);
+
+    Event::assertDispatched(
+        JudicialSyncStatusUpdated::class,
+        fn (JudicialSyncStatusUpdated $event): bool => $event->runId === $run->id
+            && $event->organizationId === $organization->id
+            && $event->organizationName === 'Organización Gamma'
+            && $event->broadcastWith()['organization_name'] === 'Organización Gamma',
     );
 });

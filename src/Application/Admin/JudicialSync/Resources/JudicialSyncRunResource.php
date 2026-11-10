@@ -23,6 +23,9 @@ class JudicialSyncRunResource extends Resource
         public string $data_source,
         /** Localized label from `enums.judicial_sync_data_source.*`. */
         public string $data_source_label,
+        /** Null when the run is the global cron. */
+        public ?string $organization_id,
+        public ?string $organization_name,
         public int $processes_queued,
         public ?string $laravel_batch_id,
         /** Machine value for filters and logic (see {@see \Src\Domain\JudicialSync\Enums\JudicialSyncRunStatus}). */
@@ -51,6 +54,8 @@ class JudicialSyncRunResource extends Resource
             radicado_filter: $run->radicado_filter,
             data_source: $run->data_source->value,
             data_source_label: $run->data_source->getLabel(),
+            organization_id: $run->organization_id,
+            organization_name: $run->organization?->name,
             processes_queued: $run->processes_queued,
             laravel_batch_id: $run->laravel_batch_id,
             status: $run->status->value,
