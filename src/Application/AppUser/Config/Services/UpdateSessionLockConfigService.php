@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Src\Application\AppUser\Config\Services;
 
 use Src\Application\AppUser\Config\Data\UpdateSessionLockConfigData;
+use Src\Domain\AppUser\Enums\SessionUnlockMethod;
 use Src\Domain\AppUser\Models\AppUser;
 
 class UpdateSessionLockConfigService
@@ -21,6 +22,9 @@ class UpdateSessionLockConfigService
             ->update([
                 'session_lock_enabled' => $data->session_lock_enabled,
                 'session_lock_timeout' => $data->session_lock_timeout,
+                ...($data->session_unlock_method instanceof SessionUnlockMethod ? [
+                    'session_unlock_method' => $data->session_unlock_method->value,
+                ] : []),
             ]);
     }
 }

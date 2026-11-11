@@ -111,6 +111,7 @@ return [
     'started_at_to' => 'Inicio hasta',
     'session_lock_enabled' => 'Bloqueo de sesión habilitado',
     'session_lock_timeout' => 'Tiempo de bloqueo de sesión',
+    'session_unlock_method' => 'Método de desbloqueo de sesión',
     'subject_type' => 'Tipo de sujeto',
     'name_or_business_name' => 'Nombre o razón social',
     'subjects' => 'Sujetos procesales',
@@ -130,4 +131,5 @@ return [
     'channel_value' => 'Destino del canal',
     'whatsapp' => 'WhatsApp',
     'sms' => 'SMS',
+    'one_time_password' => 'Código de verificación',
 ];

@@ -18,13 +18,14 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withBroadcasting(
         '/broadcasting/auth',
-        ['middleware' => ['auth:sanctum']],
+        ['middleware' => ['auth:sanctum', 'custom.2fa']],
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'admin.role' => \App\Http\Middleware\EnsureAdminRole::class,
             'app_user.organization_active' => \App\Http\Middleware\EnsureAppUserOrganizationActive::class,
             'app_user.activity' => \App\Http\Middleware\RecordAppUserActivity::class,
+            'custom.2fa' => \App\Http\Middleware\Google2FAMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

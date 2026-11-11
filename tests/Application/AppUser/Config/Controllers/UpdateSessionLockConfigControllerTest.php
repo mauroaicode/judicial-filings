@@ -35,6 +35,53 @@ it('can update user config for session lock', function (): void {
     $this->appUser->refresh();
     expect((bool) $this->appUser->session_lock_enabled)->toBeFalse();
     expect((int) $this->appUser->session_lock_timeout)->toBe(10);
+    expect($this->appUser->session_unlock_method->value)->toBe('password');
+});
+
+it('saves otp as the screen unlock method when 2fa is enabled', function (): void {
+    $this->appUser->update([
+        'google_2fa_secret' => 'TESTSECRET123456',
+        'google_2fa_enabled' => true,
+    ]);
+
+    $token = $this->appUser->createToken('auth-token', ['2fa_verified'])->plainTextToken;
+
+    $response = $this->withToken($token)
+        ->putJson('/api/app-user/config/session-lock', [
+            'session_lock_enabled' => true,
+            'session_lock_timeout' => 5,
+            'session_unlock_method' => 'otp',
+        ]);
+
+    $response->assertOk()
+        ->assertJsonPath('session_unlock_method', 'otp');
+
+    $this->appUser->refresh();
+    expect($this->appUser->session_unlock_method->value)->toBe('otp');
+});
+
+it('rejects otp unlock when 2fa is not enabled', function (): void {
+    $response = $this->actingAs($this->appUser, 'sanctum')
+        ->putJson('/api/app-user/config/session-lock', [
+            'session_lock_enabled' => true,
+            'session_lock_timeout' => 5,
+            'session_unlock_method' => 'otp',
+        ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['session_unlock_method']);
+});
+
+it('rejects an unknown unlock method', function (): void {
+    $response = $this->actingAs($this->appUser, 'sanctum')
+        ->putJson('/api/app-user/config/session-lock', [
+            'session_lock_enabled' => true,
+            'session_lock_timeout' => 5,
+            'session_unlock_method' => 'pin',
+        ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['session_unlock_method']);
 });
 
 it('fails to update config with invalid timeout', function (): void {

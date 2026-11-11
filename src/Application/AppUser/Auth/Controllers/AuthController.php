@@ -11,6 +11,7 @@ use Illuminate\Validation\ValidationException;
 use Src\Application\AppUser\Auth\Data\ForgotPasswordData;
 use Src\Application\AppUser\Auth\Data\LoginData;
 use Src\Application\AppUser\Auth\Data\ResetPasswordData;
+use Src\Application\AppUser\Auth\Data\VerifyOtpData;
 use Src\Application\AppUser\Auth\Data\VerifyPasswordData;
 use Src\Application\AppUser\Auth\Resources\AuthResource;
 use Src\Application\AppUser\Auth\Services\ForgotPasswordService;
@@ -33,7 +34,7 @@ class AuthController
 
         $recorder->record($appUser->id, $request->ip(), true);
 
-        $authResource = AuthResource::fromModel($appUser, $token, false, $appUser->must_change_password);
+        $authResource = AuthResource::fromModel($appUser, $token, (bool) $appUser->google_2fa_enabled, $appUser->must_change_password);
 
         return response()->json($authResource->toArray());
     }
@@ -74,6 +75,17 @@ class AuthController
             ]);
         }
 
+        return response()->json([
+            'message' => __('auth.session_unlocked'),
+        ]);
+    }
+
+    /**
+     * Verify the current user's authenticator code to unlock the session.
+     * Does NOT issue a new token — only validates the code.
+     */
+    public function verifyOtp(VerifyOtpData $data): JsonResponse
+    {
         return response()->json([
             'message' => __('auth.session_unlocked'),
         ]);

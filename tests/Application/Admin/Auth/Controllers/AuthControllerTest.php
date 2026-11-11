@@ -128,6 +128,22 @@ it('returns requires_2fa as false when 2fa is not enabled', function (): void {
     expect($response->json('requires_2fa'))->toBeFalse();
 });
 
+it('returns requires_2fa as true when 2fa is enabled', function (): void {
+    $this->user->update([
+        'google_2fa_secret' => 'test_secret_key',
+        'google_2fa_enabled' => true,
+    ]);
+
+    $response = $this->postJson('/api/admin/login', [
+        'email' => 'admin@example.com',
+        'password' => 'password1234',
+    ]);
+
+    $response->assertStatus(200);
+    expect($response->json('requires_2fa'))->toBeTrue()
+        ->and($response->json('user.google_2fa_enabled'))->toBeTrue();
+});
+
 it('returns is_first_login as false by default', function (): void {
     $response = $this->postJson('/api/admin/login', [
         'email' => 'admin@example.com',

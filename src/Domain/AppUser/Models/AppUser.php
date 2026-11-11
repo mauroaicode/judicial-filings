@@ -14,6 +14,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
+use Src\Domain\AppUser\Enums\SessionUnlockMethod;
 use Src\Domain\AppUser\QueryBuilders\AppUserQueryBuilder;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Shared\Traits\Uuid;
@@ -26,6 +27,9 @@ use Src\Domain\Shared\Traits\Uuid;
  * @property-read string $email
  * @property-read string $identification
  * @property-read string $password
+ * @property-read string|null $google_2fa_secret
+ * @property-read bool $google_2fa_enabled
+ * @property-read SessionUnlockMethod $session_unlock_method
  * @property-read string|null $profile_image
  * @property-read Carbon|null $email_verified_at
  * @property-read string|null $remember_token
@@ -59,6 +63,9 @@ class AppUser extends Model implements Authenticatable
         'identification',
         'password',
         'must_change_password',
+        'google_2fa_secret',
+        'google_2fa_enabled',
+        'session_unlock_method',
         'profile_image',
         'email_verified_at',
     ];
@@ -71,6 +78,7 @@ class AppUser extends Model implements Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'google_2fa_secret',
     ];
 
     /**
@@ -84,6 +92,8 @@ class AppUser extends Model implements Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'google_2fa_enabled' => 'boolean',
+            'session_unlock_method' => SessionUnlockMethod::class,
         ];
     }
 

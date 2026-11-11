@@ -22,4 +22,9 @@ return [
     'password_reset_successful' => 'Your password has been successfully reset.',
     'password_incorrect' => 'The password is incorrect.',
     'session_unlocked' => 'Session unlocked successfully.',
+    'invalid_otp' => 'The verification code is invalid.',
+    'no_2fa_setup' => 'User does not have two-factor authentication configured.',
+    '2fa_not_enabled' => 'Two-factor authentication is not enabled.',
+    '2fa_required' => 'Two-factor authentication verification is required.',
+    'session_unlock_otp_requires_2fa' => 'To unlock with the authenticator code, turn on two-factor authentication first.',
 ];

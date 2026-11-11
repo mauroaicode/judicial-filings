@@ -40,6 +40,8 @@ class UserFactory extends Factory
             'slug' => Str::slug(strtolower($name).'-'.strtolower($lastName).Str::random(5), '-'),
             'state' => UserStatus::ACTIVE,
             'email_verified_at' => now(),
+            'google_2fa_secret' => null,
+            'google_2fa_enabled' => false,
         ];
     }
 

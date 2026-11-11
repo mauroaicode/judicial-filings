@@ -157,3 +157,52 @@ Echo.private('admin.presence').listen('.AppUserActivityRecorded', () => {
 ```
 
 El payload trae `app_user_id`, `increment_login` y `activity_date`. `joining` y `leaving` actualizan quién está conectado; este evento actualiza los inicios de sesión.
+
+### Organizaciones sin conexión
+
+Lista **organizaciones**, no personas. Parte del catálogo completo y cruza con la actividad diaria.
+
+```http
+GET /api/admin/presence/organizations?status=never&inactive_days=30&per_page=20&page=1
+```
+
+Query:
+
+| Param | Default | Descripción |
+|---|---|---|
+| `status` | `never` | `never` = nunca se conectaron; `stale` = última actividad hace `inactive_days` o más; `all` = todas, con nunca primero |
+| `inactive_days` | `30` | Umbral en días para marcar `stale` (1–365) |
+| `is_active` | `true` | Sin el param: solo activas. `0`/`false`: solo inactivas. Vacío (`is_active=`): activas e inactivas |
+| `search` | – | Filtra por nombre de organización |
+| `page` / `per_page` | `1` / `20` | Paginación en la raíz (`total`, no `meta.total`). Máx. 100 |
+
+```json
+{
+  "data": [
+    {
+      "organization_id": "uuid",
+      "organization_name": "Bufete",
+      "is_active": true,
+      "users_count": 3,
+      "last_seen_at": null,
+      "days_inactive": null,
+      "status": "never"
+    }
+  ],
+  "current_page": 1,
+  "per_page": 20,
+  "total": 12,
+  "last_page": 1,
+  "status": "never",
+  "inactive_days": 30,
+  "is_active": true,
+  "search": null,
+  "totals": {
+    "never": 12,
+    "stale": 8,
+    "recent": 40
+  }
+}
+```
+
+`status` por fila: `never` | `stale` | `recent`. `days_inactive` es `null` cuando nunca se conectaron. `totals` respeta `search` e `is_active`, no el `status` de la página: sirven para badges de las tres pestañas.

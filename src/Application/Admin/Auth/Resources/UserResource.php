@@ -20,6 +20,7 @@ class UserResource extends Resource
         public ?string $phone = null,
         public ?string $address = null,
         public ?array $roles = null,
+        public bool $google_2fa_enabled = false,
     ) {}
 
     public static function fromModel(User $user): self
@@ -41,6 +42,7 @@ class UserResource extends Resource
             phone: $user->phone,
             address: $user->address,
             roles: $roles,
+            google_2fa_enabled: (bool) $user->google_2fa_enabled,
         );
     }
 }

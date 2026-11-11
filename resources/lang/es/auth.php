@@ -25,4 +25,9 @@ return [
     'password_reset_successful' => 'Tu contraseña ha sido restablecida exitosamente.',
     'password_incorrect' => 'La contraseña es incorrecta.',
     'session_unlocked' => 'Sesión desbloqueada correctamente.',
+    'invalid_otp' => 'El código de verificación no es válido.',
+    'no_2fa_setup' => 'El usuario no tiene configurada la autenticación en dos factores.',
+    '2fa_not_enabled' => 'La autenticación en dos factores no está activada.',
+    '2fa_required' => 'Debes verificar la autenticación en dos factores.',
+    'session_unlock_otp_requires_2fa' => 'Para desbloquear con el código de la app, primero activa la autenticación en dos factores.',
 ];

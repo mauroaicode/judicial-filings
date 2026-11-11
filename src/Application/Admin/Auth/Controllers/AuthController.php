@@ -23,7 +23,7 @@ class AuthController
 
         $token = $user->createToken($user->email)->plainTextToken;
 
-        $authResource = AuthResource::fromModel($user, $token, false);
+        $authResource = AuthResource::fromModel($user, $token, (bool) $user->google_2fa_enabled);
 
         return response()->json($authResource->toArray());
     }

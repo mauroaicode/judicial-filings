@@ -7,4 +7,5 @@ Route::middleware(['auth:sanctum', 'admin.role'])->group(function (): void {
     Route::get('presence/today', [AppUserPresenceController::class, 'today']);
     Route::get('presence/summary', [AppUserPresenceController::class, 'summary']);
     Route::get('presence/online', [AppUserPresenceController::class, 'online']);
+    Route::get('presence/organizations', [AppUserPresenceController::class, 'organizations']);
 });

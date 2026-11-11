@@ -25,6 +25,8 @@ class AppUserResource extends Resource
         public ?string $organization_id = null,
         public bool $session_lock_enabled = true,
         public int $session_lock_timeout = 5,
+        public string $session_unlock_method = 'password',
+        public bool $google_2fa_enabled = false,
     ) {}
 
     public static function fromModel(AppUser $appUser): self
@@ -50,6 +52,8 @@ class AppUserResource extends Resource
             organization_id: $appUser->organizations()->first()?->id,
             session_lock_enabled: (bool) ($appUser->session_lock_enabled ?? true),
             session_lock_timeout: (int) ($appUser->session_lock_timeout ?? config('session-lock.inactivity_timeout', 5)),
+            session_unlock_method: $appUser->session_unlock_method->value,
+            google_2fa_enabled: (bool) $appUser->google_2fa_enabled,
         );
     }
 }

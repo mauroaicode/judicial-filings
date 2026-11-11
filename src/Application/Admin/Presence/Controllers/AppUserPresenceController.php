@@ -11,6 +11,7 @@ use Illuminate\Validation\ValidationException;
 use Src\Application\Admin\Presence\Resources\OnlineAppUsersResource;
 use Src\Application\Admin\Presence\Services\ListAppUserPresenceSummaryService;
 use Src\Application\Admin\Presence\Services\ListOnlineAppUsersService;
+use Src\Application\Admin\Presence\Services\ListOrganizationPresenceService;
 use Src\Application\Admin\Presence\Services\ListTodayAppUserActivityService;
 
 readonly class AppUserPresenceController
@@ -19,6 +20,7 @@ readonly class AppUserPresenceController
         private ListTodayAppUserActivityService $listTodayAppUserActivityService,
         private ListOnlineAppUsersService $listOnlineAppUsersService,
         private ListAppUserPresenceSummaryService $listAppUserPresenceSummaryService,
+        private ListOrganizationPresenceService $listOrganizationPresenceService,
     ) {}
 
     public function today(Request $request): LengthAwarePaginator
@@ -65,6 +67,35 @@ readonly class AppUserPresenceController
     public function online(Request $request): OnlineAppUsersResource
     {
         return $this->listOnlineAppUsersService->handle($this->organizationId($request));
+    }
+
+    public function organizations(Request $request): JsonResponse
+    {
+        $perPage = min(100, max(1, $this->integerQuery($request, 'per_page', 20)));
+        $page = max(1, $this->integerQuery($request, 'page', 1));
+        $inactiveDays = min(365, max(1, $this->integerQuery($request, 'inactive_days', 30)));
+        $status = $this->organizationStatus($request);
+        $result = $this->listOrganizationPresenceService->handle(
+            $status,
+            $inactiveDays,
+            $this->isActiveFilter($request),
+            $this->search($request),
+            $perPage,
+            $page,
+        );
+
+        $payload = $result->organizations->toArray();
+        $payload['status'] = $result->status;
+        $payload['inactive_days'] = $result->inactiveDays;
+        $payload['is_active'] = $result->isActive;
+        $payload['search'] = $result->search;
+        $payload['totals'] = [
+            'never' => $result->never,
+            'stale' => $result->stale,
+            'recent' => $result->recent,
+        ];
+
+        return response()->json($payload);
     }
 
     /**
@@ -148,6 +179,75 @@ readonly class AppUserPresenceController
         }
 
         return $organizationId;
+    }
+
+    private function organizationStatus(Request $request): string
+    {
+        $status = $request->query('status', 'never');
+
+        if (! is_string($status) || ! in_array($status, ['never', 'stale', 'all'], true)) {
+            throw ValidationException::withMessages([
+                'status' => [__('validation.in', ['attribute' => 'status'])],
+            ]);
+        }
+
+        return $status;
+    }
+
+    private function isActiveFilter(Request $request): ?bool
+    {
+        if (! $request->query->has('is_active')) {
+            return true;
+        }
+
+        $value = $request->query('is_active');
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            throw ValidationException::withMessages([
+                'is_active' => [__('validation.boolean', ['attribute' => 'is_active'])],
+            ]);
+        }
+
+        $normalized = strtolower($value);
+
+        if (in_array($normalized, ['1', 'true', 'yes'], true)) {
+            return true;
+        }
+
+        if (in_array($normalized, ['0', 'false', 'no'], true)) {
+            return false;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        throw ValidationException::withMessages([
+            'is_active' => [__('validation.boolean', ['attribute' => 'is_active'])],
+        ]);
+    }
+
+    private function search(Request $request): ?string
+    {
+        $search = $request->query('search');
+
+        if ($search === null || $search === '') {
+            return null;
+        }
+
+        if (! is_string($search)) {
+            throw ValidationException::withMessages([
+                'search' => [__('validation.string', ['attribute' => 'search'])],
+            ]);
+        }
+
+        $search = trim($search);
+
+        return $search === '' ? null : mb_substr($search, 0, 100);
     }
 
     private function integerQuery(Request $request, string $key, int $default): int

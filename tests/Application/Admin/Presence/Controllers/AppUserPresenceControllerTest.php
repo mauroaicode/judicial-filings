@@ -47,6 +47,7 @@ beforeEach(function (): void {
 it('requires authentication to list presence', function (): void {
     $this->getJson('/api/admin/presence/today')->assertStatus(401);
     $this->getJson('/api/admin/presence/online')->assertStatus(401);
+    $this->getJson('/api/admin/presence/organizations')->assertStatus(401);
 });
 
 it('rejects an app user', function (): void {
@@ -54,6 +55,7 @@ it('rejects an app user', function (): void {
 
     $this->withToken($token)->getJson('/api/admin/presence/today')->assertStatus(403);
     $this->withToken($token)->getJson('/api/admin/presence/online')->assertStatus(403);
+    $this->withToken($token)->getJson('/api/admin/presence/organizations')->assertStatus(403);
 });
 
 it('lists who entered today with ip and place', function (): void {
@@ -229,4 +231,87 @@ it('filters activity by organization and summarizes logins and days online in a 
     $online->assertStatus(200);
     $online->assertJsonPath('total', 1);
     $online->assertJsonPath('users.0.id', $this->appUser->id);
+});
+
+it('lists organizations that never connected and those inactive for too long', function (): void {
+    $prefix = 'PresenceOrg '.uniqid('', true);
+    $never = Organization::factory()->create(['name' => $prefix.' Never', 'is_active' => true]);
+    $stale = Organization::factory()->create(['name' => $prefix.' Stale', 'is_active' => true]);
+    $recent = Organization::factory()->create(['name' => $prefix.' Recent', 'is_active' => true]);
+    $inactiveOrg = Organization::factory()->create(['name' => $prefix.' Off', 'is_active' => false]);
+
+    $staleUser = AppUser::factory()->create();
+    $staleUser->organizations()->attach($stale->id, ['is_owner' => true]);
+    $recentUser = AppUser::factory()->create();
+    $recentUser->organizations()->attach($recent->id, ['is_owner' => true]);
+
+    AppUserDailyActivity::query()->create([
+        'app_user_id' => $staleUser->id,
+        'organization_id' => $stale->id,
+        'activity_date' => now()->subDays(45)->toDateString(),
+        'first_seen_at' => now()->subDays(45),
+        'last_seen_at' => now()->subDays(45),
+        'login_count' => 1,
+    ]);
+    AppUserDailyActivity::query()->create([
+        'app_user_id' => $recentUser->id,
+        'organization_id' => $recent->id,
+        'activity_date' => now()->toDateString(),
+        'first_seen_at' => now()->subHour(),
+        'last_seen_at' => now(),
+        'login_count' => 1,
+    ]);
+
+    $neverList = $this->actingAs($this->user)->getJson(
+        '/api/admin/presence/organizations?status=never&search='.urlencode($prefix).'&inactive_days=30'
+    );
+
+    $neverList->assertStatus(200);
+    $neverList->assertJsonPath('status', 'never');
+    $neverList->assertJsonPath('inactive_days', 30);
+    $neverList->assertJsonPath('totals.never', 1);
+    $neverList->assertJsonPath('totals.stale', 1);
+    $neverList->assertJsonPath('totals.recent', 1);
+    $neverList->assertJsonPath('total', 1);
+    $neverList->assertJsonPath('data.0.organization_id', $never->id);
+    $neverList->assertJsonPath('data.0.status', 'never');
+    $neverList->assertJsonPath('data.0.last_seen_at', null);
+    $neverList->assertJsonPath('data.0.days_inactive', null);
+
+    $staleList = $this->actingAs($this->user)->getJson(
+        '/api/admin/presence/organizations?status=stale&search='.urlencode($prefix).'&inactive_days=30'
+    );
+
+    $staleList->assertStatus(200);
+    $staleList->assertJsonPath('total', 1);
+    $staleList->assertJsonPath('data.0.organization_id', $stale->id);
+    $staleList->assertJsonPath('data.0.status', 'stale');
+    $staleList->assertJsonPath('data.0.users_count', 1);
+    $staleList->assertJsonPath('data.0.days_inactive', 45);
+
+    $all = $this->actingAs($this->user)->getJson(
+        '/api/admin/presence/organizations?status=all&search='.urlencode($prefix).'&inactive_days=30'
+    );
+
+    $all->assertStatus(200);
+    $all->assertJsonPath('total', 3);
+    $all->assertJsonPath('data.0.organization_id', $never->id);
+    $all->assertJsonPath('data.1.organization_id', $stale->id);
+    $all->assertJsonPath('data.2.organization_id', $recent->id);
+    $all->assertJsonPath('data.2.status', 'recent');
+
+    $withInactive = $this->actingAs($this->user)->getJson(
+        '/api/admin/presence/organizations?status=never&search='.urlencode($prefix).'&is_active='
+    );
+
+    $withInactive->assertStatus(200);
+    $withInactive->assertJsonPath('total', 2);
+    expect(collect($withInactive->json('data'))->pluck('organization_id')->all())
+        ->toContain($never->id, $inactiveOrg->id);
+});
+
+it('rejects an invalid organization presence status', function (): void {
+    $this->actingAs($this->user)
+        ->getJson('/api/admin/presence/organizations?status=missing')
+        ->assertStatus(422);
 });

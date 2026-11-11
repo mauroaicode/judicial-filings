@@ -25,6 +25,8 @@ use Src\Domain\User\QueryBuilders\UserQueryBuilder;
  * @property-read string $slug
  * @property-read string $email
  * @property-read string $password
+ * @property-read string|null $google_2fa_secret
+ * @property-read bool $google_2fa_enabled
  * @property-read UserStatus $state
  * @property-read string|null $remember_token
  * @property-read Carbon|null $email_verified_at
@@ -67,6 +69,8 @@ class User extends Authenticatable
         'email',
         'password',
         'state',
+        'google_2fa_secret',
+        'google_2fa_enabled',
         'email_verified_at',
     ];
 
@@ -78,6 +82,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'google_2fa_secret',
     ];
 
     /**
@@ -107,6 +112,7 @@ class User extends Authenticatable
             'state' => UserStatus::class,
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'google_2fa_enabled' => 'boolean',
         ];
     }
 

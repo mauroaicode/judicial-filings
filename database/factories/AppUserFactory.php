@@ -40,6 +40,9 @@ class AppUserFactory extends Factory
             'must_change_password' => false,
             'profile_image' => null,
             'email_verified_at' => now(),
+            'google_2fa_secret' => null,
+            'google_2fa_enabled' => false,
+            'session_unlock_method' => 'password',
         ];
     }
 
