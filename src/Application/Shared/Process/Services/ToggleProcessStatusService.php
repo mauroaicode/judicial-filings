@@ -90,7 +90,7 @@ readonly class ToggleProcessStatusService
             ->where('process_id', $processId)
             ->firstOrFail();
 
-        if (OrganizationProcessStatus::fromPivot($organizationProcess) === OrganizationProcessStatus::SUSPENDED) {
+        if (OrganizationProcessStatus::fromPivot($organizationProcess)->isPaused()) {
             throw ValidationException::withMessages([
                 'is_active' => [__('process.cannot_toggle_while_suspended')],
             ]);

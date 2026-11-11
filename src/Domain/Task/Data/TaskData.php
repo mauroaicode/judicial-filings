@@ -11,7 +11,6 @@ use Spatie\LaravelData\Attributes\Validation\IntegerType;
 use Spatie\LaravelData\Attributes\Validation\Min;
 use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Attributes\Validation\Required;
-use Spatie\LaravelData\Attributes\Validation\RequiredIf;
 use Spatie\LaravelData\Attributes\Validation\StringType;
 use Spatie\LaravelData\Attributes\Validation\Uuid;
 use Spatie\LaravelData\Data;
@@ -39,6 +38,9 @@ class TaskData extends Data
 
         #[Nullable, In([
             TaskType::GENERAL->value,
+            TaskType::PENDING_HEARING->value,
+            TaskType::SUSPENSION_INSOLVENCY->value,
+            TaskType::SUSPENSION_PAYMENT_AGREEMENT->value,
             TaskType::SUSPENSION->value,
         ])]
         public ?string $type,
@@ -46,7 +48,7 @@ class TaskData extends Data
         #[Required, BooleanType]
         public bool $is_admin,
 
-        #[RequiredIf('type', TaskType::SUSPENSION->value), Nullable, Uuid]
+        #[Nullable, Uuid]
         public ?string $process_id,
 
         #[Required, Uuid]

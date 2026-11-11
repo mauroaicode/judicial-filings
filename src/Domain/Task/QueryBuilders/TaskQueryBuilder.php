@@ -41,6 +41,24 @@ class TaskQueryBuilder extends Builder
         return $this->where('type', $value);
     }
 
+    /**
+     * @param  list<TaskType|string>  $types
+     */
+    public function whereTypeIn(array $types): self
+    {
+        $values = array_map(
+            static fn (TaskType|string $type): string => $type instanceof TaskType ? $type->value : $type,
+            $types,
+        );
+
+        return $this->whereIn('type', $values);
+    }
+
+    public function wherePausesProcess(): self
+    {
+        return $this->whereTypeIn(TaskType::pausingValues());
+    }
+
     public function whereStatus(TaskStatus|string $status): self
     {
         $value = $status instanceof TaskStatus ? $status->value : $status;

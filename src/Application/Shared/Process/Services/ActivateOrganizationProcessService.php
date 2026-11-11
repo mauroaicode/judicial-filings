@@ -56,7 +56,7 @@ readonly class ActivateOrganizationProcessService
                 'updated_at' => now(),
             ]);
 
-        if ($previousStatus !== OrganizationProcessStatus::SUSPENDED) {
+        if (! $previousStatus->isPaused()) {
             return;
         }
 

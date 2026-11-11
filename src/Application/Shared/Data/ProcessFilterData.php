@@ -8,6 +8,7 @@ use Spatie\LaravelData\Attributes\Validation\Date;
 use Spatie\LaravelData\Attributes\Validation\In;
 use Spatie\LaravelData\Data;
 use Src\Application\Shared\Traits\TranslatableDataAttributesTrait;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 
 class ProcessFilterData extends Data
 {
@@ -39,14 +40,30 @@ class ProcessFilterData extends Data
         public ?string $last_api_update_from = null,
         #[Date]
         public ?string $last_api_update_to = null,
-        #[In(['active', 'inactive', 'suspended'])]
+        #[In([
+            OrganizationProcessStatus::ACTIVE->value,
+            OrganizationProcessStatus::INACTIVE->value,
+            OrganizationProcessStatus::PENDING_HEARING->value,
+            OrganizationProcessStatus::SUSPENDED_INSOLVENCY->value,
+            OrganizationProcessStatus::SUSPENDED_PAYMENT_AGREEMENT->value,
+            OrganizationProcessStatus::SUSPENDED->value,
+        ])]
         public ?string $status = null,
         /** Admin uses judicial `processes.status`; AppUser keeps pivot subscription. */
         public bool $status_on_process_table = false,
         public mixed $has_multiple_instances = null,
         #[In(['plaintiff', 'defendant', 'none'])]
         public ?string $lawyer_role = null,
-        #[In(['red', 'yellow', 'green', 'none', 'suspended'])]
+        #[In([
+            'red',
+            'yellow',
+            'green',
+            'none',
+            OrganizationProcessStatus::PENDING_HEARING->value,
+            OrganizationProcessStatus::SUSPENDED_INSOLVENCY->value,
+            OrganizationProcessStatus::SUSPENDED_PAYMENT_AGREEMENT->value,
+            OrganizationProcessStatus::SUSPENDED->value,
+        ])]
         public ?string $severity_color = null,
         /** `private` | `public`; omit for no filter (admin and app-user lists). */
         #[In(['private', 'public'])]

@@ -65,4 +65,25 @@ class TaskFactory extends Factory
             'type' => TaskType::SUSPENSION,
         ]);
     }
+
+    public function pendingHearing(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => TaskType::PENDING_HEARING,
+        ]);
+    }
+
+    public function suspensionInsolvency(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => TaskType::SUSPENSION_INSOLVENCY,
+        ]);
+    }
+
+    public function suspensionPaymentAgreement(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => TaskType::SUSPENSION_PAYMENT_AGREEMENT,
+        ]);
+    }
 }

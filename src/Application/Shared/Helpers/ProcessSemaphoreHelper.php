@@ -17,7 +17,7 @@ final class ProcessSemaphoreHelper
      */
     public static function resolve(?OrganizationProcessStatus $status): array
     {
-        if ($status === OrganizationProcessStatus::SUSPENDED) {
+        if ($status?->isPaused()) {
             return [
                 'paused' => true,
                 'reason' => self::REASON_SUSPENSION_TASK,

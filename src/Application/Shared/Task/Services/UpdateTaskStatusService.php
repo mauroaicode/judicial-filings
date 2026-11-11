@@ -58,7 +58,9 @@ class UpdateTaskStatusService
             return;
         }
 
-        if ($task->type !== TaskType::SUSPENSION || ! $task->process_id) {
+        $type = $task->type instanceof TaskType ? $task->type : null;
+
+        if (! $type?->pausesProcess() || ! $task->process_id) {
             return;
         }
 

@@ -48,7 +48,7 @@ class StoreTaskService
 
         $type = TaskType::from($data->type ?? TaskType::GENERAL->value);
 
-        if ($type === TaskType::SUSPENSION && ! $data->process_id) {
+        if ($type->pausesProcess() && ! $data->process_id) {
             throw ValidationException::withMessages([
                 'process_id' => [__('process.suspension_requires_process')],
             ]);
@@ -65,7 +65,7 @@ class StoreTaskService
                 ]);
             }
 
-            if ($type === TaskType::SUSPENSION) {
+            if ($type->pausesProcess()) {
                 $this->ensureProcessHasNoActiveSuspensionTaskService->handle(
                     $organization->id,
                     $data->process_id,
@@ -93,7 +93,7 @@ class StoreTaskService
     {
         $type = TaskType::from($data->type ?? TaskType::GENERAL->value);
 
-        if ($type !== TaskType::SUSPENSION || ! $data->process_id || ! $data->organization_id) {
+        if (! $type->pausesProcess() || ! $data->process_id || ! $data->organization_id) {
             return;
         }
 

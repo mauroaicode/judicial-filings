@@ -14,6 +14,9 @@ return [
     'organization_process_status' => [
         'active' => 'Active',
         'inactive' => 'Inactive',
+        'pending_hearing' => 'Pending Hearing',
+        'suspended_insolvency' => 'Suspended due to Insolvency',
+        'suspended_payment_agreement' => 'Suspended due to Payment Agreement',
         'suspended' => 'Suspended',
     ],
     'organization_type' => [
@@ -35,6 +38,9 @@ return [
     ],
     'task_type' => [
         'general' => 'General',
+        'pending_hearing' => 'Pending Hearing',
+        'suspension_insolvency' => 'Suspended due to Insolvency',
+        'suspension_payment_agreement' => 'Suspended due to Payment Agreement',
         'suspension' => 'Suspension',
     ],
     'task_urgency_level' => [

@@ -171,6 +171,9 @@ readonly class OrganizationProcessExportQueryService
         return match ($status) {
             OrganizationProcessStatus::ACTIVE->value => 'Activo',
             OrganizationProcessStatus::INACTIVE->value => 'Inactivo',
+            OrganizationProcessStatus::PENDING_HEARING->value => 'Pendiente de Audiencia',
+            OrganizationProcessStatus::SUSPENDED_INSOLVENCY->value => 'Suspendido por Insolvencia',
+            OrganizationProcessStatus::SUSPENDED_PAYMENT_AGREEMENT->value => 'Suspendido por Acuerdo de Pago',
             OrganizationProcessStatus::SUSPENDED->value => 'Suspendido',
             default => $status,
         };

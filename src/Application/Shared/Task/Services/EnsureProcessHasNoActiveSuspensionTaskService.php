@@ -6,13 +6,12 @@ namespace Src\Application\Shared\Task\Services;
 
 use Illuminate\Validation\ValidationException;
 use Src\Domain\Task\Enums\TaskStatus;
-use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
 
 class EnsureProcessHasNoActiveSuspensionTaskService
 {
     /**
-     * Prevent linking a process to more than one active suspension task per organization.
+     * Prevent linking a process to more than one active pausing task per organization.
      */
     public function handle(
         string $organizationId,
@@ -22,7 +21,7 @@ class EnsureProcessHasNoActiveSuspensionTaskService
         $exists = Task::query()
             ->whereOrganization($organizationId)
             ->whereProcess($processId)
-            ->whereType(TaskType::SUSPENSION)
+            ->wherePausesProcess()
             ->whereIn('status', [
                 TaskStatus::PENDING->value,
                 TaskStatus::DRAFT->value,

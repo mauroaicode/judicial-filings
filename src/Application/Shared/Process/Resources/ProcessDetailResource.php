@@ -139,8 +139,12 @@ class ProcessDetailResource extends Resource
             return OrganizationProcessStatus::ACTIVE;
         }
 
-        if ($statuses->contains(OrganizationProcessStatus::SUSPENDED)) {
-            return OrganizationProcessStatus::SUSPENDED;
+        $paused = $statuses->first(
+            static fn (OrganizationProcessStatus $status): bool => $status->isPaused(),
+        );
+
+        if ($paused instanceof OrganizationProcessStatus) {
+            return $paused;
         }
 
         return OrganizationProcessStatus::INACTIVE;

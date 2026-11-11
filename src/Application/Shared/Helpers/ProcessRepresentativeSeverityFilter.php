@@ -60,18 +60,44 @@ final class ProcessRepresentativeSeverityFilter
      */
     public static function apply(Builder $query, string $organizationId, string $severityColor): void
     {
-        if ($severityColor === OrganizationProcessStatus::SUSPENDED->value) {
-            $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $orgQuery) use ($organizationId): void {
-                $orgQuery->where('organizations.id', $organizationId)
-                    ->where('organization_processes.status', OrganizationProcessStatus::SUSPENDED->value);
-            });
-
+        if (self::applyPausedStatusFilter($query, $organizationId, $severityColor)) {
             return;
         }
 
         $numbers = self::matchingProcessNumbers($query, $organizationId, $severityColor);
 
         $query->whereIn('process_number', $numbers !== [] ? $numbers : ['']);
+    }
+
+    /**
+     * @param  Builder<Process>  $query
+     */
+    private static function applyPausedStatusFilter(
+        Builder $query,
+        string $organizationId,
+        string $severityColor,
+    ): bool {
+        if ($severityColor === OrganizationProcessStatus::SUSPENDED->value) {
+            $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $orgQuery) use ($organizationId): void {
+                $orgQuery->where('organizations.id', $organizationId)
+                    ->whereIn('organization_processes.status', OrganizationProcessStatus::pausedValues());
+            });
+
+            return true;
+        }
+
+        $status = OrganizationProcessStatus::tryFrom($severityColor);
+
+        if ($status?->isPaused()) {
+            $query->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $orgQuery) use ($organizationId, $status): void {
+                $orgQuery->where('organizations.id', $organizationId)
+                    ->where('organization_processes.status', $status->value);
+            });
+
+            return true;
+        }
+
+        return false;
     }
 
     public static function resolveColor(Process $process, string $organizationId): ?string

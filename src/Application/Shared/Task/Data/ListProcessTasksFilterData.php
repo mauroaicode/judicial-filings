@@ -27,6 +27,9 @@ class ListProcessTasksFilterData extends Data
 
         #[In([
             TaskType::GENERAL->value,
+            TaskType::PENDING_HEARING->value,
+            TaskType::SUSPENSION_INSOLVENCY->value,
+            TaskType::SUSPENSION_PAYMENT_AGREEMENT->value,
             TaskType::SUSPENSION->value,
         ])]
         public ?string $type = null,

@@ -123,6 +123,36 @@ it('can create a suspension task with due date time', function (): void {
         ->exists())->toBeTrue();
 });
 
+it('can create pausing task types that map to process status', function (string $taskType, string $processStatus): void {
+    $data = [
+        'title' => 'Tarea de pausa',
+        'description' => 'Pausa el seguimiento de inactividad.',
+        'type' => $taskType,
+        'due_date' => '2028-07-15 14:30:00',
+        'reminder_days' => 0,
+        'is_admin' => false,
+        'process_id' => $this->process->id,
+        'organization_id' => $this->organization->id,
+    ];
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/app-user/tasks', $data);
+
+    $response->assertStatus(201);
+    $response->assertJsonPath('type', $taskType);
+    $response->assertJsonPath('type_label', __('enums.task_type.'.$taskType));
+    $this->assertDatabaseHas('organization_processes', [
+        'organization_id' => $this->organization->id,
+        'process_id' => $this->process->id,
+        'status' => $processStatus,
+        'is_active' => true,
+    ]);
+})->with([
+    'pending hearing' => ['pending_hearing', 'pending_hearing'],
+    'suspension insolvency' => ['suspension_insolvency', 'suspended_insolvency'],
+    'suspension payment agreement' => ['suspension_payment_agreement', 'suspended_payment_agreement'],
+]);
+
 it('fails to create a suspension task without process_id', function (): void {
     $data = [
         'title' => 'Suspensión sin proceso',

@@ -90,7 +90,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
                     ->where('organizations.is_process_tracking_enabled', true)
                     ->where('organization_processes.lawyer_role', $role)
                     ->where('organization_processes.is_active', true)
-                    ->where('organization_processes.status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
+                    ->whereNotIn('organization_processes.status', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::pausedValues())
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQ) use ($targetAlertLevel): void {
                         $subQ->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)
                             ->orWhereNull('organization_processes.inactivity_alert_level');
@@ -127,7 +127,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
                     ->where('organizations.is_process_tracking_enabled', true)
                     ->where('organization_processes.lawyer_role', $role)
                     ->where('organization_processes.is_active', true)
-                    ->where('organization_processes.status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
+                    ->whereNotIn('organization_processes.status', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::pausedValues())
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQ) use ($targetAlertLevel): void {
                         $subQ->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)
                             ->orWhereNull('organization_processes.inactivity_alert_level');
@@ -158,7 +158,7 @@ class CheckInactiveProcessesJob implements ShouldQueue
             DB::transaction(function () use ($process, $role, $targetAlertLevel, $notificationType, $recordSemaphoreTimelineEventService): void {
                 $organizationsToAlert = $process->organizations()
                     ->wherePivot('is_active', true)
-                    ->wherePivot('status', '!=', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::SUSPENDED->value)
+                    ->wherePivotIn('status', \Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus::pausedValues(), 'and', true)
                     ->wherePivot('lawyer_role', $role)
                     ->where(function (\Illuminate\Contracts\Database\Query\Builder $q) use ($targetAlertLevel): void {
                         $q->where('organization_processes.inactivity_alert_level', '!=', $targetAlertLevel)

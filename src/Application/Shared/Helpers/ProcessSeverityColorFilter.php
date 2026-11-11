@@ -16,9 +16,7 @@ final class ProcessSeverityColorFilter
 {
     public static function apply(Builder $query, string $severityColor): void
     {
-        if ($severityColor === OrganizationProcessStatus::SUSPENDED->value) {
-            $query->where('organization_processes.status', OrganizationProcessStatus::SUSPENDED->value);
-
+        if (self::applyPausedStatusFilter($query, $severityColor)) {
             return;
         }
 
@@ -31,6 +29,28 @@ final class ProcessSeverityColorFilter
             SeverityColor::YELLOW->value => self::applyYellow($query),
             default => $query->where('organization_processes.inactivity_alert_level', $severityColor),
         };
+    }
+
+    /**
+     * Filter by a specific paused status, or by legacy `suspended` as any paused status.
+     */
+    private static function applyPausedStatusFilter(Builder $query, string $severityColor): bool
+    {
+        if ($severityColor === OrganizationProcessStatus::SUSPENDED->value) {
+            $query->whereIn('organization_processes.status', OrganizationProcessStatus::pausedValues());
+
+            return true;
+        }
+
+        $status = OrganizationProcessStatus::tryFrom($severityColor);
+
+        if ($status?->isPaused()) {
+            $query->where('organization_processes.status', $status->value);
+
+            return true;
+        }
+
+        return false;
     }
 
     private static function applyNone(Builder $query): void

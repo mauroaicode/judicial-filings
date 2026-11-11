@@ -181,7 +181,7 @@ class BackfillProcessTimelineService
                     $status = OrganizationProcessStatus::fromPivot($organizationProcess);
 
                     if ($status !== OrganizationProcessStatus::ACTIVE) {
-                        $eventType = $status === OrganizationProcessStatus::SUSPENDED
+                        $eventType = $status->isPaused()
                             ? ProcessTimelineEventType::PROCESS_SUSPENDED
                             : ProcessTimelineEventType::TRACKING_DEACTIVATED;
 
