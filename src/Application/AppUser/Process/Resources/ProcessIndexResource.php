@@ -9,6 +9,7 @@ use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSemaphoreHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -96,7 +97,7 @@ class ProcessIndexResource extends Resource
             index: $index,
             id: $process->id,
             process_number: $process->process_number,
-            court: StrParseHelper::toTitleCase($process->court) ?? '',
+            court: SamaiCourtNameHelper::forDisplay($process->court),
             process_class: StrParseHelper::toTitleCase($process->process_class) ?? '',
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,
             process_date: DateFormatHelper::formatDate($process->process_date),

@@ -154,6 +154,68 @@ it('repairs candidates through ProcessSyncService backfill', function (): void {
         ->and($summary['failed'])->toBe(0);
 });
 
+it('selects tribunal corporacion processes whose court was rewritten as Juzgado', function (): void {
+    Process::query()->delete();
+
+    $samaiId = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::Samai);
+
+    $wrongTribunalCourt = Process::factory()->create([
+        'process_number' => '76001233300120140093400',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600123',
+        'court' => 'Juzgado 001 Administrativo de Cali (valle)',
+        'process_class' => 'NULIDAD Y RESTABLECIMIENTO DEL DERECHO',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $wrongTribunalCourt->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'Texto completo sin truncar',
+    ]);
+
+    $realJuzgado = Process::factory()->create([
+        'process_number' => '76001333301420140000100',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600133',
+        'court' => 'Juzgado 14 Administrativo de Cali',
+        'process_class' => 'ACCION DE REPARACION DIRECTA',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $realJuzgado->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'Texto completo sin truncar',
+    ]);
+
+    $alreadyCorrect = Process::factory()->create([
+        'process_number' => '76001233300620140000200',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600123',
+        'court' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+        'process_class' => 'NULIDAD',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $alreadyCorrect->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'Texto completo sin truncar',
+    ]);
+
+    $service = app(BackfillIncompleteSamaiProcessesService::class);
+    $candidates = $service->queryCandidates(onlyIncomplete: true);
+
+    expect($candidates->pluck('id')->all())
+        ->toContain($wrongTribunalCourt->id)
+        ->not->toContain($realJuzgado->id)
+        ->not->toContain($alreadyCorrect->id);
+});
+
 it('lists the target radicado with samai:backfill-incomplete --dry-run', function (): void {
     Process::query()->delete();
 

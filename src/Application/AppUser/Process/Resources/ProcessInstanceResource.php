@@ -8,7 +8,7 @@ use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSemaphoreHelper;
-use Src\Application\Shared\Helpers\StrParseHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
@@ -57,7 +57,7 @@ class ProcessInstanceResource extends Resource
 
         return new self(
             id: $process->id,
-            court: StrParseHelper::toTitleCase($process->court) ?? '',
+            court: SamaiCourtNameHelper::forDisplay($process->court),
             actions_count: $process->actions_count ?? 0,
             last_activity_date: $process->last_activity_date
                 ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_activity_date)

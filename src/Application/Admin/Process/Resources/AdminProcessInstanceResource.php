@@ -6,7 +6,7 @@ namespace Src\Application\Admin\Process\Resources;
 
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
-use Src\Application\Shared\Helpers\StrParseHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Domain\Process\Models\Process;
 
 class AdminProcessInstanceResource extends Resource
@@ -24,7 +24,7 @@ class AdminProcessInstanceResource extends Resource
     {
         return new self(
             id: $process->id,
-            court: StrParseHelper::toTitleCase($process->court) ?? '',
+            court: SamaiCourtNameHelper::forDisplay($process->court),
             actions_count: (int) ($process->actions_count ?? 0),
             last_activity_date: $process->last_activity_date
                 ? DateFormatHelper::formatDateTimeWithDayOfWeek($process->last_activity_date)

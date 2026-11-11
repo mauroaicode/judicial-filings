@@ -8,6 +8,7 @@ use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSemaphoreHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -99,7 +100,7 @@ class ProcessDetailResource extends Resource
             id: $process->id,
             process_id: $process->process_id,
             process_number: $process->process_number,
-            court: StrParseHelper::toTitleCase($process->court) ?? '',
+            court: SamaiCourtNameHelper::forDisplay($process->court),
             speaker: $process->speaker ? StrParseHelper::toTitleCase($process->speaker) : null,
             department: StrParseHelper::toTitleCase($process->department) ?? '',
             process_type: StrParseHelper::toTitleCase($process->process_type) ?? '',

@@ -42,6 +42,23 @@ final class SamaiCourtNameHelper
     }
 
     /**
+     * Título para UI. Conserva el "Despacho origen" de tribunal (NNN + JUZGADO…).
+     */
+    public static function forDisplay(?string $court): string
+    {
+        $court = trim((string) $court);
+        if ($court === '') {
+            return '';
+        }
+
+        if (preg_match('/^Tribunal\s+Administrativo\s+\d{1,3}\b/iu', $court) === 1) {
+            return $court;
+        }
+
+        return StrParseHelper::toTitleCase($court) ?? $court;
+    }
+
+    /**
      * @param  array<string, mixed>  $processData
      */
     private static function origenName(array $processData): string

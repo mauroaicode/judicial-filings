@@ -304,3 +304,68 @@ it('uses portal metadata when ObtenerDatosProcesoGet returns empty', function ()
         'claseProceso' => 'ACCION DE REPARACION DIRECTA',
     ]);
 });
+
+it('prefers portal Despacho origen over REST juzgado label for tribunal corporacion', function (): void {
+    config()->set('samai.api_key', '');
+    config()->set('samai.api_url', 'https://samai-api.test/api');
+    config()->set('samai.modo', '2');
+    config()->set('samai.public_portal.enabled', true);
+    config()->set('samai.discovery_timeout', 5);
+    config()->set('samai.call_delay_min_ms', 0);
+    config()->set('samai.call_delay_max_ms', 0);
+
+    Http::fake([
+        'https://samai-api.test/api/ObtenerDatosProcesoGet/*' => Http::response([
+            'proceso' => [
+                'Origen' => 'Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+                'claseProceso' => 'NULIDAD Y RESTABLECIMIENTO DEL DERECHO',
+            ],
+        ], 200),
+    ]);
+
+    $portal = Mockery::mock(SamaiPublicPortalService::class);
+    $portal->shouldReceive('fetch')
+        ->once()
+        ->with('76001233300120140093400', '7600123')
+        ->andReturn([
+            'actuaciones' => [],
+            'sujetos' => [],
+            'meta' => [
+                'Origen' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+            ],
+        ]);
+
+    $service = new SamaiConsultService($portal);
+    $data = $service->obtenerDatosProceso('7600123', '76001233300120140093400');
+
+    expect($data['Origen'])->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)')
+        ->and($data['EntidadRadicadora'])->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)')
+        ->and($data['claseProceso'])->toBe('NULIDAD Y RESTABLECIMIENTO DEL DERECHO');
+});
+
+it('does not hit the portal when REST already has a juzgado origen on juzgado corporacion', function (): void {
+    config()->set('samai.api_key', '');
+    config()->set('samai.api_url', 'https://samai-api.test/api');
+    config()->set('samai.modo', '2');
+    config()->set('samai.public_portal.enabled', true);
+    config()->set('samai.discovery_timeout', 5);
+    config()->set('samai.call_delay_min_ms', 0);
+    config()->set('samai.call_delay_max_ms', 0);
+
+    Http::fake([
+        'https://samai-api.test/api/ObtenerDatosProcesoGet/*' => Http::response([
+            'proceso' => [
+                'Origen' => 'Juzgado Administrativo 014 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+                'claseProceso' => 'ACCION DE REPARACION DIRECTA',
+            ],
+        ], 200),
+    ]);
+
+    $portal = Mockery::mock(SamaiPublicPortalService::class);
+    $portal->shouldReceive('fetch')->never();
+
+    $service = new SamaiConsultService($portal);
+    $data = $service->obtenerDatosProceso('7600133', '76001333301420140000100');
+
+    expect($data['Origen'])->toBe('Juzgado Administrativo 014 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+});

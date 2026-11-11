@@ -208,27 +208,32 @@ class SamaiConsultService
     }
 
     /**
-     * REST a veces no trae el label "Origen"; el portal sí. Sin eso el despacho
-     * cae a NombreSalaDecision genérico ("Juzgado Administrativo - Ciudad").
+     * REST a veces no trae el label "Origen" o manda un label de juzgado cuando
+     * el proceso está en tribunal. El portal sí trae "Despacho origen".
      *
      * @param  array<string, mixed>  $proceso
      * @return array<string, mixed>
      */
     private function enrichProcesoMetaFromPortal(array $proceso, string $corporacion, string $processNumber): array
     {
-        $hasOrigenName = trim((string) ($proceso['Origen'] ?? '')) !== ''
-            || (
-                trim((string) ($proceso['EntidadRadicadora'] ?? '')) !== ''
-                && preg_match('/^\d+$/', trim((string) $proceso['EntidadRadicadora'])) !== 1
-            );
+        if (! (bool) config('samai.public_portal.enabled', true)) {
+            return $proceso;
+        }
 
-        if ($hasOrigenName || ! (bool) config('samai.public_portal.enabled', true)) {
+        if (! $this->shouldEnrichOrigenFromPortal($proceso, $corporacion)) {
             return $proceso;
         }
 
         try {
             $meta = $this->publicPortalData($corporacion, $processNumber)['meta'];
-            foreach (['Origen', 'EntidadRadicadora', 'cityName'] as $key) {
+            $portalOrigen = trim((string) ($meta['Origen'] ?? $meta['EntidadRadicadora'] ?? ''));
+
+            if ($portalOrigen !== '') {
+                $proceso['Origen'] = $portalOrigen;
+                $proceso['EntidadRadicadora'] = $portalOrigen;
+            }
+
+            foreach (['cityName'] as $key) {
                 if (
                     trim((string) ($proceso[$key] ?? '')) === ''
                     && trim((string) ($meta[$key] ?? '')) !== ''
@@ -245,6 +250,29 @@ class SamaiConsultService
         }
 
         return $proceso;
+    }
+
+    /**
+     * @param  array<string, mixed>  $proceso
+     */
+    private function shouldEnrichOrigenFromPortal(array $proceso, string $corporacion): bool
+    {
+        $restOrigen = trim((string) ($proceso['Origen'] ?? $proceso['OrigenNombre'] ?? ''));
+        $restEntidad = trim((string) ($proceso['EntidadRadicadora'] ?? $proceso['EntidadRadicadoraNombre'] ?? ''));
+        $restName = $restOrigen !== '' ? $restOrigen : $restEntidad;
+
+        if ($restName === '' || preg_match('/^\d+$/', $restName) === 1) {
+            return true;
+        }
+
+        // Corporación de tribunal administrativo (…23): REST suele etiquetar el
+        // origen como Juzgado y omite "Tribunal Administrativo NNN".
+        if (preg_match('/23$/', $corporacion) !== 1) {
+            return false;
+        }
+
+        return preg_match('/^Juzgado\b/iu', $restName) === 1
+            || preg_match('/^(?:Juzgado\s+)?Administrativo\s+\d{1,3}\s+(?:JUZGADO|TRIBUNAL)\b/iu', $restName) === 1;
     }
 
     /**

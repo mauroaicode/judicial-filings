@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Src\Application\AppUser\OrganizationNotification\Resources\OrganizationNotificationListResource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Application\Shared\Services\Notification\OrganizationNotificationRegistrationCutoffService;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -112,7 +113,7 @@ readonly class OrganizationNotificationListService
         $detail = [
             'process_id' => $process->id,
             'process_number' => $process->process_number,
-            'despacho' => StrParseHelper::toTitleCase($process->court) ?? '',
+            'despacho' => SamaiCourtNameHelper::forDisplay($process->court),
             'action' => $action->action,
             'annotation' => $action->annotation,
             'action_date' => DateFormatHelper::formatDate($action->action_date),

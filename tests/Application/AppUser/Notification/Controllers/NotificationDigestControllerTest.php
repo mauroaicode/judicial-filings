@@ -341,6 +341,56 @@ it('hydrates plaintiff and defendant in digest detail when snapshot was empty an
     expect($item['defendant'])->toBe('Banco Agrario de Colombia S.A');
 });
 
+it('hydrates court in digest detail from the live process after SAMAI despacho correction', function (): void {
+    $process = Process::factory()->create([
+        'process_number' => '76001233300120140093400',
+        'court' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+    ]);
+    $process->organizations()->attach($this->organization->id, [
+        'interest_date' => now(),
+        'lawyer_role' => 'plaintiff',
+        'is_active' => true,
+    ]);
+
+    $action = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'registration_date' => now(),
+    ]);
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => [
+            [
+                'process_number' => $process->process_number,
+                'process_action_id' => $action->id,
+                'court' => 'Juzgado 001 Administrativo de Cali (valle)',
+                'action_text' => 'Archivo',
+                'registration_date' => now()->format('Y-m-d'),
+            ],
+        ],
+    ]);
+
+    DB::table('organization_notifications')->insert([
+        'id' => fake()->uuid(),
+        'organization_id' => $this->organization->id,
+        'notification_digest_id' => $digest->id,
+        'notifiable_id' => $action->id,
+        'notifiable_type' => ProcessAction::class,
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => true,
+        'is_email_notified' => true,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $response = getJson('/api/app-user/notification-digests/'.$digest->id);
+
+    $response->assertOk();
+    expect($response->json('data.0.data.0.court'))
+        ->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+});
+
 it('filters digest detail by term start/end dates and excludes empty term rows', function (): void {
     $digest = NotificationDigest::factory()->create([
         'organization_id' => $this->organization->id,

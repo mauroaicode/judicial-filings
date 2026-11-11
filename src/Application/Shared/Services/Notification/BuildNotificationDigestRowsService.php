@@ -7,6 +7,7 @@ namespace Src\Application\Shared\Services\Notification;
 use Illuminate\Support\Collection;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessActionIdentityHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Models\ProcessAction;
@@ -107,7 +108,7 @@ class BuildNotificationDigestRowsService
             return [
                 'process_action_id' => $action->id,
                 'process_id' => $process->id,
-                'court' => StrParseHelper::toTitleCase($process->court),
+                'court' => SamaiCourtNameHelper::forDisplay($process->court),
                 'process_number' => $process->process_number,
                 'demandante' => empty($demandante) ? '---' : $demandante,
                 'demandado' => empty($demandado) ? '---' : $demandado,

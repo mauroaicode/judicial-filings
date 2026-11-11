@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Spatie\LaravelData\Resource;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Process\Models\Process;
 
@@ -61,7 +62,7 @@ class AdminProcessIndexResource extends Resource
             index: $index,
             id: $process->id,
             process_number: $process->process_number,
-            court: StrParseHelper::toTitleCase($process->court) ?? '',
+            court: SamaiCourtNameHelper::forDisplay($process->court),
             speaker: $process->speaker ? StrParseHelper::toTitleCase($process->speaker) : null,
             process_class: StrParseHelper::toTitleCase($process->process_class) ?? '',
             subclass_process: $process->subclass_process ? StrParseHelper::toTitleCase($process->subclass_process) : null,

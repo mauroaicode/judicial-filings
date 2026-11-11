@@ -63,10 +63,11 @@ readonly class DashboardStatsService
 
         $total = $this->countDistinctRadicados($baseQueryBuilder($filters));
 
-        $activeFilters = clone $filters;
-        $activeFilters->status = OrganizationProcessStatus::ACTIVE->value;
-
-        $active = $this->countDistinctRadicados($baseQueryBuilder($activeFilters));
+        $active = $this->countDistinctRadicadosWithStatus(
+            $baseQueryBuilder,
+            $filters,
+            OrganizationProcessStatus::ACTIVE,
+        );
 
         $multipleInstances = (int) DB::table(
             $baseQueryBuilder($filters)
@@ -80,9 +81,28 @@ readonly class DashboardStatsService
         return [
             'total' => $total,
             'active' => $active,
-            'inactive' => $total - $active,
+            'inactive' => max(0, $total - $active),
             'multiple_instances' => $multipleInstances,
         ];
+    }
+
+    /**
+     * @param  callable(ProcessFilterData): \Illuminate\Database\Eloquent\Builder  $baseQueryBuilder
+     */
+    private function countDistinctRadicadosWithStatus(
+        callable $baseQueryBuilder,
+        ProcessFilterData $filters,
+        OrganizationProcessStatus $status,
+    ): int {
+        $requestedStatus = is_string($filters->status) ? trim($filters->status) : '';
+        if ($requestedStatus !== '' && $requestedStatus !== $status->value) {
+            return 0;
+        }
+
+        $scopedFilters = clone $filters;
+        $scopedFilters->status = $status->value;
+
+        return $this->countDistinctRadicados($baseQueryBuilder($scopedFilters));
     }
 
     /**

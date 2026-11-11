@@ -366,6 +366,60 @@ it('excludes viewed notifications from counts', function (): void {
     $response->assertJsonPath('notifications.by_type.actuacion', 0);
 });
 
+it('does not return a negative inactive count when filtering by inactive status', function (): void {
+    $activeA = Process::factory()->create();
+    $activeB = Process::factory()->create();
+    $inactive = Process::factory()->create();
+
+    $activeA->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
+    ]);
+    $activeB->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
+    ]);
+    $inactive->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?status=inactive');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+    $response->assertJsonPath('active_processes', 0);
+    $response->assertJsonPath('inactive_processes', 1);
+});
+
+it('returns only active counts when filtering by active status', function (): void {
+    $active = Process::factory()->create();
+    $inactive = Process::factory()->create();
+
+    $active->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => OrganizationProcessStatus::ACTIVE->value,
+    ]);
+    $inactive->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => false,
+        'status' => OrganizationProcessStatus::INACTIVE->value,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/dashboard/stats?status=active');
+
+    $response->assertStatus(200);
+    $response->assertJsonPath('total_processes', 1);
+    $response->assertJsonPath('active_processes', 1);
+    $response->assertJsonPath('inactive_processes', 0);
+});
+
 it('excludes inactive tracking processes from semaphore counts', function (): void {
     $this->freezeTime();
 

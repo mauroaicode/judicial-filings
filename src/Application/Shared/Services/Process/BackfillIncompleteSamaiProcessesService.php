@@ -136,6 +136,14 @@ class BackfillIncompleteSamaiProcessesService
                                 ->orWhere('court', 'like', 'Tribunal Administrativo -%');
                         })->where('court', 'not regexp', '[0-9]{2,3}');
                     })
+                    // Tribunal (corporación …23) guardado como "Juzgado NNN Administrativo…".
+                    ->orWhere(function (Builder $wrongCourt): void {
+                        $wrongCourt->where('samai_corporacion', 'like', '%23')
+                            ->where(function (Builder $courtQ): void {
+                                $courtQ->where('court', 'like', 'Juzgado %')
+                                    ->orWhere('court', 'like', 'JUZGADO %');
+                            });
+                    })
                     ->orWhereHas(
                         'actions',
                         fn (Builder $actions): Builder => $actions->where('annotation', 'like', '%...')

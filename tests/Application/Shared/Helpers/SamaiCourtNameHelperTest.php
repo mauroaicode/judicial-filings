@@ -61,6 +61,23 @@ it('keeps non-zero tribunal desk codes without rewriting to juzgado', function (
     expect($court)->toBe('Tribunal Administrativo 006 JUZGADO ADMINISTRATIVO DE ARMENIA');
 });
 
+it('keeps Tribunal Administrativo 001 Despacho origen without rewriting to Juzgado 001', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+    ]);
+
+    expect($court)->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+});
+
+it('preserves tribunal Despacho origen casing in display names', function (): void {
+    expect(SamaiCourtNameHelper::forDisplay(
+        'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)'
+    ))->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+
+    expect(SamaiCourtNameHelper::forDisplay('JUZGADO 001 ADMINISTRATIVO DE CALI (VALLE)'))
+        ->toBe('Juzgado 001 Administrativo de Cali (valle)');
+});
+
 it('ignores numeric EntidadRadicadora codes from REST', function (): void {
     $court = SamaiCourtNameHelper::build([
         'EntidadRadicadora' => '760013300014',

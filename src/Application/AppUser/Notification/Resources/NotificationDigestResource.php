@@ -9,6 +9,7 @@ use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Notification\Models\OrganizationNotification;
@@ -461,6 +462,7 @@ class NotificationDigestResource extends Resource
 
         // Refresh parties from live process when digest snapshot was empty (subjects added later by admin).
         $item = self::hydrateSubjectsFromLiveProcess($item, $liveProcess, $processesById);
+        $item = self::hydrateCourtFromLiveProcess($item, $liveProcess, $processesById);
 
         // 3. Subjects (Title Case & Pluralization)
         $subjects = ['plaintiff' => 'plaintiffs', 'defendant' => 'defendants'];
@@ -559,6 +561,42 @@ class NotificationDigestResource extends Resource
         return $item;
     }
 
+    /**
+     * @param  \Illuminate\Support\Collection<string, Process>|array<string, Process>  $processesById
+     */
+    private static function hydrateCourtFromLiveProcess(
+        array $item,
+        ?Process $liveProcess,
+        \Illuminate\Support\Collection|array $processesById = [],
+    ): array {
+        $process = $liveProcess;
+
+        if (! $process instanceof Process && ! empty($item['process_id'])) {
+            $process = $processesById[$item['process_id']] ?? null;
+
+            if (! $process instanceof Process) {
+                $process = Process::query()->find($item['process_id']);
+            }
+        }
+
+        if (! $process instanceof Process && ! empty($item['process_number'])) {
+            $process = Process::query()
+                ->where('process_number', $item['process_number'])
+                ->first();
+        }
+
+        if (! $process instanceof Process) {
+            return $item;
+        }
+
+        $court = trim((string) $process->court);
+        if ($court !== '') {
+            $item['court'] = $court;
+        }
+
+        return $item;
+    }
+
     private static function needsSubjectHydration(array $item): bool
     {
         // Keys are already mapped to plaintiff/defendant when this runs.
@@ -582,7 +620,11 @@ class NotificationDigestResource extends Resource
 
     private static function applyTitleCaseFormatting(array $item): array
     {
-        foreach (['court', 'process_class', 'subclass_process'] as $field) {
+        if (isset($item['court']) && is_string($item['court'])) {
+            $item['court'] = SamaiCourtNameHelper::forDisplay($item['court']);
+        }
+
+        foreach (['process_class', 'subclass_process'] as $field) {
             if (isset($item[$field]) && is_string($item[$field])) {
                 $item[$field] = StrParseHelper::toTitleCase($item[$field]);
             }
