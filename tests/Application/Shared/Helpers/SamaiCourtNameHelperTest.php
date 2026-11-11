@@ -69,13 +69,34 @@ it('keeps Tribunal Administrativo 001 Despacho origen without rewriting to Juzga
     expect($court)->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
 });
 
-it('preserves tribunal Despacho origen casing in display names', function (): void {
+it('title-cases despacho names for display including tribunal origen', function (): void {
     expect(SamaiCourtNameHelper::forDisplay(
         'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)'
-    ))->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+    ))->toBe('Tribunal Administrativo 001 Juzgado Administrativo de Cali (valle)');
 
     expect(SamaiCourtNameHelper::forDisplay('JUZGADO 001 ADMINISTRATIVO DE CALI (VALLE)'))
         ->toBe('Juzgado 001 Administrativo de Cali (valle)');
+
+    expect(SamaiCourtNameHelper::forDisplay(
+        'DESPACHO 000 - CONSEJO DE ESTADO - SECCIÓN TERCERA - BOGOTÁ *'
+    ))->toBe('Despacho 000 - Consejo de Estado - Sección Tercera - Bogotá *');
+});
+
+it('uses Consejo de Estado sala instead of origin juzgado', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+        'NombreSalaDecision' => 'Consejo de Estado - Sección Tercera',
+    ], '1100103');
+
+    expect($court)->toBe('Consejo de Estado - Sección Tercera');
+});
+
+it('falls back to Consejo de Estado when sala is missing on that corporacion', function (): void {
+    $court = SamaiCourtNameHelper::build([
+        'Origen' => 'Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+    ], '1100103');
+
+    expect($court)->toBe('Consejo de Estado');
 });
 
 it('ignores numeric EntidadRadicadora codes from REST', function (): void {

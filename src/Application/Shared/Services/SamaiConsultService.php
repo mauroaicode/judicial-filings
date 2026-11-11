@@ -220,25 +220,35 @@ class SamaiConsultService
             return $proceso;
         }
 
-        if (! $this->shouldEnrichOrigenFromPortal($proceso, $corporacion)) {
+        $isConsejoDeEstado = $corporacion === '1100103';
+
+        if (! $isConsejoDeEstado && ! $this->shouldEnrichOrigenFromPortal($proceso, $corporacion)) {
             return $proceso;
         }
 
         try {
             $meta = $this->publicPortalData($corporacion, $processNumber)['meta'];
-            $portalOrigen = trim((string) ($meta['Origen'] ?? $meta['EntidadRadicadora'] ?? ''));
 
-            if ($portalOrigen !== '') {
-                $proceso['Origen'] = $portalOrigen;
-                $proceso['EntidadRadicadora'] = $portalOrigen;
-            }
+            if ($isConsejoDeEstado) {
+                $sala = trim((string) ($meta['NombreSalaDecision'] ?? ''));
+                if ($sala !== '') {
+                    $proceso['NombreSalaDecision'] = $sala;
+                }
+            } else {
+                $portalOrigen = trim((string) ($meta['Origen'] ?? $meta['EntidadRadicadora'] ?? ''));
 
-            foreach (['cityName'] as $key) {
-                if (
-                    trim((string) ($proceso[$key] ?? '')) === ''
-                    && trim((string) ($meta[$key] ?? '')) !== ''
-                ) {
-                    $proceso[$key] = $meta[$key];
+                if ($portalOrigen !== '') {
+                    $proceso['Origen'] = $portalOrigen;
+                    $proceso['EntidadRadicadora'] = $portalOrigen;
+                }
+
+                foreach (['cityName'] as $key) {
+                    if (
+                        trim((string) ($proceso[$key] ?? '')) === ''
+                        && trim((string) ($meta[$key] ?? '')) !== ''
+                    ) {
+                        $proceso[$key] = $meta[$key];
+                    }
                 }
             }
         } catch (Throwable $exception) {
@@ -516,9 +526,7 @@ class SamaiConsultService
                     continue;
                 }
 
-                // Extraer corporación real desde EntidadRadicadora
-                $entidad = (string) ($proceso['EntidadRadicadora'] ?? '');
-                $actualCorp = strlen($entidad) >= 7 ? substr($entidad, 0, 7) : $corp;
+                $actualCorp = $this->resolveActualCorporacion($corp, $proceso, $processNumber);
 
                 $this->logInfo('encontrarCorporacion: corporación encontrada', [
                     'corporacion' => $actualCorp,
@@ -598,10 +606,7 @@ class SamaiConsultService
                     continue;
                 }
 
-                // EntidadRadicadora contiene el código del despacho radicador (12 dígitos).
-                // Sus primeros 7 dígitos son el código SAMAI de la corporación real.
-                $entidad = (string) ($proceso['EntidadRadicadora'] ?? '');
-                $actualCorp = strlen($entidad) >= 7 ? substr($entidad, 0, 7) : $corp;
+                $actualCorp = $this->resolveActualCorporacion($corp, $proceso, $processNumber);
 
                 $this->logInfo('buscarProcesoConDatos: proceso encontrado', [
                     'process_number' => $processNumber,
@@ -663,6 +668,7 @@ class SamaiConsultService
         $defaultCorp = substr($processNumber, 0, 7);
         $deptTribunal = $this->departmentTribunalCode($processNumber);
         $embeddedJuzgado = null;
+        $instanceHint = $this->laterInstanceCorporacionHint($processNumber);
 
         if (strlen($processNumber) >= 9) {
             $embeddedJuzgado = substr($processNumber, 0, 5).substr($processNumber, 7, 2);
@@ -671,12 +677,50 @@ class SamaiConsultService
             }
         }
 
-        return array_values(array_unique(array_filter([
-            $defaultCorp,
-            $embeddedJuzgado,
-            $deptTribunal,
-            '1100103',
-        ])));
+        $ordered = $instanceHint !== null
+            ? [$instanceHint, $defaultCorp, $embeddedJuzgado, $deptTribunal, '1100103']
+            : [$defaultCorp, $embeddedJuzgado, $deptTribunal, '1100103'];
+
+        return array_values(array_unique(array_filter($ordered)));
+    }
+
+    /**
+     * 01/02 no viven en el juzgado/tribunal de origen. EntidadRadicadora sigue
+     * siendo el despacho radicador (00), así que no se puede usar como corporación.
+     *
+     * 01 de un tribunal (…23) y cualquier 02+ → Consejo de Estado.
+     * 01 de un juzgado (…33) → tribunal del departamento.
+     */
+    private function laterInstanceCorporacionHint(string $processNumber): ?string
+    {
+        if (strlen($processNumber) < 2 || str_ends_with($processNumber, '00')) {
+            return null;
+        }
+
+        $suffix = substr($processNumber, -2);
+        $origin = substr($processNumber, 0, 7);
+
+        if ($suffix !== '01' || str_ends_with($origin, '23')) {
+            return '1100103';
+        }
+
+        return $this->departmentTribunalCode($processNumber);
+    }
+
+    /**
+     * @param  array<string, mixed>  $proceso
+     */
+    private function resolveActualCorporacion(string $queriedCorp, array $proceso, string $processNumber): string
+    {
+        if ($this->laterInstanceCorporacionHint($processNumber) !== null) {
+            return $queriedCorp;
+        }
+
+        $entidad = (string) ($proceso['EntidadRadicadora'] ?? '');
+
+        return strlen($entidad) >= 7 && preg_match('/^\d{7,}/', $entidad) === 1
+            ? substr($entidad, 0, 7)
+            : $queriedCorp;
     }
 
     /**

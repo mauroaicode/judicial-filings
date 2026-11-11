@@ -276,7 +276,7 @@ readonly class RegisterSamaiProcessService
         return Process::query()->create([
             'process_id' => null,
             'process_number' => $processNumber,
-            'court' => $this->buildSamaiCourt($processData),
+            'court' => $this->buildSamaiCourt($processData, $corporacion),
             'speaker' => $this->buildSamaiSpeaker($processData),
             'department' => trim((string) ($processData['cityName'] ?? '')),
             'process_type' => trim((string) ($processData['tipoProceso'] ?? '')),
@@ -304,9 +304,9 @@ readonly class RegisterSamaiProcessService
      *
      * @param  array<string, mixed>  $processData
      */
-    private function buildSamaiCourt(array $processData): string
+    private function buildSamaiCourt(array $processData, ?string $corporacion = null): string
     {
-        return SamaiCourtNameHelper::build($processData);
+        return SamaiCourtNameHelper::build($processData, $corporacion);
     }
 
     /**

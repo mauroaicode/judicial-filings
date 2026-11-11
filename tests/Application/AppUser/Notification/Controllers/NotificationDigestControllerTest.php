@@ -388,7 +388,7 @@ it('hydrates court in digest detail from the live process after SAMAI despacho c
 
     $response->assertOk();
     expect($response->json('data.0.data.0.court'))
-        ->toBe('Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+        ->toBe('Tribunal Administrativo 001 Juzgado Administrativo de Cali (valle)');
 });
 
 it('filters digest detail by term start/end dates and excludes empty term rows', function (): void {

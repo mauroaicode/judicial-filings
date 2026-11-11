@@ -369,3 +369,80 @@ it('does not hit the portal when REST already has a juzgado origen on juzgado co
 
     expect($data['Origen'])->toBe('Juzgado Administrativo 014 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
 });
+
+it('discovers Consejo de Estado for a later instance of a tribunal radicado', function (): void {
+    config()->set('samai.api_key', '');
+    config()->set('samai.api_url', 'https://samai-api.test/api');
+    config()->set('samai.modo', '2');
+    config()->set('samai.public_portal.enabled', true);
+    config()->set('samai.discovery_timeout', 5);
+    config()->set('samai.call_delay_min_ms', 0);
+    config()->set('samai.call_delay_max_ms', 0);
+
+    $seen = [];
+
+    Http::fake([
+        'https://samai-api.test/api/BuscarProcesoTodoSamai/*' => Http::response(['message' => 'Unauthorized'], 401),
+        'https://samai-api.test/api/ObtenerDatosProcesoGet/*' => function (\Illuminate\Http\Client\Request $request) use (&$seen) {
+            $seen[] = $request->url();
+
+            return Http::response([
+                'proceso' => [
+                    'EntidadRadicadora' => '760012333001',
+                    'Origen' => 'Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $portal = Mockery::mock(SamaiPublicPortalService::class);
+    $portal->shouldReceive('fetch')->never();
+
+    $service = new SamaiConsultService($portal);
+    $result = $service->buscarProceso('76001233300120140093401');
+
+    expect($result)->toHaveCount(1)
+        ->and($result[0]['Corporacion'])->toBe('1100103')
+        ->and($seen[0] ?? '')->toContain('/ObtenerDatosProcesoGet/1100103/');
+});
+
+it('uses portal corporacion name for Consejo de Estado instead of origin juzgado', function (): void {
+    config()->set('samai.api_key', '');
+    config()->set('samai.api_url', 'https://samai-api.test/api');
+    config()->set('samai.modo', '2');
+    config()->set('samai.public_portal.enabled', true);
+    config()->set('samai.discovery_timeout', 5);
+    config()->set('samai.call_delay_min_ms', 0);
+    config()->set('samai.call_delay_max_ms', 0);
+
+    Http::fake([
+        'https://samai-api.test/api/ObtenerDatosProcesoGet/*' => Http::response([
+            'proceso' => [
+                'Origen' => 'Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+                'NombreSalaDecision' => 'Juzgado Administrativo de Cali',
+            ],
+        ], 200),
+    ]);
+
+    $portal = Mockery::mock(SamaiPublicPortalService::class);
+    $portal->shouldReceive('fetch')
+        ->once()
+        ->with('76001233300120140093402', '1100103')
+        ->andReturn([
+            'actuaciones' => [],
+            'sujetos' => [],
+            'meta' => [
+                'Origen' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+                'NombreSalaDecision' => 'Consejo de Estado - Sección Tercera',
+            ],
+        ]);
+
+    $service = new SamaiConsultService($portal);
+    $data = $service->obtenerDatosProceso('1100103', '76001233300120140093402');
+
+    expect($data['NombreSalaDecision'])->toBe('Consejo de Estado - Sección Tercera')
+        ->and($data['Origen'])->toBe('Juzgado Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)');
+
+    expect(\Src\Application\Shared\Helpers\SamaiCourtNameHelper::build($data, '1100103'))
+        ->toBe('Consejo de Estado - Sección Tercera');
+});

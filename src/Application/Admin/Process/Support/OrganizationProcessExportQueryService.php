@@ -8,6 +8,7 @@ use Generator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Src\Application\Admin\Process\Data\OrganizationProcessExportData;
+use Src\Application\Shared\Helpers\SamaiCourtNameHelper;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Enums\ProcessLawyerRole;
 use Src\Domain\Process\Models\Process;
@@ -85,7 +86,7 @@ readonly class OrganizationProcessExportQueryService
     private function mapRadicadoRow(Collection $instances, OrganizationProcessExportData $filters): array
     {
         $court = $instances
-            ->map(fn (Process $process): string => mb_strtoupper(trim((string) $process->court)))
+            ->map(fn (Process $process): string => SamaiCourtNameHelper::forDisplay($process->court))
             ->filter()
             ->sort()
             ->last();

@@ -436,7 +436,7 @@ class ProcessSyncService
 
         $update = [];
 
-        $court = $this->buildSamaiCourtName($processData);
+        $court = $this->buildSamaiCourtName($processData, $corporacion);
         if ($court !== '' && ($force || trim((string) $process->court) === '')) {
             $update['court'] = $court;
         }
@@ -501,9 +501,9 @@ class ProcessSyncService
     /**
      * @param  array<string, mixed>  $processData
      */
-    private function buildSamaiCourtName(array $processData): string
+    private function buildSamaiCourtName(array $processData, ?string $corporacion = null): string
     {
-        return SamaiCourtNameHelper::build($processData);
+        return SamaiCourtNameHelper::build($processData, $corporacion);
     }
 
     /**

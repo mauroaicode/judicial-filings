@@ -54,7 +54,7 @@ it('formats multiple plaintiffs like the datagrip export query', function (): vo
 
     expect($rows)->toHaveCount(1)
         ->and($rows[0]['Número de radicado'])->toBe('76001333301720230003301')
-        ->and($rows[0]['Despacho'])->toBe('JUZGADO 01')
+        ->and($rows[0]['Despacho'])->toBe('Juzgado 01')
         ->and($rows[0]['Clase de proceso'])->toBe('CIVIL')
         ->and($rows[0]['Rol abogado'])->toBe('Demandado')
         ->and($rows[0]['Estado'])->toBe('Activo')

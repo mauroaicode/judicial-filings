@@ -144,6 +144,14 @@ class BackfillIncompleteSamaiProcessesService
                                     ->orWhere('court', 'like', 'JUZGADO %');
                             });
                     })
+                    // Instancias 01/02 (Consejo / tribunal) con el despacho de origen.
+                    ->orWhere(function (Builder $laterInstance): void {
+                        $laterInstance->where('process_number', 'not like', '%00')
+                            ->where(function (Builder $courtQ): void {
+                                $courtQ->where('court', 'like', 'Juzgado %')
+                                    ->orWhere('court', 'like', 'JUZGADO %');
+                            });
+                    })
                     ->orWhereHas(
                         'actions',
                         fn (Builder $actions): Builder => $actions->where('annotation', 'like', '%...')

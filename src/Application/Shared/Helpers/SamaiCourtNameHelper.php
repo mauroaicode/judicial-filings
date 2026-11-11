@@ -15,8 +15,12 @@ final class SamaiCourtNameHelper
     /**
      * @param  array<string, mixed>  $processData
      */
-    public static function build(array $processData): string
+    public static function build(array $processData, ?string $corporacion = null): string
     {
+        if ($corporacion === '1100103') {
+            return self::consejoDeEstadoCourtName($processData);
+        }
+
         $origen = self::origenName($processData);
         if ($origen !== '') {
             return $origen;
@@ -42,7 +46,7 @@ final class SamaiCourtNameHelper
     }
 
     /**
-     * Título para UI. Conserva el "Despacho origen" de tribunal (NNN + JUZGADO…).
+     * Título para UI (mayúsculas/minúsculas consistentes).
      */
     public static function forDisplay(?string $court): string
     {
@@ -51,11 +55,30 @@ final class SamaiCourtNameHelper
             return '';
         }
 
-        if (preg_match('/^Tribunal\s+Administrativo\s+\d{1,3}\b/iu', $court) === 1) {
-            return $court;
+        return StrParseHelper::toTitleCase($court) ?? $court;
+    }
+
+    /**
+     * En Consejo de Estado el "Origen" es el despacho de primera instancia.
+     * El nombre vigente está en NombreSalaDecision (LblNombreCorporacion).
+     *
+     * @param  array<string, mixed>  $processData
+     */
+    private static function consejoDeEstadoCourtName(array $processData): string
+    {
+        $sala = trim((string) ($processData['NombreSalaDecision'] ?? $processData['Seccion'] ?? ''));
+        if ($sala !== '' && preg_match('/^Juzgado\b/iu', $sala) !== 1) {
+            return self::scrubSamaiTypo($sala);
         }
 
-        return StrParseHelper::toTitleCase($court) ?? $court;
+        foreach (['Origen', 'OrigenNombre', 'EntidadRadicadora'] as $key) {
+            $raw = trim((string) ($processData[$key] ?? ''));
+            if ($raw !== '' && str_contains(mb_strtolower($raw), 'consejo de estado')) {
+                return self::scrubSamaiTypo($raw);
+            }
+        }
+
+        return 'Consejo de Estado';
     }
 
     /**

@@ -196,7 +196,7 @@ readonly class ProcessSourceFallbackService
         ];
 
         if ($data !== []) {
-            $updateData['court'] = $this->buildSamaiCourt($data) ?: $process->court;
+            $updateData['court'] = $this->buildSamaiCourt($data, $corporacion) ?: $process->court;
             $updateData['speaker'] = $this->buildSamaiSpeaker($data);
         }
 
@@ -252,7 +252,7 @@ readonly class ProcessSourceFallbackService
         return Process::query()->create([
             'process_id' => null,
             'process_number' => $processNumber,
-            'court' => $this->buildSamaiCourt($data),
+            'court' => $this->buildSamaiCourt($data, $corporacion),
             'speaker' => $this->buildSamaiSpeaker($data),
             'department' => trim((string) ($data['cityName'] ?? '')),
             'process_type' => trim((string) ($data['tipoProceso'] ?? '')),
@@ -488,9 +488,9 @@ readonly class ProcessSourceFallbackService
     /**
      * @param  array<string, mixed>  $data
      */
-    private function buildSamaiCourt(array $data): string
+    private function buildSamaiCourt(array $data, ?string $corporacion = null): string
     {
-        return SamaiCourtNameHelper::build($data);
+        return SamaiCourtNameHelper::build($data, $corporacion);
     }
 
     /**

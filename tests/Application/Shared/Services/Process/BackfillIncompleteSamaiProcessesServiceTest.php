@@ -154,6 +154,51 @@ it('repairs candidates through ProcessSyncService backfill', function (): void {
         ->and($summary['failed'])->toBe(0);
 });
 
+it('selects later SAMAI instances whose court still shows the origin juzgado', function (): void {
+    Process::query()->delete();
+
+    $samaiId = ProcessDataSource::uuidForSlug(ProcessDataSourceSlug::Samai);
+
+    $wrongConsejo = Process::factory()->create([
+        'process_number' => '76001233300120140093401',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600123',
+        'court' => 'Juzgado 001 Administrativo de Cali (valle)',
+        'process_class' => 'LEY 1437',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $wrongConsejo->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'Texto completo sin truncar',
+    ]);
+
+    $originOk = Process::factory()->create([
+        'process_number' => '76001233300120140093400',
+        'process_data_source_id' => $samaiId,
+        'samai_corporacion' => '7600123',
+        'court' => 'Tribunal Administrativo 001 JUZGADO ADMINISTRATIVO DE CALI (VALLE)',
+        'process_class' => 'ACCION DE REPARACION DIRECTA',
+        'is_manual_sync' => false,
+    ]);
+
+    ProcessAction::factory()->create([
+        'process_id' => $originOk->id,
+        'action_registration_id' => 1,
+        'cons_action' => 1,
+        'annotation' => 'Texto completo sin truncar',
+    ]);
+
+    $service = app(BackfillIncompleteSamaiProcessesService::class);
+    $candidates = $service->queryCandidates(onlyIncomplete: true);
+
+    expect($candidates->pluck('id')->all())
+        ->toContain($wrongConsejo->id)
+        ->not->toContain($originOk->id);
+});
+
 it('selects tribunal corporacion processes whose court was rewritten as Juzgado', function (): void {
     Process::query()->delete();
 
