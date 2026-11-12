@@ -104,7 +104,7 @@ class JudicialSyncRun extends Model
      * Used to defer heavy AppUser registration writes against the daily cron.
      * Classification (público vs privado) still runs inline.
      */
-    public static function hasActiveBatch(?JudicialSyncDataSource $dataSource = null): bool
+    public static function hasActiveBatch(?JudicialSyncDataSource $dataSource = null, ?string $organizationId = null): bool
     {
         $query = self::query()
             ->whereIn('status', [
@@ -115,6 +115,10 @@ class JudicialSyncRun extends Model
 
         if ($dataSource instanceof JudicialSyncDataSource) {
             $query->where('data_source', $dataSource);
+        }
+
+        if ($organizationId !== null && $organizationId !== '') {
+            $query->where('organization_id', $organizationId);
         }
 
         return $query->exists();

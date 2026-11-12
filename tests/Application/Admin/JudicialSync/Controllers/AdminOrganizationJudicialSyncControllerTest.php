@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-use Illuminate\Bus\PendingBatch;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Src\Application\Shared\Jobs\SyncProcessJob;
+use Src\Application\Admin\JudicialSync\Jobs\QueueOrganizationJudicialSyncJob;
 use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\JudicialSync\Models\JudicialSyncRun;
 use Src\Domain\Organization\Models\Organization;
@@ -131,14 +130,9 @@ it('dispatches only the radicados of that organization, including shared ones', 
         ->assertJsonPath('data_source', JudicialSyncDataSource::JudicialBranch->value)
         ->assertJsonPath('radicado_filter', null);
 
-    Bus::assertBatched(function (PendingBatch $batch) use ($shared, $onlyA): bool {
-        $numbers = collect($batch->jobs)
-            ->map(fn (SyncProcessJob $job): string => $job->processNumber)
-            ->all();
-
-        return $batch->name === 'Sync Judicial Processes Batch (organization)'
-            && count($numbers) === 2
-            && in_array($shared->process_number, $numbers, true)
-            && in_array($onlyA->process_number, $numbers, true);
-    });
+    Bus::assertDispatched(
+        QueueOrganizationJudicialSyncJob::class,
+        fn (QueueOrganizationJudicialSyncJob $job): bool => $job->organizationId === $organizationA->id
+            && $job->radicadoFilter === null,
+    );
 });

@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Src\Application\Admin\JudicialSync\Services;
 
-use Illuminate\Support\Facades\Artisan;
 use Src\Application\Admin\JudicialSync\Data\AdminOrganizationJudicialSyncData;
+use Src\Application\Admin\JudicialSync\Jobs\QueueOrganizationJudicialSyncJob;
 use Src\Application\Admin\JudicialSync\Resources\AdminOrganizationJudicialSyncResource;
-use Src\Domain\JudicialSync\Enums\JudicialSyncDataSource;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\Process\Models\Process;
-use Symfony\Component\Console\Command\Command as ConsoleCommand;
 
 readonly class AdminOrganizationJudicialSyncService
 {
@@ -20,18 +18,16 @@ readonly class AdminOrganizationJudicialSyncService
     ): AdminOrganizationJudicialSyncResource {
         $this->ensureOrganizationCanTrack($organization);
 
-        $exitCode = Artisan::call(
-            'judicial:sync-processes-for-organization',
-            $this->commandParameters($organization, $data),
-        );
+        $radicado = $this->radicadoFilter($data);
+        $jobsCount = $this->countRadicados($organization->id, $radicado);
 
-        abort_unless(
-            $exitCode === ConsoleCommand::SUCCESS,
-            500,
-            __('process.sync_command_failed', ['source' => JudicialSyncDataSource::JudicialBranch->getLabel()])
-        );
+        if ($jobsCount === 0) {
+            return AdminOrganizationJudicialSyncResource::noJobs($organization, $radicado);
+        }
 
-        return $this->resourceFor($organization, $data);
+        QueueOrganizationJudicialSyncJob::dispatch($organization->id, $radicado);
+
+        return AdminOrganizationJudicialSyncResource::fromDispatch($organization, $radicado, $jobsCount);
     }
 
     private function ensureOrganizationCanTrack(Organization $organization): void
@@ -41,37 +37,6 @@ readonly class AdminOrganizationJudicialSyncService
             422,
             __('process.organization_tracking_disabled')
         );
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function commandParameters(Organization $organization, AdminOrganizationJudicialSyncData $data): array
-    {
-        $parameters = ['organization' => $organization->id];
-        $radicado = $this->radicadoFilter($data);
-
-        if ($radicado === null) {
-            return $parameters;
-        }
-
-        $parameters['--radicado'] = $radicado;
-
-        return $parameters;
-    }
-
-    private function resourceFor(
-        Organization $organization,
-        AdminOrganizationJudicialSyncData $data,
-    ): AdminOrganizationJudicialSyncResource {
-        $radicado = $this->radicadoFilter($data);
-        $jobsCount = $this->countRadicados($organization->id, $radicado);
-
-        if ($jobsCount === 0) {
-            return AdminOrganizationJudicialSyncResource::noJobs($organization, $radicado);
-        }
-
-        return AdminOrganizationJudicialSyncResource::fromDispatch($organization, $radicado, $jobsCount);
     }
 
     private function countRadicados(string $organizationId, ?string $radicadoFilter): int

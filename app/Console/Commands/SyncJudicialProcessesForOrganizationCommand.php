@@ -41,6 +41,19 @@ class SyncJudicialProcessesForOrganizationCommand extends Command
 
         $channel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
         $radicadoFilter = $this->radicadoFilter();
+
+        if ($radicadoFilter === null && JudicialSyncRun::hasActiveBatch(
+            JudicialSyncDataSource::JudicialBranch,
+            $organization->id,
+        )) {
+            $this->warn('Ya hay un sync activo para esta organización; no se encola otro lote.');
+            Log::channel($channel)->warning('SyncJudicialProcessesForOrganizationCommand: skipped overlapping batch', [
+                'organization_id' => $organization->id,
+            ]);
+
+            return self::SUCCESS;
+        }
+
         $run = JudicialSyncRun::startRun($radicadoFilter, JudicialSyncDataSource::JudicialBranch, $organization->id);
 
         Log::channel($channel)->info('SyncJudicialProcessesForOrganizationCommand started', [

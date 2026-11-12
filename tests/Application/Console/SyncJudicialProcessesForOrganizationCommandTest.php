@@ -92,6 +92,34 @@ it('rejects an unknown organization without queueing a run', function (): void {
     expect(JudicialSyncRun::query()->count())->toBe(0);
 });
 
+it('does not enqueue a second full-org batch while one is already pending', function (): void {
+    Bus::fake();
+
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create([
+        'process_number' => '76001333301320170018800',
+        'is_manual_sync' => false,
+    ]);
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    JudicialSyncRun::factory()->create([
+        'organization_id' => $organization->id,
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subHour(),
+        'data_source' => \Src\Domain\JudicialSync\Enums\JudicialSyncDataSource::JudicialBranch,
+    ]);
+
+    $this->artisan('judicial:sync-processes-for-organization', [
+        'organization' => $organization->id,
+    ])->assertSuccessful();
+
+    Bus::assertNothingBatched();
+    expect(JudicialSyncRun::query()->where('organization_id', $organization->id)->count())->toBe(1);
+});
+
 it('rejects an organization that cannot track processes', function (): void {
     Bus::fake();
 

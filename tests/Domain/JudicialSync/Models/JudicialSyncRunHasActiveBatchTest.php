@@ -45,3 +45,18 @@ it('ignores completed and stale runs', function (): void {
 
     expect(JudicialSyncRun::hasActiveBatch())->toBeFalse();
 });
+
+it('scopes an active batch to one organization when an id is provided', function (): void {
+    $pendingOrg = \Src\Domain\Organization\Models\Organization::factory()->create();
+    $otherOrg = \Src\Domain\Organization\Models\Organization::factory()->create();
+
+    JudicialSyncRun::factory()->create([
+        'status' => JudicialSyncRunStatus::BatchPending,
+        'started_at' => now()->subHour(),
+        'data_source' => JudicialSyncDataSource::JudicialBranch,
+        'organization_id' => $pendingOrg->id,
+    ]);
+
+    expect(JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch, $pendingOrg->id))->toBeTrue()
+        ->and(JudicialSyncRun::hasActiveBatch(JudicialSyncDataSource::JudicialBranch, $otherOrg->id))->toBeFalse();
+});

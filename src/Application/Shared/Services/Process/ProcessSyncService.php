@@ -1019,15 +1019,12 @@ class ProcessSyncService
                 continue;
             }
 
-            if (! $skipInactiveThreshold
-                && ! $this->hasPendingActuacionesSync($process)
-                && $thresholdDays > 0
-                && $process->last_activity_date !== null
-                && $process->last_activity_date->lt(now()->subDays($thresholdDays)->startOfDay())) {
+            if ($this->shouldSkipInactiveActuacionesFetch($process, $skipInactiveThreshold, $thresholdDays)) {
                 Log::channel($channel)->info('ProcessSyncService: skipping actuaciones fetch (inactive process)', [
                     'process_number' => $processNumber,
                     'process_id' => $process->id,
-                    'last_activity_date' => $process->last_activity_date->format('Y-m-d'),
+                    'last_activity_date' => $process->last_activity_date?->format('Y-m-d'),
+                    'last_api_update' => $process->last_api_update?->toDateTimeString(),
                     'threshold_days' => $thresholdDays,
                 ]);
 
@@ -1553,6 +1550,38 @@ class ProcessSyncService
                 ]);
             }
         }
+    }
+
+    /**
+     * Skip fetchActionByProcess only when Rama metadata was refreshed recently
+     * and still shows no newer activity. A stale last_api_update must not skip:
+     * otherwise a missed daily job leaves the process frozen until someone
+     * syncs it by hand.
+     */
+    private function shouldSkipInactiveActuacionesFetch(
+        Process $process,
+        bool $skipInactiveThreshold,
+        int $thresholdDays,
+    ): bool {
+        if ($skipInactiveThreshold || $thresholdDays <= 0) {
+            return false;
+        }
+
+        if ($this->hasPendingActuacionesSync($process)) {
+            return false;
+        }
+
+        $freshSince = now()->subDays($thresholdDays)->startOfDay();
+
+        if ($process->last_api_update === null || $process->last_api_update->lt($freshSince)) {
+            return false;
+        }
+
+        if ($process->last_activity_date === null) {
+            return false;
+        }
+
+        return $process->last_activity_date->lt($freshSince);
     }
 
     /**

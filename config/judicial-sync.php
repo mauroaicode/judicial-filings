@@ -83,6 +83,8 @@ return [
     | in the daily sync. A process whose last_activity_date is older than this
     | threshold will only run fetchProcesses (to detect new instances) and skip
     | the actuaciones check — saving one proxy request per inactive process.
+    | The skip is ignored when last_api_update is also older than the threshold,
+    | so a missed job cannot freeze the process until a manual sync.
     |
     | With two daily crons (9am and 3:30pm), a threshold of 2 days ensures that
     | any process active in the last 48 hours is always fully checked, preventing
