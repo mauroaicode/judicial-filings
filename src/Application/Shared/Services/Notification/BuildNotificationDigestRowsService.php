@@ -120,6 +120,7 @@ class BuildNotificationDigestRowsService
                 'term_end_date' => $action->end_date ? DateFormatHelper::formatDate($action->end_date) : null,
                 'registration_date' => DateFormatHelper::formatDate($action->registration_date),
                 'registration_date_iso' => DateFormatHelper::formatIsoDate($action->registration_date),
+                'cons_action' => $action->cons_action,
                 'is_alert' => $isAlert,
                 'is_registration_alert' => $isRegistrationAlert,
                 'matched_keywords' => $matchedKeywords,
@@ -137,34 +138,83 @@ class BuildNotificationDigestRowsService
     private function groupAndMergeActions(Collection $data): Collection
     {
         $tagged = $this->groupProcessActionsService->handle($data);
+        $claimedAutoIds = [];
+        $rows = collect();
 
-        $toRemove = collect();
-        $merged = $tagged->map(function (array $item) use ($tagged, $toRemove): array {
-            if (isset($item['fijacion_action_id']) && $tagged->contains('process_action_id', $item['fijacion_action_id'])) {
-                $toRemove->push($item['process_action_id'] ?? $item['id']);
-            }
+        foreach ($tagged as $item) {
+            $itemId = $item['process_action_id'] ?? $item['id'] ?? null;
+            $linkedAutos = $tagged
+                ->filter(fn (array $candidate): bool => $itemId !== null
+                    && ($candidate['fijacion_action_id'] ?? null) === $itemId)
+                ->values();
 
-            if (isset($item['notified_action_id'])) {
+            if ($linkedAutos->isEmpty() && isset($item['notified_action_id'])) {
                 $auto = $tagged->firstWhere('process_action_id', $item['notified_action_id']);
-
-                if ($auto) {
-                    $item['is_merged'] = true;
-                    $item['linked_action_text'] = $auto['action_text'];
-                    $item['linked_annotation'] = $auto['annotation'];
-                    $item['is_alert'] = $item['is_alert'] || $auto['is_alert'];
-                    $item['matched_keywords'] = collect([$item['matched_keywords'], $auto['matched_keywords']])
-                        ->filter()
-                        ->unique()
-                        ->implode(', ');
+                if (is_array($auto)) {
+                    $linkedAutos = collect([$auto]);
                 }
             }
 
-            return $item;
-        });
+            if ($linkedAutos->isEmpty()) {
+                $rows->push($item);
 
-        /** @var Collection<int, array<string, mixed>> $rows */
-        $rows = $merged->reject(fn (array $item) => $toRemove->contains($item['process_action_id'] ?? $item['id']))->values();
+                continue;
+            }
 
-        return $rows;
+            foreach ($linkedAutos as $index => $auto) {
+                $autoId = $auto['process_action_id'] ?? $auto['id'] ?? null;
+                if (is_string($autoId) && $autoId !== '') {
+                    $claimedAutoIds[] = $autoId;
+                }
+
+                $rows->push($this->mergeFijacionWithAuto(
+                    $item,
+                    $auto,
+                    keepFijacionProcessActionId: $index === 0,
+                ));
+            }
+        }
+
+        /** @var Collection<int, array<string, mixed>> $filtered */
+        $filtered = $rows->reject(function (array $item) use ($claimedAutoIds): bool {
+            if (! empty($item['is_merged'])) {
+                return false;
+            }
+
+            $id = $item['process_action_id'] ?? $item['id'] ?? null;
+
+            return is_string($id) && in_array($id, $claimedAutoIds, true);
+        })->values();
+
+        return $filtered;
+    }
+
+    /**
+     * @param  array<string, mixed>  $fijacion
+     * @param  array<string, mixed>  $auto
+     * @return array<string, mixed>
+     */
+    private function mergeFijacionWithAuto(array $fijacion, array $auto, bool $keepFijacionProcessActionId): array
+    {
+        $fijacionId = $fijacion['process_action_id'] ?? $fijacion['id'] ?? null;
+        $autoId = $auto['process_action_id'] ?? $auto['id'] ?? null;
+
+        $fijacion['is_merged'] = true;
+        $fijacion['linked_action_text'] = $auto['action_text'] ?? null;
+        $fijacion['linked_annotation'] = $auto['annotation'] ?? null;
+        $fijacion['notified_action_id'] = $autoId;
+        $fijacion['is_alert'] = ($fijacion['is_alert'] ?? false) || ($auto['is_alert'] ?? false);
+        $fijacion['matched_keywords'] = collect([$fijacion['matched_keywords'] ?? null, $auto['matched_keywords'] ?? null])
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
+        // 1 Fijación + 1 Auto keeps the historical row id (the Fijación).
+        // Extra autos need their own id so the consolidado does not collapse them.
+        if (! $keepFijacionProcessActionId) {
+            $fijacion['process_action_id'] = $autoId ?? $fijacionId;
+        }
+
+        return $fijacion;
     }
 }

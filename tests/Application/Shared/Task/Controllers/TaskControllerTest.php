@@ -694,3 +694,121 @@ it('cannot permanently delete a task that is not in trash', function (): void {
     $response->assertStatus(404);
     $this->assertDatabaseHas('tasks', ['id' => $task->id]);
 });
+
+it('pauses all radicado instances when a suspension task is created on one of them', function (): void {
+    $radicado = '11001400300120240000044';
+    $instanceA = Process::factory()->create(['process_number' => $radicado]);
+    $instanceB = Process::factory()->create(['process_number' => $radicado]);
+
+    $this->organization->processes()->attach($instanceA->id, [
+        'is_active' => true,
+        'status' => 'active',
+        'interest_date' => now(),
+    ]);
+    $this->organization->processes()->attach($instanceB->id, [
+        'is_active' => true,
+        'status' => 'active',
+        'interest_date' => now(),
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/app-user/tasks', [
+            'title' => 'Suspensión multi-instancia',
+            'description' => 'Debe pausar todas las instancias del radicado.',
+            'type' => 'suspension_payment_agreement',
+            'due_date' => '2028-07-15 14:30:00',
+            'reminder_days' => 0,
+            'is_admin' => false,
+            'process_id' => $instanceA->id,
+            'organization_id' => $this->organization->id,
+        ]);
+
+    $response->assertCreated();
+
+    foreach ([$instanceA->id, $instanceB->id] as $processId) {
+        $this->assertDatabaseHas('organization_processes', [
+            'organization_id' => $this->organization->id,
+            'process_id' => $processId,
+            'status' => 'suspended_payment_agreement',
+            'is_active' => true,
+        ]);
+    }
+});
+
+it('blocks a pausing task on a sibling instance when another instance already has one', function (): void {
+    $radicado = '11001400300120240000055';
+    $instanceA = Process::factory()->create(['process_number' => $radicado]);
+    $instanceB = Process::factory()->create(['process_number' => $radicado]);
+
+    $this->organization->processes()->attach($instanceA->id, [
+        'is_active' => true,
+        'status' => 'active',
+        'interest_date' => now(),
+    ]);
+    $this->organization->processes()->attach($instanceB->id, [
+        'is_active' => true,
+        'status' => 'active',
+        'interest_date' => now(),
+    ]);
+
+    Task::factory()->create([
+        'organization_id' => $this->organization->id,
+        'process_id' => $instanceA->id,
+        'type' => 'pending_hearing',
+        'status' => 'pending',
+        'is_admin' => false,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->postJson('/api/app-user/tasks', [
+            'title' => 'Otra pausa en hermana',
+            'description' => 'No debe permitirse.',
+            'type' => 'suspension_insolvency',
+            'due_date' => '2028-07-15 14:30:00',
+            'reminder_days' => 0,
+            'is_admin' => false,
+            'process_id' => $instanceB->id,
+            'organization_id' => $this->organization->id,
+        ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors(['process_id']);
+    expect($response->json('errors.process_id.0'))->toBe(__('process.already_has_suspension_task'));
+});
+
+it('resumes all radicado instances when a suspension task is completed', function (): void {
+    $radicado = '11001400300120240000066';
+    $instanceA = Process::factory()->create(['process_number' => $radicado]);
+    $instanceB = Process::factory()->create(['process_number' => $radicado]);
+
+    $this->organization->processes()->attach($instanceA->id, [
+        'is_active' => true,
+        'status' => 'suspended',
+        'interest_date' => now(),
+    ]);
+    $this->organization->processes()->attach($instanceB->id, [
+        'is_active' => true,
+        'status' => 'suspended',
+        'interest_date' => now(),
+    ]);
+
+    $task = Task::factory()->suspension()->create([
+        'organization_id' => $this->organization->id,
+        'process_id' => $instanceA->id,
+        'is_admin' => false,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->patchJson("/api/app-user/tasks/{$task->id}/complete");
+
+    $response->assertOk();
+
+    foreach ([$instanceA->id, $instanceB->id] as $processId) {
+        $this->assertDatabaseHas('organization_processes', [
+            'organization_id' => $this->organization->id,
+            'process_id' => $processId,
+            'status' => 'active',
+            'is_active' => true,
+        ]);
+    }
+});

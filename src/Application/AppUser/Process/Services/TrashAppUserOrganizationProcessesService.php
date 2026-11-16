@@ -4,16 +4,17 @@ declare(strict_types=1);
 
 namespace Src\Application\AppUser\Process\Services;
 
+use Src\Application\Shared\Process\Services\ResolveOrganizationProcessIdsForRadicadoService;
 use Src\Application\Shared\Process\Services\TrashOrganizationProcessesService;
 use Src\Application\Shared\Services\Organization\OrganizationProcessQuotaService;
 use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
-use Src\Domain\Process\Models\Process;
 
 readonly class TrashAppUserOrganizationProcessesService
 {
     public function __construct(
         private TrashOrganizationProcessesService $trashOrganizationProcessesService,
         private OrganizationProcessQuotaService $organizationProcessQuotaService,
+        private ResolveOrganizationProcessIdsForRadicadoService $resolveOrganizationProcessIdsForRadicadoService,
     ) {}
 
     /**
@@ -44,7 +45,10 @@ readonly class TrashAppUserOrganizationProcessesService
     ): array {
         $idsToTrash = $all
             ? $this->resolveAllProcessIds($organizationId)
-            : $this->expandToAllRadicadoInstances($organizationId, $processIds ?? []);
+            : $this->resolveOrganizationProcessIdsForRadicadoService->handle(
+                $organizationId,
+                $processIds ?? [],
+            );
 
         $result = $this->trashOrganizationProcessesService->handle(
             $organizationId,
@@ -65,39 +69,6 @@ readonly class TrashAppUserOrganizationProcessesService
     {
         return OrganizationProcess::query()
             ->where('organization_id', $organizationId)
-            ->pluck('process_id')
-            ->map(fn ($id): string => (string) $id)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  list<string>  $processIds
-     * @return list<string>
-     */
-    private function expandToAllRadicadoInstances(string $organizationId, array $processIds): array
-    {
-        if ($processIds === []) {
-            return [];
-        }
-
-        $processNumbers = Process::query()
-            ->whereIn('id', $processIds)
-            ->pluck('process_number')
-            ->unique()
-            ->filter()
-            ->values()
-            ->all();
-
-        if ($processNumbers === []) {
-            return array_values(array_unique($processIds));
-        }
-
-        return OrganizationProcess::query()
-            ->where('organization_id', $organizationId)
-            ->whereHas('process', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($processNumbers): void {
-                $query->whereIn('process_number', $processNumbers);
-            })
             ->pluck('process_id')
             ->map(fn ($id): string => (string) $id)
             ->values()

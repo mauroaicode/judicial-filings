@@ -166,6 +166,10 @@ class ExportNotificationDigestPdfService
         return array_values(array_filter(
             $rows,
             static function (array $row) use ($claimedAutoIds): bool {
+                if (! empty($row['is_merged'])) {
+                    return true;
+                }
+
                 $actionId = $row['process_action_id'] ?? $row['id'] ?? null;
 
                 if (! is_string($actionId) || $actionId === '') {

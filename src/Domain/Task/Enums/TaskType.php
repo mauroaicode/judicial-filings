@@ -86,10 +86,10 @@ enum TaskType: string
                 'label' => $type->getLabel(),
             ],
             // Hide deprecated legacy type from create/edit pickers.
-            array_values(array_filter(
+            array_filter(
                 self::cases(),
                 static fn (self $type): bool => $type !== self::SUSPENSION,
-            )),
+            ),
         );
     }
 

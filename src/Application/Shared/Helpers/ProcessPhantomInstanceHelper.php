@@ -34,6 +34,15 @@ final class ProcessPhantomInstanceHelper
     }
 
     /**
+     * Richness based on litigants only — ignores subject links that may have been
+     * copied from a sibling, and ignores actuaciones that phantoms often mirror.
+     */
+    public static function isIntrinsicallyRichInstance(Process $process): bool
+    {
+        return self::hasMeaningfulLitigants($process->litigants);
+    }
+
+    /**
      * @param  Collection<int, Process>  $siblings  All instances for the radicado
      */
     public static function isLikelyPhantomDuplicate(Process $process, Collection $siblings): bool
@@ -54,6 +63,35 @@ final class ProcessPhantomInstanceHelper
             fn (Process $other): bool => $other->id !== $process->id
                 && self::sameFolderMetadata($process, $other)
                 && self::isRichInstance($other),
+        );
+    }
+
+    /**
+     * Same as {@see isLikelyPhantomDuplicate} but ignores propagated subjects so phantoms
+     * that were enriched by subject copy can still be unlinked from organizations.
+     *
+     * @param  Collection<int, Process>  $siblings
+     */
+    public static function isLikelyPhantomForOrganizationTracking(
+        Process $process,
+        Collection $siblings,
+    ): bool {
+        if (! (bool) config('judicial-sync.skip_phantom_instance_actuaciones', true)) {
+            return false;
+        }
+
+        if ($siblings->count() <= 1) {
+            return false;
+        }
+
+        if (self::isIntrinsicallyRichInstance($process)) {
+            return false;
+        }
+
+        return $siblings->contains(
+            fn (Process $other): bool => $other->id !== $process->id
+                && self::sameFolderMetadata($process, $other)
+                && self::isIntrinsicallyRichInstance($other),
         );
     }
 

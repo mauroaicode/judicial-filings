@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Log;
 use Src\Application\Shared\Helpers\ProcessActionIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Domain\Notification\Models\OrganizationNotification;
+use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
+use Src\Domain\OrganizationProcess\Models\OrganizationProcess;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 
@@ -30,7 +32,7 @@ final class RepairPhantomProcessInstancesService
                 $siblings = Process::query()->where('process_number', $processNumber)->get();
 
                 return $siblings->contains(
-                    fn (Process $process): bool => ProcessPhantomInstanceHelper::isLikelyPhantomDuplicate($process, $siblings),
+                    fn (Process $process): bool => ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($process, $siblings),
                 );
             })
             ->values();
@@ -69,9 +71,11 @@ final class RepairPhantomProcessInstancesService
             return new RepairPhantomProcessInstancesResult(0, 0, 0);
         }
 
-        $phantomCount = $processes
-            ->filter(fn (Process $process): bool => ProcessPhantomInstanceHelper::isLikelyPhantomDuplicate($process, $processes))
-            ->count();
+        $phantomProcesses = $processes
+            ->filter(fn (Process $process): bool => ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($process, $processes))
+            ->values();
+
+        $phantomCount = $phantomProcesses->count();
 
         $actions = ProcessAction::query()
             ->whereIn('process_id', $processes->pluck('id'))->oldest()
@@ -81,12 +85,9 @@ final class RepairPhantomProcessInstancesService
             ->groupBy(fn (ProcessAction $action): string => ProcessActionIdentityHelper::fingerprint($action))
             ->filter(fn (Collection $group): bool => $group->count() > 1);
 
-        if ($duplicateGroups->isEmpty()) {
-            return new RepairPhantomProcessInstancesResult(0, 0, $phantomCount);
-        }
-
         $actionsRemoved = 0;
         $notificationsRemoved = 0;
+        $organizationLinksDeactivated = 0;
         $morphClass = (new ProcessAction)->getMorphClass();
         $logChannel = config('judicial-sync.log_channel', 'judicial_sync_notifications');
 
@@ -96,17 +97,34 @@ final class RepairPhantomProcessInstancesService
                 $actionsRemoved += $group->filter(fn (ProcessAction $action): bool => $action->id !== $canonical->id)->count();
             }
 
-            return new RepairPhantomProcessInstancesResult($actionsRemoved, 0, $phantomCount);
+            $organizationLinksDeactivated = $phantomProcesses->isEmpty()
+                ? 0
+                : OrganizationProcess::query()
+                    ->whereIn('process_id', $phantomProcesses->pluck('id'))
+                    ->where(function (\Illuminate\Contracts\Database\Query\Builder $query): void {
+                        $query->where('is_active', true)
+                            ->orWhere('status', '!=', OrganizationProcessStatus::INACTIVE->value);
+                    })
+                    ->count();
+
+            return new RepairPhantomProcessInstancesResult(
+                $actionsRemoved,
+                0,
+                $phantomCount,
+                $organizationLinksDeactivated,
+            );
         }
 
         DB::transaction(function () use (
             $duplicateGroups,
             $processes,
+            $phantomProcesses,
             $processNumber,
             $morphClass,
             $logChannel,
             &$actionsRemoved,
             &$notificationsRemoved,
+            &$organizationLinksDeactivated,
         ): void {
             foreach ($duplicateGroups as $fingerprint => $group) {
                 $canonical = ProcessActionIdentityHelper::pickCanonical($group, $processes);
@@ -144,9 +162,38 @@ final class RepairPhantomProcessInstancesService
                     'last_activity_date' => $dbMaxDate,
                 ]);
             }
+
+            foreach ($phantomProcesses as $phantomProcess) {
+                $updated = OrganizationProcess::query()
+                    ->where('process_id', $phantomProcess->id)
+                    ->where(function (\Illuminate\Contracts\Database\Query\Builder $query): void {
+                        $query->where('is_active', true)
+                            ->orWhere('status', '!=', OrganizationProcessStatus::INACTIVE->value);
+                    })
+                    ->update([
+                        'is_active' => false,
+                        'status' => OrganizationProcessStatus::INACTIVE->value,
+                        'updated_at' => now(),
+                    ]);
+
+                if ($updated > 0) {
+                    $organizationLinksDeactivated += $updated;
+
+                    Log::channel($logChannel)->info('RepairPhantomProcessInstancesService: deactivated org links on phantom instance', [
+                        'process_number' => $processNumber,
+                        'process_id' => $phantomProcess->id,
+                        'links_deactivated' => $updated,
+                    ]);
+                }
+            }
         });
 
-        return new RepairPhantomProcessInstancesResult($actionsRemoved, $notificationsRemoved, $phantomCount);
+        return new RepairPhantomProcessInstancesResult(
+            $actionsRemoved,
+            $notificationsRemoved,
+            $phantomCount,
+            $organizationLinksDeactivated,
+        );
     }
 
     /**

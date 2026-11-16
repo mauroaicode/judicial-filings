@@ -13,6 +13,7 @@ use Src\Application\Shared\Exceptions\ApiEmptyProcessesException;
 use Src\Application\Shared\Exceptions\ApiForbiddenOrRateLimitException;
 use Src\Application\Shared\Exceptions\ManualRegistrationRequiredException;
 use Src\Application\Shared\Helpers\ProcessAlertLevelHelper;
+use Src\Application\Shared\Helpers\ProcessPhantomInstanceHelper;
 use Src\Application\Shared\Process\Timeline\Contracts\ProcessTimelineRecorder;
 use Src\Application\Shared\Process\Timeline\DTOs\RecordProcessTimelineEventData;
 use Src\Application\Shared\Services\JudicialBranchConsultService;
@@ -160,6 +161,20 @@ readonly class RegisterProcessService
                     $processes->count() === 1
                         ? ManualRegistrationRequestReason::Private
                         : ManualRegistrationRequestReason::AllPrivate,
+                    $lawyerRole,
+                );
+            }
+
+            $attached = $this->deactivatePhantomOrganizationLinks(
+                $processNumber,
+                $organizationId,
+                $attached,
+            );
+
+            if ($attached->isEmpty()) {
+                throw new ManualRegistrationRequiredException(
+                    $processNumber,
+                    ManualRegistrationRequestReason::AllPrivate,
                     $lawyerRole,
                 );
             }
@@ -383,9 +398,23 @@ readonly class RegisterProcessService
                 );
             }
 
+            $registeredProcesses = $this->deactivatePhantomOrganizationLinks(
+                $processNumber,
+                $organizationId,
+                $registeredProcesses,
+            );
+
+            if ($registeredProcesses->isEmpty()) {
+                throw new ManualRegistrationRequiredException(
+                    $processNumber,
+                    ManualRegistrationRequestReason::AllPrivate,
+                    $lawyerRole,
+                );
+            }
+
             return new RegisterProcessResult(
                 processes: $registeredProcesses,
-                hasMultipleInstances: $hasMultipleInstances,
+                hasMultipleInstances: $registeredProcesses->count() > 1 || $hasMultipleInstances,
                 totalProcesses: $totalProcesses,
                 registeredCount: $registeredProcesses->count(),
                 privateCount: $privateCount,
@@ -405,6 +434,42 @@ readonly class RegisterProcessService
         }
 
         return $result;
+    }
+
+    /**
+     * Keep the process rows (Portal identity) but stop tracking empty duplicate folders
+     * that match a richer sibling for the registering organization.
+     *
+     * @param  Collection<int, Process>  $registeredProcesses
+     * @return Collection<int, Process>
+     */
+    private function deactivatePhantomOrganizationLinks(
+        string $processNumber,
+        string $organizationId,
+        Collection $registeredProcesses,
+    ): Collection {
+        $siblings = Process::query()
+            ->where('process_number', $processNumber)
+            ->get();
+
+        return $registeredProcesses
+            ->reject(function (Process $process) use ($siblings, $organizationId): bool {
+                if (! ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($process, $siblings)) {
+                    return false;
+                }
+
+                OrganizationProcess::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('process_id', $process->id)
+                    ->update([
+                        'is_active' => false,
+                        'status' => OrganizationProcessStatus::INACTIVE->value,
+                        'updated_at' => now(),
+                    ]);
+
+                return true;
+            })
+            ->values();
     }
 
     /**

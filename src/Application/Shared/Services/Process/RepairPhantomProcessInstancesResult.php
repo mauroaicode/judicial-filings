@@ -10,5 +10,6 @@ final readonly class RepairPhantomProcessInstancesResult
         public int $actionsRemoved,
         public int $notificationsRemoved,
         public int $phantomInstancesDetected,
+        public int $organizationLinksDeactivated = 0,
     ) {}
 }

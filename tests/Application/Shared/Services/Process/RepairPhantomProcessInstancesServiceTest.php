@@ -78,10 +78,62 @@ it('removes duplicate actuaciones across phantom instances and keeps canonical o
 
     expect($result->actionsRemoved)->toBe(1);
     expect($result->phantomInstancesDetected)->toBe(1);
+    expect($result->organizationLinksDeactivated)->toBe(0);
     expect(ProcessAction::query()->find($duplicate->id))->toBeNull();
     expect(ProcessAction::query()->find($canonical->id))->not->toBeNull();
     expect(OrganizationNotification::query()
         ->where('organization_id', $organization->id)
         ->where('notification_type', 'actuacion')
         ->count())->toBe(1);
+});
+
+it('deactivates organization links on phantom instances without deleting the process row', function (): void {
+    $organization = Organization::factory()->create();
+    $processNumber = fake()->unique()->numerify('#######################');
+
+    $richProcess = Process::factory()->create([
+        'process_number' => $processNumber,
+        'court' => 'JUZGADO 034 CIVIL MUNICIPAL DE CALI',
+        'department' => 'VALLE DEL CAUCA',
+        'process_date' => '2023-08-30',
+        'litigants' => 'Demandante: JAIRO ALFONSO LLANOS RUIZ',
+    ]);
+
+    $phantomProcess = Process::factory()->create([
+        'process_number' => $processNumber,
+        'court' => 'JUZGADO 034 CIVIL MUNICIPAL DE CALI',
+        'department' => 'VALLE DEL CAUCA',
+        'process_date' => '2023-08-30',
+        'litigants' => null,
+    ]);
+
+    $richProcess->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+    ]);
+    $phantomProcess->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+        'status' => 'active',
+    ]);
+
+    $result = app(RepairPhantomProcessInstancesService::class)->repairRadicado($processNumber);
+
+    expect($result->phantomInstancesDetected)->toBe(1);
+    expect($result->organizationLinksDeactivated)->toBe(1);
+
+    $this->assertDatabaseHas('organization_processes', [
+        'organization_id' => $organization->id,
+        'process_id' => $richProcess->id,
+        'is_active' => true,
+        'status' => 'active',
+    ]);
+    $this->assertDatabaseHas('organization_processes', [
+        'organization_id' => $organization->id,
+        'process_id' => $phantomProcess->id,
+        'is_active' => false,
+        'status' => 'inactive',
+    ]);
+    expect(Process::query()->find($phantomProcess->id))->not->toBeNull();
 });

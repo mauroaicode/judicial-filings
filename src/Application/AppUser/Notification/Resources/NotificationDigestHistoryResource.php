@@ -69,7 +69,11 @@ class NotificationDigestHistoryResource extends Resource
                 $myId = $item['process_action_id'] ?? $item['id'] ?? null;
 
                 return $myId && $toRemove->contains($myId);
-            })->count();
+            })->sum(function (array $item): int {
+                $linked = $item['notified_action_ids'] ?? [];
+
+                return is_array($linked) && $linked !== [] ? count($linked) : 1;
+            });
         }
 
         return new self(

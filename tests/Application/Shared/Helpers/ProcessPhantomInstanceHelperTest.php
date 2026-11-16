@@ -55,6 +55,34 @@ it('does not treat real multi-instance radicados as phantom when all instances a
     expect(ProcessPhantomInstanceHelper::isLikelyPhantomDuplicate($second, $siblings))->toBeFalse();
 });
 
+it('detects phantom for org tracking even when subjects were propagated', function (): void {
+    $rich = Process::factory()->create([
+        'process_number' => '76001400303420230073501',
+        'court' => 'JUZGADO 034 CIVIL MUNICIPAL DE CALI',
+        'department' => 'VALLE DEL CAUCA',
+        'process_date' => '2023-08-30',
+        'litigants' => 'Demandante: JAIRO ALFONSO LLANOS RUIZ',
+    ]);
+
+    $phantom = Process::factory()->create([
+        'process_number' => '76001400303420230073501',
+        'court' => 'JUZGADO 034 CIVIL MUNICIPAL DE CALI',
+        'department' => 'VALLE DEL CAUCA',
+        'process_date' => '2023-08-30',
+        'litigants' => null,
+    ]);
+
+    $subject = ProcessSubject::factory()->create();
+    $rich->subjects()->attach($subject->id);
+    $phantom->subjects()->attach($subject->id);
+
+    $siblings = Process::query()->where('process_number', '76001400303420230073501')->get();
+
+    expect(ProcessPhantomInstanceHelper::isLikelyPhantomDuplicate($phantom, $siblings))->toBeFalse();
+    expect(ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($phantom, $siblings))->toBeTrue();
+    expect(ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($rich, $siblings))->toBeFalse();
+});
+
 it('prefers the instance with historical actuaciones for Excel import', function (): void {
     $processNumber = '08001400301020998888300';
     Process::query()->where('process_number', $processNumber)->delete();

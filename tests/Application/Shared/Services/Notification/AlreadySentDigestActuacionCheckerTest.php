@@ -217,3 +217,60 @@ it('NotificationDigestService omits already-sent bare fijación from a new conso
     expect($newDigests)->toBe(0);
     Mail::assertNothingSent();
 });
+
+it('does not suppress a second same-day auto after the fijacion and first auto already went out', function (): void {
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create(['process_number' => '76001400302820260129100']);
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $morphClass = (new ProcessAction)->getMorphClass();
+    $regDate = Carbon::parse('2026-11-13');
+
+    $fijacion = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Fijación Estado',
+        'registration_date' => $regDate,
+        'action_date' => $regDate,
+        'cons_action' => 1,
+    ]);
+    $firstAuto = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+        'registration_date' => $regDate,
+        'action_date' => $regDate,
+        'cons_action' => 2,
+    ]);
+    $secondAuto = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+        'registration_date' => $regDate,
+        'action_date' => $regDate,
+        'cons_action' => 3,
+    ]);
+
+    $digest = NotificationDigest::query()->create([
+        'organization_id' => $organization->id,
+        'data' => [],
+        'email_sent_at' => now(),
+    ]);
+
+    foreach ([$fijacion, $firstAuto] as $action) {
+        OrganizationNotification::query()->create([
+            'id' => (string) Str::uuid(),
+            'organization_id' => $organization->id,
+            'notifiable_id' => $action->id,
+            'notifiable_type' => $morphClass,
+            'notification_type' => 'actuacion',
+            'is_viewed' => true,
+            'is_notified' => true,
+            'is_email_notified' => true,
+            'notification_digest_id' => $digest->id,
+        ]);
+    }
+
+    expect(app(AlreadySentDigestActuacionChecker::class)
+        ->wasAlreadyIncludedInSentDigest($organization->id, $secondAuto))->toBeFalse();
+});

@@ -96,8 +96,45 @@ it('lets a leftover same-day auto stay unpaired instead of claiming an old fijac
 
     expect($result['fij-today']['notified_action_id'])->toBe('auto-niega')
         ->and($result['auto-niega']['fijacion_action_id'])->toBe('fij-today')
+        ->and($result['auto-queja']['fijacion_action_id'])->toBe('fij-today')
+        ->and($result['fij-today']['notified_action_ids'])->toEqualCanonicalizing(['auto-niega', 'auto-queja'])
         ->and($result['fij-nov'])->not->toHaveKey('notified_action_id')
-        ->and($result['auto-queja'])->not->toHaveKey('fijacion_action_id');
+        ->and($result['fij-nov'])->not->toHaveKey('notified_action_ids');
+});
+
+it('attaches every same-day auto to the fijacion so one estado covers several decisions', function (): void {
+    $fijacion = groupProcessActionsPairingRow([
+        'process_action_id' => 'fij-1',
+        'action' => 'Fijación Estado',
+        'action_text' => 'Fijación Estado',
+        'cons_action' => 1,
+        'registration_date_iso' => '2026-11-13',
+        'action_date_iso' => '2026-11-13',
+    ]);
+    $autoMandamiento = groupProcessActionsPairingRow([
+        'process_action_id' => 'auto-3926',
+        'action' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+        'action_text' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+        'cons_action' => 2,
+        'registration_date_iso' => '2026-11-13',
+        'action_date_iso' => '2026-11-13',
+    ]);
+    $autoMedida = groupProcessActionsPairingRow([
+        'process_action_id' => 'auto-3927',
+        'action' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+        'action_text' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+        'cons_action' => 3,
+        'registration_date_iso' => '2026-11-13',
+        'action_date_iso' => '2026-11-13',
+    ]);
+
+    $result = app(GroupProcessActionsService::class)
+        ->handle(collect([$autoMedida, $autoMandamiento, $fijacion]))
+        ->keyBy('process_action_id');
+
+    expect($result['auto-3926']['fijacion_action_id'])->toBe('fij-1')
+        ->and($result['auto-3927']['fijacion_action_id'])->toBe('fij-1')
+        ->and($result['fij-1']['notified_action_ids'])->toEqualCanonicalizing(['auto-3926', 'auto-3927']);
 });
 
 it('pairs using spanish formatted dates from consolidado rows', function (): void {
@@ -174,5 +211,7 @@ it('prefers the auto whose text appears in the fijacion annotation', function ()
         ->handle(collect([$fijacion, $autoNiega, $autoQueja]))
         ->keyBy('process_action_id');
 
-    expect($result['fij-1']['notified_action_id'])->toBe('auto-queja');
+    expect($result['fij-1']['notified_action_id'])->toBe('auto-queja')
+        ->and($result['auto-queja']['fijacion_action_id'])->toBe('fij-1')
+        ->and($result['auto-niega']['fijacion_action_id'])->toBe('fij-1');
 });

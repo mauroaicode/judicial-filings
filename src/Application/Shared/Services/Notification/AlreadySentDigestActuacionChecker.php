@@ -166,6 +166,10 @@ readonly class AlreadySentDigestActuacionChecker
             return true;
         }
 
+        if (! $pendingEstadoOnly && ! $this->isCombinedEstadoDecision($pendingText)) {
+            return false;
+        }
+
         $pendingRow = $this->toPairingRow($pending);
         $sentRow = $this->toPairingRow($sent);
         $tagged = $this->groupProcessActionsService->handle(collect([$pendingRow, $sentRow]));

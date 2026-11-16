@@ -1206,7 +1206,17 @@ class ProcessSyncService
                     $process = $placeholder->fresh() ?? $placeholder;
                 } else {
                     $process = $this->createProcessFromApi($apiProceso);
-                    $this->linkOrganizationsToNewProcess($process);
+                    if ($this->shouldLinkOrganizationsToDiscoveredProcess($process)) {
+                        $this->linkOrganizationsToNewProcess($process);
+                    } else {
+                        Log::channel(config('judicial-sync.log_channel', 'judicial_sync_notifications'))
+                            ->info('ProcessSyncService: skipped org-link for likely phantom instance', [
+                                'process_id' => $process->id,
+                                'process_number' => $process->process_number,
+                                'rama_process_id' => $process->process_id,
+                            ]);
+                    }
+
                     $created++;
                 }
             } else {
@@ -1517,6 +1527,15 @@ class ProcessSyncService
             ->all();
 
         foreach ($processes as $process) {
+            if (ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($process, $processes)) {
+                Log::channel($logChannel)->info('ProcessSyncService: skipped subject propagation to phantom instance', [
+                    'process_id' => $process->id,
+                    'process_number' => $process->process_number,
+                ]);
+
+                continue;
+            }
+
             $subjects = $process->subjects()->get();
             $detachIds = [];
 
@@ -1550,6 +1569,15 @@ class ProcessSyncService
                 ]);
             }
         }
+    }
+
+    private function shouldLinkOrganizationsToDiscoveredProcess(Process $process): bool
+    {
+        $siblings = Process::query()
+            ->where('process_number', $process->process_number)
+            ->get();
+
+        return ! ProcessPhantomInstanceHelper::isLikelyPhantomForOrganizationTracking($process, $siblings);
     }
 
     /**

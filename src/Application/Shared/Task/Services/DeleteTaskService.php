@@ -7,7 +7,6 @@ namespace Src\Application\Shared\Task\Services;
 use Illuminate\Support\Facades\DB;
 use Src\Application\Shared\Process\Services\ActivateOrganizationProcessService;
 use Src\Domain\Process\Enums\ProcessTimelineEventType;
-use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
 
 class DeleteTaskService
@@ -40,9 +39,7 @@ class DeleteTaskService
 
     private function reactivateProcessIfSuspension(Task $task): void
     {
-        $type = $task->type instanceof TaskType ? $task->type : null;
-
-        if (! $type?->pausesProcess() || ! $task->process_id) {
+        if (! $task->type->pausesProcess() || ! $task->process_id) {
             return;
         }
 

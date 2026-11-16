@@ -19,10 +19,12 @@ readonly class ActivateOrganizationProcessService
     public function __construct(
         private ProcessTimelineRecorder $timelineRecorder,
         private OrganizationProcessQuotaService $organizationProcessQuotaService,
+        private ResolveOrganizationProcessIdsForRadicadoService $resolveOrganizationProcessIdsForRadicadoService,
     ) {}
 
     /**
-     * Mark the organization–process relationship as active again.
+     * Resume inactivity tracking for the selected process and every paused
+     * sibling instance of the same radicado linked to the organization.
      */
     public function handle(
         string $organizationId,
@@ -30,22 +32,44 @@ readonly class ActivateOrganizationProcessService
         ?Task $cause = null,
         string $reason = 'suspension_ended',
     ): void {
+        $processIds = $this->resolveOrganizationProcessIdsForRadicadoService->handle(
+            $organizationId,
+            [$processId],
+        );
+
+        if ($processIds === []) {
+            throw ValidationException::withMessages([
+                'process_id' => [__('process.relationship_not_found')],
+            ]);
+        }
+
+        foreach ($processIds as $siblingProcessId) {
+            $this->resumeSingle($organizationId, $siblingProcessId, $cause, $reason);
+        }
+    }
+
+    private function resumeSingle(
+        string $organizationId,
+        string $processId,
+        ?Task $cause,
+        string $reason,
+    ): void {
         $organizationProcess = OrganizationProcess::query()
             ->where('organization_id', $organizationId)
             ->where('process_id', $processId)
             ->first();
 
         if (! $organizationProcess instanceof OrganizationProcess) {
-            throw ValidationException::withMessages([
-                'process_id' => [__('process.relationship_not_found')],
-            ]);
+            return;
         }
 
         $previousStatus = OrganizationProcessStatus::fromPivot($organizationProcess);
 
-        if ($previousStatus !== OrganizationProcessStatus::ACTIVE) {
-            $this->organizationProcessQuotaService->assertCanActivateProcess($organizationId, $processId);
+        if (! $previousStatus->isPaused()) {
+            return;
         }
+
+        $this->organizationProcessQuotaService->assertCanActivateProcess($organizationId, $processId);
 
         OrganizationProcess::query()
             ->where('organization_id', $organizationId)
@@ -55,10 +79,6 @@ readonly class ActivateOrganizationProcessService
                 'is_active' => true,
                 'updated_at' => now(),
             ]);
-
-        if (! $previousStatus->isPaused()) {
-            return;
-        }
 
         $process = $organizationProcess->process;
         $causeKey = $cause->id ?? now()->format('U.u');
@@ -72,6 +92,7 @@ readonly class ActivateOrganizationProcessService
                 'to' => ['status' => OrganizationProcessStatus::ACTIVE->value],
                 'reason' => $reason,
                 'semaphore_paused' => false,
+                'expanded_to_radicado_instances' => true,
             ],
             organizationId: $organizationId,
             subjectType: $cause instanceof Task ? 'task' : null,

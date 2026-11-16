@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\Shared\Process\Services\ActivateOrganizationProcessService;
 use Src\Domain\Process\Enums\ProcessTimelineEventType;
 use Src\Domain\Task\Enums\TaskStatus;
-use Src\Domain\Task\Enums\TaskType;
 use Src\Domain\Task\Models\Task;
 
 class UpdateTaskStatusService
@@ -58,9 +57,7 @@ class UpdateTaskStatusService
             return;
         }
 
-        $type = $task->type instanceof TaskType ? $task->type : null;
-
-        if (! $type?->pausesProcess() || ! $task->process_id) {
+        if (! $task->type->pausesProcess() || ! $task->process_id) {
             return;
         }
 

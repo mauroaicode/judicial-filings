@@ -25,7 +25,7 @@ readonly class AdminOrganizationJudicialSyncService
             return AdminOrganizationJudicialSyncResource::noJobs($organization, $radicado);
         }
 
-        QueueOrganizationJudicialSyncJob::dispatch($organization->id, $radicado);
+        dispatch(new QueueOrganizationJudicialSyncJob($organization->id, $radicado));
 
         return AdminOrganizationJudicialSyncResource::fromDispatch($organization, $radicado, $jobsCount);
     }

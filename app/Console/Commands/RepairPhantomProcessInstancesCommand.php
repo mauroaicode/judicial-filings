@@ -17,7 +17,7 @@ class RepairPhantomProcessInstancesCommand extends Command
                             {--force : Skip confirmation when using --all without --dry-run}
                             {--dry-run : Preview changes without writing}';
 
-    protected $description = 'Remove duplicate actuaciones and notifications caused by phantom Rama Judicial folders for the same radicado.';
+    protected $description = 'Remove duplicate actuaciones/notifications and deactivate org tracking on phantom Rama Judicial folders for the same radicado.';
 
     public function handle(RepairPhantomProcessInstancesService $service): int
     {
@@ -66,12 +66,18 @@ class RepairPhantomProcessInstancesCommand extends Command
         $totalActions = 0;
         $totalNotifications = 0;
         $totalPhantoms = 0;
+        $totalOrgLinks = 0;
         $affectedRadicados = 0;
 
         foreach ($radicados as $processNumber) {
             $result = $service->repairRadicado($processNumber, $dryRun);
 
-            if ($result->actionsRemoved === 0 && $result->notificationsRemoved === 0 && $result->phantomInstancesDetected === 0) {
+            if (
+                $result->actionsRemoved === 0
+                && $result->notificationsRemoved === 0
+                && $result->phantomInstancesDetected === 0
+                && $result->organizationLinksDeactivated === 0
+            ) {
                 continue;
             }
 
@@ -79,24 +85,28 @@ class RepairPhantomProcessInstancesCommand extends Command
             $totalActions += $result->actionsRemoved;
             $totalNotifications += $result->notificationsRemoved;
             $totalPhantoms += $result->phantomInstancesDetected;
+            $totalOrgLinks += $result->organizationLinksDeactivated;
 
             $prefix = $dryRun ? '[would repair]' : '[repaired]';
             $this->line(sprintf(
-                '%s %s — phantom instance(s): %d, actuaciones: %d, notifications: %d',
+                '%s %s — phantom instance(s): %d, actuaciones: %d, notifications: %d, org links deactivated: %d',
                 $prefix,
                 $processNumber,
                 $result->phantomInstancesDetected,
                 $result->actionsRemoved,
                 $result->notificationsRemoved,
+                $result->organizationLinksDeactivated,
             ));
         }
 
         $this->newLine();
         $actionLabel = $dryRun ? 'Would remove' : 'Removed';
+        $linkLabel = $dryRun ? 'Would deactivate' : 'Deactivated';
         $this->info("Affected radicados: {$affectedRadicados}");
         $this->info("Phantom instances detected (metadata): {$totalPhantoms}");
         $this->info("{$actionLabel} duplicate actuacion(es): {$totalActions}");
         $this->info("{$actionLabel} duplicate notification(s): {$totalNotifications}");
+        $this->info("{$linkLabel} organization link(s) on phantoms: {$totalOrgLinks}");
 
         return self::SUCCESS;
     }

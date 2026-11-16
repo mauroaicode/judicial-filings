@@ -14,9 +14,10 @@ class GroupProcessActionsService
     /**
      * Pair fijaciones with their corresponding autos.
      *
-     * A pair is only valid on the same calendar day. When several autos share
-     * one fijación (Excel “Fijación Estado Auto …” split), leftover autos stay
-     * unpaired instead of claiming an older fijación.
+     * A pair is only valid on the same calendar day. Exclusive 1-to-1 matching
+     * runs first (annotation, then cons_action). Leftover same-day autos then
+     * attach to that day's fijación so one estado can cover several autos.
+     * Leftover autos never claim a fijación from another day.
      *
      * @param  Collection  $actions  The actions to pair and return.
      * @param  Collection|null  $context  Extra actions used only as pairing context (not returned).
@@ -31,6 +32,7 @@ class GroupProcessActionsService
 
             $this->processPairing($data, $count, true);
             $this->processPairing($data, $count, false);
+            $this->attachLeftoverSameDayAutos($data, $count);
 
             $primaryCount = $actions->count();
             $primary = array_slice($data, 0, $primaryCount);
@@ -43,6 +45,7 @@ class GroupProcessActionsService
 
         $this->processPairing($data, $count, true);
         $this->processPairing($data, $count, false);
+        $this->attachLeftoverSameDayAutos($data, $count);
 
         return collect($data);
     }
@@ -96,10 +99,87 @@ class GroupProcessActionsService
             $autoId = $data[$bestIndex]['process_action_id'] ?? $data[$bestIndex]['id'] ?? null;
 
             if ($fijId && $autoId) {
-                $data[$i]['notified_action_id'] = $autoId;
-                $data[$bestIndex]['fijacion_action_id'] = $fijId;
+                $this->linkFijacionToAuto($data[$i], $data[$bestIndex], $fijId, $autoId);
             }
         }
+    }
+
+    /**
+     * After exclusive pairs, bind leftover same-day autos to that day's fijación.
+     *
+     * @param  array<int, array<string, mixed>>  $data
+     */
+    private function attachLeftoverSameDayAutos(array &$data, int $count): void
+    {
+        for ($j = 0; $j < $count; $j++) {
+            if (isset($data[$j]['fijacion_action_id'])) {
+                continue;
+            }
+
+            if ($this->isFijacion($data[$j])) {
+                continue;
+            }
+
+            $otherText = strtolower((string) ($data[$j]['action_text'] ?? $data[$j]['action'] ?? ''));
+            if (! $this->looksLikeLinkedDecision($otherText)) {
+                continue;
+            }
+
+            $bestIndex = null;
+            $bestScore = null;
+
+            for ($i = 0; $i < $count; $i++) {
+                if ($i === $j) {
+                    continue;
+                }
+
+                if (! $this->isFijacion($data[$i])) {
+                    continue;
+                }
+
+                if (! $this->isEligiblePair($data[$i], $data[$j])) {
+                    continue;
+                }
+
+                $score = $this->pairScore($data[$i], $data[$j]);
+                if ($bestScore === null || $score > $bestScore) {
+                    $bestScore = $score;
+                    $bestIndex = $i;
+                }
+            }
+
+            if ($bestIndex === null) {
+                continue;
+            }
+
+            $fijId = $data[$bestIndex]['process_action_id'] ?? $data[$bestIndex]['id'] ?? null;
+            $autoId = $data[$j]['process_action_id'] ?? $data[$j]['id'] ?? null;
+
+            if ($fijId && $autoId) {
+                $this->linkFijacionToAuto($data[$bestIndex], $data[$j], (string) $fijId, (string) $autoId);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $fijacion
+     * @param  array<string, mixed>  $auto
+     */
+    private function linkFijacionToAuto(array &$fijacion, array &$auto, string $fijId, string $autoId): void
+    {
+        $auto['fijacion_action_id'] = $fijId;
+
+        $ids = $fijacion['notified_action_ids'] ?? [];
+        if (! is_array($ids)) {
+            $ids = [];
+        }
+
+        if (! in_array($autoId, $ids, true)) {
+            $ids[] = $autoId;
+        }
+
+        $fijacion['notified_action_ids'] = $ids;
+        $fijacion['notified_action_id'] ??= $autoId;
     }
 
     private function isHighPriorityFijacion(array $action): bool
