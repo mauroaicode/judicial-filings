@@ -46,22 +46,22 @@ return [
 
     'due_reminder_email_page_title' => 'Recordatorio de vencimiento de tarea',
     'due_reminder_email_task_details' => 'Detalle de la tarea',
-    'due_reminder_email_days_remaining' => 'Días restantes',
-    'due_reminder_badge' => ':days días restantes',
+    'due_reminder_email_days_remaining' => 'Días hábiles restantes',
+    'due_reminder_badge' => ':days días hábiles restantes',
     'due_reminder_badge_today' => 'Vence hoy',
 
-    'due_reminder_email_subject' => 'Le quedan :days días — :title',
+    'due_reminder_email_subject' => 'Le quedan :days días hábiles — :title',
     'due_reminder_email_subject_today' => 'Su tarea vence hoy — :title',
-    'due_reminder_email_headline' => 'Le quedan :days días para cumplir esta tarea',
+    'due_reminder_email_headline' => 'Le quedan :days días hábiles para cumplir esta tarea',
     'due_reminder_email_headline_today' => 'Su tarea vence hoy',
-    'due_reminder_email_body' => 'La tarea «:title» vence en :days días. Recuerde marcarla como cumplida una vez finalizada.',
+    'due_reminder_email_body' => 'La tarea «:title» vence en :days días hábiles. Recuerde marcarla como cumplida una vez finalizada.',
     'due_reminder_email_body_today' => 'La tarea «:title» vence hoy. Recuerde marcarla como cumplida una vez finalizada.',
 
-    'due_reminder_internal_title' => 'Vencimiento en :days días',
+    'due_reminder_internal_title' => 'Vencimiento en :days días hábiles',
     'due_reminder_internal_title_today' => 'Tarea vence hoy',
-    'due_reminder_internal_description' => '«:title» (Radicado: :process) vence en :days días.',
+    'due_reminder_internal_description' => '«:title» (Radicado: :process) vence en :days días hábiles.',
     'due_reminder_internal_description_today' => '«:title» (Radicado: :process) vence hoy.',
 
-    'due_reminder_sms_message' => 'Vencimiento: :title — :days días restantes. Ver: :url',
-    'due_reminder_whatsapp_message' => 'Vencimiento: :title — :days días restantes. Ver: :url',
+    'due_reminder_sms_message' => 'Vencimiento: :title — :days días hábiles restantes. Ver: :url',
+    'due_reminder_whatsapp_message' => 'Vencimiento: :title — :days días hábiles restantes. Ver: :url',
 ];

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Hash;
+use Src\Domain\CourtDirectory\Models\CourtDirectoryEntry;
 use Src\Domain\Organization\Models\Organization;
 use Src\Domain\OrganizationProcess\Enums\OrganizationProcessStatus;
 use Src\Domain\Process\Models\Process;
@@ -238,4 +239,24 @@ it('returns 404 when updating a missing process', function (): void {
             'court' => 'Juzgado Civil',
         ])
         ->assertStatus(404);
+});
+
+it('includes the desk emails on the admin process detail', function (): void {
+    $process = Process::factory()->create([
+        'process_number' => '76001999900120240000100',
+    ]);
+
+    CourtDirectoryEntry::factory()->create([
+        'email' => 'despacho-admin-test@cendoj.ramajudicial.gov.co',
+        'name' => 'Juzgado de prueba',
+        'desk_code' => '760019999001',
+        'city' => 'Cali',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson("/api/admin/processes/{$process->id}")
+        ->assertOk()
+        ->assertJsonPath('court_directory.desk_code', '760019999001')
+        ->assertJsonPath('court_directory.entries.0.email', 'despacho-admin-test@cendoj.ramajudicial.gov.co');
 });

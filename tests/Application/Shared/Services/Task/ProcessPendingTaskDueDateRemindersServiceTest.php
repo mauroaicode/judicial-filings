@@ -17,7 +17,7 @@ use Src\Domain\Process\Models\Process;
 use Src\Domain\Task\Models\Task;
 
 beforeEach(function (): void {
-    Carbon::setTestNow('2026-06-14 08:00:00');
+    Carbon::setTestNow('2026-03-13 08:00:00'); // Friday, holiday-free week
     Notification::fake();
 
     $this->organization = Organization::factory()->create([
@@ -59,7 +59,7 @@ it('sends daily due-date countdown when within reminder_days', function (): void
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
         'process_id' => $this->process->id,
-        'due_date' => '2026-06-17',
+        'due_date' => '2026-03-18',
         'reminder_days' => 3,
     ]);
 
@@ -70,7 +70,7 @@ it('sends daily due-date countdown when within reminder_days', function (): void
     expect($secondRun['notified'])->toBe(0);
 
     $task->refresh();
-    expect($task->last_due_reminder_sent_on?->toDateString())->toBe('2026-06-14');
+    expect($task->last_due_reminder_sent_on?->toDateString())->toBe('2026-03-13');
 
     Notification::assertSentTo($this->appUser, TaskDueDateReminderInternalNotification::class);
     Notification::assertSentOnDemand(TaskDueDateReminderMailNotification::class);
@@ -87,9 +87,9 @@ it('sends daily due-date countdown when within reminder_days', function (): void
 it('sends again on the next day with updated days remaining', function (): void {
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
-        'due_date' => '2026-06-16',
+        'due_date' => '2026-03-16',
         'reminder_days' => 3,
-        'last_due_reminder_sent_on' => '2026-06-13',
+        'last_due_reminder_sent_on' => '2026-03-12',
     ]);
 
     OrganizationNotification::query()->create([
@@ -104,12 +104,12 @@ it('sends again on the next day with updated days remaining', function (): void 
         'notified_at' => now()->subDay(),
     ]);
 
-    Carbon::setTestNow('2026-06-14 08:00:00');
+    Carbon::setTestNow('2026-03-13 08:00:00');
 
     $result = $this->service->handle($this->organization->id);
 
     expect($result['notified'])->toBe(1);
-    expect($task->fresh()->last_due_reminder_sent_on?->toDateString())->toBe('2026-06-14');
+    expect($task->fresh()->last_due_reminder_sent_on?->toDateString())->toBe('2026-03-13');
 
     $notification = OrganizationNotification::query()
         ->where('notifiable_id', $task->id)
@@ -117,14 +117,15 @@ it('sends again on the next day with updated days remaining', function (): void 
         ->first();
 
     expect($notification)->not->toBeNull();
-    expect($notification->severity_color)->toBe('2');
+    // Friday → Monday = 1 business day remaining
+    expect($notification->severity_color)->toBe('1');
     expect($notification->is_viewed)->toBeFalse();
 });
 
 it('does not fail when organization notification already exists for the same task', function (): void {
     $task = Task::factory()->create([
         'organization_id' => $this->organization->id,
-        'due_date' => '2026-06-14',
+        'due_date' => '2026-03-13',
         'reminder_days' => 0,
         'last_due_reminder_sent_on' => null,
     ]);
@@ -150,7 +151,7 @@ it('does not fail when organization notification already exists for the same tas
 it('does not send due reminders after due date', function (): void {
     Task::factory()->create([
         'organization_id' => $this->organization->id,
-        'due_date' => '2026-06-10',
+        'due_date' => '2026-03-10',
         'reminder_days' => 3,
     ]);
 

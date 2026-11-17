@@ -27,7 +27,8 @@ final class TaskUrgencyHelper
     }
 
     /**
-     * Days past the due date (0 = due today or not yet due, positive = overdue).
+     * Calendar days past the due date (0 = due today or not yet due, positive = overdue).
+     * Urgency thresholds stay on calendar days; Agenda reminders use business days.
      */
     public static function daysOverdue(?CarbonInterface $dueDate): int
     {
@@ -35,7 +36,7 @@ final class TaskUrgencyHelper
             return 0;
         }
 
-        $daysUntilDue = TaskDueDateReminderHelper::daysUntilDue($dueDate);
+        $daysUntilDue = (int) today()->startOfDay()->diffInDays($dueDate->copy()->startOfDay(), false);
 
         return max(0, -$daysUntilDue);
     }

@@ -122,7 +122,7 @@ return [
     'term_end_date' => 'Fecha finaliza término',
     'registration_date' => 'Fecha de registro',
     'due_date' => 'Fecha de vencimiento',
-    'reminder_days' => 'Días de recordatorio',
+    'reminder_days' => 'Días hábiles de recordatorio',
     'type' => 'Tipo',
     'all' => 'Todos',
     'process_ids' => 'IDs de procesos',

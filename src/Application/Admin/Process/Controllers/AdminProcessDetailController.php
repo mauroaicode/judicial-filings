@@ -6,14 +6,18 @@ namespace Src\Application\Admin\Process\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Src\Application\Admin\Process\Data\UpdateAdminProcessData;
 use Src\Application\Admin\Process\Resources\AdminProcessOrganizationResource;
 use Src\Application\Admin\Process\Resources\AdminProcessSubjectResource;
 use Src\Application\Admin\Process\Services\AdminProcessDetailService;
 use Src\Application\Admin\Process\Services\UpdateAdminProcessService;
+use Src\Application\Shared\CourtDirectory\Resources\CourtDirectoryEntryResource;
+use Src\Application\Shared\CourtDirectory\Services\FindCourtDirectoryByDeskCodeService;
 use Src\Application\Shared\Helpers\ProcessSubjectIdentityHelper;
 use Src\Application\Shared\Helpers\ProcessSubjectSummaryHelper;
 use Src\Application\Shared\Process\Resources\ProcessDetailResource;
+use Src\Domain\CourtDirectory\Models\CourtDirectoryEntry;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
 
@@ -22,6 +26,7 @@ readonly class AdminProcessDetailController
     public function __construct(
         private AdminProcessDetailService $adminProcessDetailService,
         private UpdateAdminProcessService $updateAdminProcessService,
+        private FindCourtDirectoryByDeskCodeService $findCourtDirectoryByDeskCodeService,
     ) {}
 
     /**
@@ -108,6 +113,7 @@ readonly class AdminProcessDetailController
                 'count' => $organizationItems->count(),
                 'items' => $organizationItems->all(),
             ],
+            'court_directory' => $this->courtDirectory($process),
         ]);
     }
 
@@ -147,5 +153,31 @@ readonly class AdminProcessDetailController
             'message' => __('process.updated_successfully'),
             'process' => $processPayload,
         ]);
+    }
+
+    /**
+     * @return array{desk_code: string|null, entries: list<array<string, mixed>>}
+     */
+    private function courtDirectory(Process $process): array
+    {
+        $digits = preg_replace('/\D/', '', (string) $process->process_number) ?? '';
+        $deskCode = strlen($digits) >= 12 ? substr($digits, 0, 12) : null;
+
+        try {
+            $entries = $this->findCourtDirectoryByDeskCodeService->handle((string) $process->process_number);
+        } catch (ValidationException) {
+            return [
+                'desk_code' => null,
+                'entries' => [],
+            ];
+        }
+
+        return [
+            'desk_code' => $deskCode,
+            'entries' => $entries
+                ->map(fn (CourtDirectoryEntry $entry): array => CourtDirectoryEntryResource::fromModel($entry)->toArray())
+                ->values()
+                ->all(),
+        ];
     }
 }

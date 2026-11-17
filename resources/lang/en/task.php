@@ -46,22 +46,22 @@ return [
 
     'due_reminder_email_page_title' => 'Task due date reminder',
     'due_reminder_email_task_details' => 'Task details',
-    'due_reminder_email_days_remaining' => 'Days remaining',
-    'due_reminder_badge' => ':days days remaining',
+    'due_reminder_email_days_remaining' => 'Business days remaining',
+    'due_reminder_badge' => ':days business days remaining',
     'due_reminder_badge_today' => 'Due today',
 
-    'due_reminder_email_subject' => ':days days left — :title',
+    'due_reminder_email_subject' => ':days business days left — :title',
     'due_reminder_email_subject_today' => 'Your task is due today — :title',
-    'due_reminder_email_headline' => 'You have :days days left to complete this task',
+    'due_reminder_email_headline' => 'You have :days business days left to complete this task',
     'due_reminder_email_headline_today' => 'Your task is due today',
-    'due_reminder_email_body' => 'Task «:title» is due in :days days. Remember to mark it as completed when done.',
+    'due_reminder_email_body' => 'Task «:title» is due in :days business days. Remember to mark it as completed when done.',
     'due_reminder_email_body_today' => 'Task «:title» is due today. Remember to mark it as completed when done.',
 
-    'due_reminder_internal_title' => 'Due in :days days',
+    'due_reminder_internal_title' => 'Due in :days business days',
     'due_reminder_internal_title_today' => 'Task due today',
-    'due_reminder_internal_description' => '«:title» (Filing: :process) is due in :days days.',
+    'due_reminder_internal_description' => '«:title» (Filing: :process) is due in :days business days.',
     'due_reminder_internal_description_today' => '«:title» (Filing: :process) is due today.',
 
-    'due_reminder_sms_message' => 'Due: :title — :days days left. View: :url',
-    'due_reminder_whatsapp_message' => 'Due: :title — :days days left. View: :url',
+    'due_reminder_sms_message' => 'Due: :title — :days business days left. View: :url',
+    'due_reminder_whatsapp_message' => 'Due: :title — :days business days left. View: :url',
 ];

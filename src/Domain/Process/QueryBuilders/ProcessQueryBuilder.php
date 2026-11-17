@@ -346,6 +346,7 @@ class ProcessQueryBuilder extends Builder
         $this->applyProcessClassFilter($data->process_class);
         $this->applyPlaintiffFilter($data->plaintiff);
         $this->applyDefendantFilter($data->defendant);
+        $this->applyOtherSubjectsFilter($data->other_subjects);
         $this->applyOrganizationFilter($data->organization);
         $this->applyOrganizationIdFilter($data->organization_id);
         $this->applyCreatedAtFilter($data->created_at, $data->created_at_from, $data->created_at_to);
@@ -387,7 +388,7 @@ class ProcessQueryBuilder extends Builder
     }
 
     /**
-     * Apply process class filter.
+     * Apply process class filter (each word must appear, order-independent).
      */
     private function applyProcessClassFilter(?string $processClass): void
     {
@@ -395,57 +396,134 @@ class ProcessQueryBuilder extends Builder
             return;
         }
 
-        $this->where('process_class', 'LIKE', "%{$processClass}%");
+        $this->applyColumnContainsAllTokens('process_class', $processClass);
     }
 
     /**
-     * Apply plaintiff filter (searches in subjects by name or identification).
+     * Apply plaintiff filter (searches in subjects by name tokens or identification).
      */
     private function applyPlaintiffFilter(?string $plaintiff): void
     {
-        if (! $plaintiff) {
-            return;
-        }
-
-        $this->whereHas('subjects', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($plaintiff): void {
-            $query->where('subject_type', 'Demandante')
-                ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQuery) use ($plaintiff): void {
-                    $subQuery->where('name_or_business_name', 'LIKE', "%{$plaintiff}%")
-                        ->orWhere('identification', 'LIKE', "%{$plaintiff}%");
-                });
-        });
+        $this->applySubjectNameFilter('Demandante', $plaintiff);
     }
 
     /**
-     * Apply defendant filter (searches in subjects by name or identification).
+     * Apply defendant filter (searches in subjects by name tokens or identification).
      */
     private function applyDefendantFilter(?string $defendant): void
     {
-        if (! $defendant) {
+        $this->applySubjectNameFilter('Demandado', $defendant);
+    }
+
+    /**
+     * Apply other-subjects filter (subjects that are neither plaintiff nor defendant).
+     * Name match: every search word must appear (order-independent).
+     * Identification match: full term.
+     */
+    private function applyOtherSubjectsFilter(?string $term): void
+    {
+        $tokens = $this->searchTokens($term);
+        if ($tokens === [] || $term === null) {
             return;
         }
 
-        $this->whereHas('subjects', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($defendant): void {
-            $query->where('subject_type', 'Demandado')
-                ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQuery) use ($defendant): void {
-                    $subQuery->where('name_or_business_name', 'LIKE', "%{$defendant}%")
-                        ->orWhere('identification', 'LIKE', "%{$defendant}%");
+        $trimmed = trim($term);
+
+        $this->whereHas('subjects', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($tokens, $trimmed): void {
+            $query->whereRaw("UPPER(subject_type) NOT LIKE '%DEMANDANTE%'")
+                ->whereRaw("UPPER(subject_type) NOT LIKE '%DEMANDADO%'")
+                ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQuery) use ($tokens, $trimmed): void {
+                    $subQuery->where(function (\Illuminate\Contracts\Database\Query\Builder $nameQuery) use ($tokens): void {
+                        $this->applyTokensToQueryColumn($nameQuery, 'name_or_business_name', $tokens);
+                    })->orWhere('identification', 'LIKE', "%{$trimmed}%");
                 });
         });
     }
 
     /**
-     * Apply organization filter (searches in organizations by name).
+     * Apply organization filter (each word must appear in the name, order-independent).
      */
     private function applyOrganizationFilter(?string $organization): void
     {
-        if (! $organization) {
+        $tokens = $this->searchTokens($organization);
+        if ($tokens === []) {
             return;
         }
 
-        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($organization): void {
-            $query->where('organizations.name', 'LIKE', "%{$organization}%");
+        $this->whereHas('organizations', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($tokens): void {
+            $this->applyTokensToQueryColumn($query, 'organizations.name', $tokens);
         });
+    }
+
+    /**
+     * Filter by process subject name/identification.
+     * Name match: every search word must appear (e.g. "Stefany Cadavid" matches "Stefany Cuatin Cadavid").
+     * Identification match: full term (useful for document numbers).
+     */
+    private function applySubjectNameFilter(string $subjectType, ?string $term): void
+    {
+        $tokens = $this->searchTokens($term);
+        if ($tokens === [] || $term === null) {
+            return;
+        }
+
+        $trimmed = trim($term);
+
+        $this->whereHas('subjects', function (\Illuminate\Contracts\Database\Query\Builder $query) use ($subjectType, $tokens, $trimmed): void {
+            $query->where('subject_type', $subjectType)
+                ->where(function (\Illuminate\Contracts\Database\Query\Builder $subQuery) use ($tokens, $trimmed): void {
+                    $subQuery->where(function (\Illuminate\Contracts\Database\Query\Builder $nameQuery) use ($tokens): void {
+                        $this->applyTokensToQueryColumn($nameQuery, 'name_or_business_name', $tokens);
+                    })->orWhere('identification', 'LIKE', "%{$trimmed}%");
+                });
+        });
+    }
+
+    /**
+     * Apply AND of LIKE %token% constraints on a column of this query builder.
+     */
+    private function applyColumnContainsAllTokens(string $column, string $term): void
+    {
+        $tokens = $this->searchTokens($term);
+        if ($tokens === []) {
+            return;
+        }
+
+        $this->applyTokensToQueryColumn($this, $column, $tokens);
+    }
+
+    /**
+     * @param  list<string>  $tokens
+     */
+    private function applyTokensToQueryColumn(\Illuminate\Contracts\Database\Query\Builder $query, string $column, array $tokens): void
+    {
+        foreach ($tokens as $token) {
+            $query->where($column, 'LIKE', "%{$token}%");
+        }
+    }
+
+    /**
+     * Split a search term into non-empty words.
+     *
+     * @return list<string>
+     */
+    private function searchTokens(?string $term): array
+    {
+        if ($term === null) {
+            return [];
+        }
+
+        $trimmed = trim($term);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $parts = preg_split('/\s+/u', $trimmed);
+        if ($parts === false) {
+            return [];
+        }
+
+        return array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
     }
 
     /**

@@ -20,6 +20,8 @@ class ProcessFilterData extends Data
         public ?string $process_class = null,
         public ?string $plaintiff = null,
         public ?string $defendant = null,
+        /** Partial match on other subjects (not plaintiff/defendant). */
+        public ?string $other_subjects = null,
         /** Partial match on organization name (admin / shared lists). */
         public ?string $organization = null,
         /** Exact organization UUID (admin list). */

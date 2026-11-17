@@ -11,17 +11,19 @@ use Src\Domain\Task\Models\Task;
 final class TaskDueDateReminderHelper
 {
     /**
-     * Days remaining until due date (0 = due today, negative = overdue).
+     * Business days remaining until due date (0 = due today, negative = overdue).
+     * Weekends and Colombian public holidays do not count.
      */
     public static function daysUntilDue(CarbonInterface $dueDate): int
     {
-        return (int) today()->startOfDay()->diffInDays($dueDate->copy()->startOfDay(), false);
+        return BusinessDaysHelper::daysUntil($dueDate);
     }
 
     /**
-     * Returns days remaining when a due-date reminder should be sent, or null otherwise.
+     * Returns business days remaining when a due-date reminder should be sent, or null otherwise.
      *
-     * Notifies daily while: 0 <= days_remaining <= reminder_days (configured by user).
+     * Notifies daily while: 0 <= business_days_remaining <= reminder_days (configured by user).
+     * `reminder_days` is interpreted as business days.
      */
     public static function resolveNotifiableDaysRemaining(Task $task): ?int
     {

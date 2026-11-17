@@ -78,4 +78,13 @@ return [
         'samai' => 'SAMAI',
         'tyba' => 'TYBA',
     ],
+    'court_directory_sync_status' => [
+        'running' => 'En curso',
+        'succeeded' => 'Completado',
+        'failed' => 'Fallido',
+    ],
+    'court_directory_sync_trigger' => [
+        'command' => 'Comando',
+        'admin' => 'Administrador',
+    ],
 ];

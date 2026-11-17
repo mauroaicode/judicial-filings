@@ -538,6 +538,105 @@ it('filters processes by organization name', function (): void {
     expect($response->json('data.1.id'))->toBeIn([$process1->id, $process2->id]);
 });
 
+it('filters processes by organization name with non-contiguous tokens', function (): void {
+    $organization1 = Organization::factory()->create(['name' => 'Bufete Victor Hugo Velasco Valencia']);
+    $organization2 = Organization::factory()->create(['name' => 'Empresa Comercial XYZ']);
+
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    $process1->organizations()->attach($organization1->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($organization2->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?organization=Victor%20Velasco');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters admin processes by plaintiff with non-contiguous name tokens', function (): void {
+    $organization = Organization::factory()->create();
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process1)->create([
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'STEFANY CUATIN CADAVID',
+        'identification' => '100200300',
+        'is_cited' => false,
+    ]);
+    ProcessSubject::factory()->forProcess($process2)->create([
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'MARIA LOPEZ',
+        'identification' => '900800700',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?plaintiff=Stefany%20Cadavid');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters admin processes by other_subjects with non-contiguous name tokens', function (): void {
+    $organization = Organization::factory()->create();
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+    $process3 = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process1)->create([
+        'subject_type' => 'Apoderado',
+        'name_or_business_name' => 'VICTOR HUGO VELASCO VALENCIA',
+        'identification' => '111222333',
+        'is_cited' => false,
+    ]);
+    ProcessSubject::factory()->forProcess($process2)->create([
+        'subject_type' => 'Tercero',
+        'name_or_business_name' => 'CARLOS ANDRES MEJIA',
+        'identification' => '444555666',
+        'is_cited' => false,
+    ]);
+    ProcessSubject::factory()->forProcess($process3)->create([
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'VICTOR HUGO VELASCO VALENCIA',
+        'identification' => '777888999',
+        'is_cited' => false,
+    ]);
+
+    foreach ([$process1, $process2, $process3] as $process) {
+        $process->organizations()->attach($organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+        ]);
+    }
+
+    $response = $this->actingAs($this->user)
+        ->getJson('/api/admin/processes?other_subjects=Victor%20Velasco');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
 it('filters processes by organization name with exact match', function (): void {
     $organization1 = Organization::factory()->create(['name' => 'Test Mauricio SAS']);
     $organization2 = Organization::factory()->create(['name' => 'Test Mauricio Gutierrez']);

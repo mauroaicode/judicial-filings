@@ -123,7 +123,7 @@ return [
     'term_end_date' => 'Term end date',
     'registration_date' => 'Registration date',
     'due_date' => 'Due Date',
-    'reminder_days' => 'Reminder Days',
+    'reminder_days' => 'Business Reminder Days',
     'type' => 'Type',
     'all' => 'All',
     'process_ids' => 'Process IDs',

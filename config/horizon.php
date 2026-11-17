@@ -41,6 +41,7 @@ return [
         'redis:exports' => 120,
         'redis:notifications' => 60,
         'redis:presence' => 60,
+        'redis:court-directory' => 180,
     ],
 
     'trim' => [
@@ -182,6 +183,21 @@ return [
             'timeout' => 30,
             'nice' => 0,
         ],
+
+        'supervisor-court-directory' => [
+            'connection' => 'redis',
+            'queue' => ['court-directory'],
+            'balance' => 'simple',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 1,
+            'timeout' => 180,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -226,6 +242,10 @@ return [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],
+            'supervisor-court-directory' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
         ],
 
         'local' => [
@@ -254,6 +274,10 @@ return [
                 'maxProcesses' => 1,
             ],
             'supervisor-presence' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 1,
+            ],
+            'supervisor-court-directory' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 1,
             ],

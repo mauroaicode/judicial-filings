@@ -227,6 +227,101 @@ it('filters processes by process_class', function (): void {
     expect($response->json('data.0.process_class'))->toContain('Reparacion');
 });
 
+it('filters processes by plaintiff with non-contiguous name tokens', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process1)->create([
+        'subject_registration_id' => 12345678,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'STEFANY CUATIN CADAVID',
+        'identification' => '1234567890',
+        'is_cited' => false,
+    ]);
+
+    ProcessSubject::factory()->forProcess($process2)->create([
+        'subject_registration_id' => 87654321,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'MARIA LOPEZ RODRIGUEZ',
+        'identification' => '0987654321',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?plaintiff=Stefany%20Cadavid');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by defendant with non-contiguous company name tokens', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process1)->create([
+        'subject_registration_id' => 11111111,
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA COMERCIAL ABC S.A.S.',
+        'identification' => '9001234567',
+        'is_cited' => false,
+    ]);
+
+    ProcessSubject::factory()->forProcess($process2)->create([
+        'subject_registration_id' => 22222222,
+        'subject_type' => 'Demandado',
+        'name_or_business_name' => 'EMPRESA XYZ LTDA.',
+        'identification' => '9007654321',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?defendant=EMPRESA%20ABC');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by process_class with non-contiguous tokens', function (): void {
+    $process1 = Process::factory()->create(['process_class' => 'EJECUTIVO CON TITULO PRENDARIO']);
+    $process2 = Process::factory()->create(['process_class' => 'ACCION DE TUTELA']);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?process_class=Ejecutivo%20Prendario');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
 it('filters processes by plaintiff', function (): void {
     $process1 = Process::factory()->create();
     $process2 = Process::factory()->create();
@@ -369,6 +464,88 @@ it('filters processes by defendant using identification', function (): void {
 
     $response = $this->actingAs($this->appUser)
         ->getJson('/api/app-user/processes?defendant=9001234567');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by other_subjects with non-contiguous name tokens', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+    $process3 = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process1)->create([
+        'subject_registration_id' => 33333331,
+        'subject_type' => 'Apoderado',
+        'name_or_business_name' => 'VICTOR HUGO VELASCO VALENCIA',
+        'identification' => '111222333',
+        'is_cited' => false,
+    ]);
+
+    ProcessSubject::factory()->forProcess($process2)->create([
+        'subject_registration_id' => 33333332,
+        'subject_type' => 'Tercero',
+        'name_or_business_name' => 'CARLOS ANDRES MEJIA',
+        'identification' => '444555666',
+        'is_cited' => false,
+    ]);
+
+    // Same name tokens but as Demandante — must NOT match other_subjects filter
+    ProcessSubject::factory()->forProcess($process3)->create([
+        'subject_registration_id' => 33333333,
+        'subject_type' => 'Demandante',
+        'name_or_business_name' => 'VICTOR HUGO VELASCO VALENCIA',
+        'identification' => '777888999',
+        'is_cited' => false,
+    ]);
+
+    foreach ([$process1, $process2, $process3] as $process) {
+        $process->organizations()->attach($this->organization->id, [
+            'interest_date' => now()->toDateString(),
+            'is_active' => true,
+        ]);
+    }
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?other_subjects=Victor%20Velasco');
+
+    $response->assertStatus(200);
+    expect($response->json('data'))->toHaveCount(1);
+    expect($response->json('data.0.id'))->toBe($process1->id);
+});
+
+it('filters processes by other_subjects using identification', function (): void {
+    $process1 = Process::factory()->create();
+    $process2 = Process::factory()->create();
+
+    ProcessSubject::factory()->forProcess($process1)->create([
+        'subject_registration_id' => 44444441,
+        'subject_type' => 'Apoderado',
+        'name_or_business_name' => 'ANA MARIA RUIZ',
+        'identification' => '800900100',
+        'is_cited' => false,
+    ]);
+
+    ProcessSubject::factory()->forProcess($process2)->create([
+        'subject_registration_id' => 44444442,
+        'subject_type' => 'Tercero',
+        'name_or_business_name' => 'PEDRO SUAREZ',
+        'identification' => '200300400',
+        'is_cited' => false,
+    ]);
+
+    $process1->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+    $process2->organizations()->attach($this->organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($this->appUser)
+        ->getJson('/api/app-user/processes?other_subjects=800900100');
 
     $response->assertStatus(200);
     expect($response->json('data'))->toHaveCount(1);
