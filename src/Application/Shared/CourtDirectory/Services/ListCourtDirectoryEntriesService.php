@@ -41,25 +41,52 @@ readonly class ListCourtDirectoryEntriesService
         }
 
         if (mb_strlen($search) >= 2) {
-            $like = '%'.$this->escapeLike($search).'%';
-            $digits = preg_replace('/\D/', '', $search) ?? '';
+            $terms = $this->searchTerms($search);
+            if ($terms === []) {
+                $query->whereRaw('0 = 1');
+            }
 
-            $query->where(function (Builder $entries) use ($like, $digits): void {
-                $entries->where('name', 'like', $like)
-                    ->orWhere('city', 'like', $like)
-                    ->orWhere('department', 'like', $like)
-                    ->orWhere('specialty', 'like', $like)
-                    ->orWhere('corporation', 'like', $like)
-                    ->orWhere('email', 'like', $like)
-                    ->orWhere('desk_code', 'like', $like);
+            foreach ($terms as $term) {
+                $like = '%'.$this->escapeLike($term).'%';
+                $digits = preg_replace('/\D/', '', $term) ?? '';
 
-                if (strlen($digits) >= 2) {
-                    $entries->orWhere('desk_code', 'like', '%'.$digits.'%');
-                }
-            });
+                $query->where(function (Builder $entries) use ($like, $digits): void {
+                    $entries->where('name', 'like', $like)
+                        ->orWhere('city', 'like', $like)
+                        ->orWhere('department', 'like', $like)
+                        ->orWhere('specialty', 'like', $like)
+                        ->orWhere('corporation', 'like', $like)
+                        ->orWhere('email', 'like', $like)
+                        ->orWhere('desk_code', 'like', $like);
+
+                    if (strlen($digits) >= 2) {
+                        $entries->orWhere('desk_code', 'like', '%'.$digits.'%');
+                    }
+                });
+            }
         }
 
         return $query->paginate(20);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function searchTerms(string $search): array
+    {
+        $parts = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            return [];
+        }
+
+        $terms = [];
+        foreach ($parts as $part) {
+            if (mb_strlen($part) >= 2) {
+                $terms[] = $part;
+            }
+        }
+
+        return $terms;
     }
 
     private function blankToNull(?string $value): ?string
