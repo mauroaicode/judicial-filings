@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Src\Application\Shared\CourtDirectory\Services;
 
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
+use Src\Application\Shared\CourtDirectory\CourtDirectoryHttpClient;
 use Src\Application\Shared\CourtDirectory\CourtDirectorySyncException;
 use Src\Application\Shared\CourtDirectory\ResolvedCourtDirectoryReport;
 
 readonly class ResolveCourtDirectoryReportService
 {
+    public function __construct(
+        private CourtDirectoryHttpClient $courtDirectoryHttpClient,
+    ) {}
+
     public function handle(): ResolvedCourtDirectoryReport
     {
         $page = $this->get((string) config('court-directory.source_url'));
@@ -59,10 +63,9 @@ readonly class ResolveCourtDirectoryReportService
 
     private function get(string $url): Response
     {
-        $response = Http::timeout((int) config('court-directory.timeout'))
-            ->withUserAgent((string) config('court-directory.user_agent'))
-            ->accept('text/html')
-            ->get($url);
+        $response = $this->courtDirectoryHttpClient->get($url, [
+            'Accept' => 'text/html',
+        ]);
 
         if ($response->failed()) {
             throw new CourtDirectorySyncException("La consulta del directorio respondió {$response->status()}.");

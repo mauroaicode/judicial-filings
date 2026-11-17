@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Src\Application\Shared\CourtDirectory\Services;
 
-use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Src\Application\Shared\CourtDirectory\CourtDirectoryHttpClient;
 use Src\Application\Shared\CourtDirectory\CourtDirectorySyncException;
 use Src\Application\Shared\CourtDirectory\DecodePowerBiDataShape;
 use Src\Application\Shared\CourtDirectory\ResolvedCourtDirectoryReport;
@@ -18,6 +17,7 @@ readonly class FetchCourtDirectoryRowsService
     public function __construct(
         private ResolveCourtDirectoryReportService $resolveCourtDirectoryReportService,
         private DecodePowerBiDataShape $decodePowerBiDataShape,
+        private CourtDirectoryHttpClient $courtDirectoryHttpClient,
     ) {}
 
     /**
@@ -166,7 +166,7 @@ readonly class FetchCourtDirectoryRowsService
      */
     private function getJson(ResolvedCourtDirectoryReport $report, string $url): array
     {
-        return $this->json($this->request($report)->get($url));
+        return $this->json($this->courtDirectoryHttpClient->get($url, $this->headers($report)));
     }
 
     /**
@@ -175,21 +175,22 @@ readonly class FetchCourtDirectoryRowsService
      */
     private function postJson(ResolvedCourtDirectoryReport $report, string $url, array $body): array
     {
-        return $this->json($this->request($report)->post($url, $body));
+        return $this->json($this->courtDirectoryHttpClient->post($url, $body, $this->headers($report)));
     }
 
-    private function request(ResolvedCourtDirectoryReport $report): PendingRequest
+    /**
+     * @return array<string, string>
+     */
+    private function headers(ResolvedCourtDirectoryReport $report): array
     {
         $requestId = (string) Str::uuid();
 
-        return Http::timeout((int) config('court-directory.timeout'))
-            ->withUserAgent((string) config('court-directory.user_agent'))
-            ->acceptJson()
-            ->withHeaders([
-                'ActivityId' => $requestId,
-                'RequestId' => $requestId,
-                'X-PowerBI-ResourceKey' => $report->resourceKey,
-            ]);
+        return [
+            'Accept' => 'application/json',
+            'ActivityId' => $requestId,
+            'RequestId' => $requestId,
+            'X-PowerBI-ResourceKey' => $report->resourceKey,
+        ];
     }
 
     /**

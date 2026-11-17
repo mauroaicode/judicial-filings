@@ -10,7 +10,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | La Rama Judicial publica el directorio dentro de un iframe de Power BI.
-    | Cada sincronización lee esa página para resolver el reporte vigente.
+    | Azure Front Door bloquea la IP del datacenter. Si el proxy residencial
+    | de la Rama está activo (JUDICIAL_BRANCH_PROXY_ENABLED), estas peticiones
+    | salen por ese mismo proxy. No hace falta una variable COURT_DIRECTORY_*.
     |
     */
 
