@@ -135,7 +135,7 @@ readonly class NotificationDigestController
 
                 // 2. Agrupamos las actuaciones para vincular Fijaciones con Autos
                 if (isset($resource['data']) && count($resource['data']) > 0) {
-                    $resource['data'] = $this->groupProcessActionsService->handle(collect($resource['data']))->values()->all();
+                    $resource['data'] = $this->groupProcessActionsService->handleForConsolidado(collect($resource['data']))->values()->all();
                 }
 
                 // 3. Ordenamos por registration_date descendente (más recientes primero)

@@ -54,7 +54,7 @@ class ExportNotificationDigestPdfService
         $rows = is_array($resource['data'] ?? null) ? $resource['data'] : [];
 
         if ($rows !== []) {
-            $rows = $this->groupProcessActionsService->handle(collect($rows))->values()->all();
+            $rows = $this->groupProcessActionsService->handleForConsolidado(collect($rows))->values()->all();
             $rows = $this->collapseClaimedAutos($rows);
             $rows = array_map($this->prepareRowForPdf(...), $rows);
         }

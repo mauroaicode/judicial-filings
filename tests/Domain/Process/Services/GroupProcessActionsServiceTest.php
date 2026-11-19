@@ -137,6 +137,46 @@ it('attaches every same-day auto to the fijacion so one estado covers several de
         ->and($result['fij-1']['notified_action_ids'])->toEqualCanonicalizing(['auto-3926', 'auto-3927']);
 });
 
+it('expands one same-day fijacion and two autos into two consolidado rows', function (): void {
+    $fijacion = groupProcessActionsPairingRow([
+        'process_action_id' => 'fij-1',
+        'action' => 'Fijación Estado',
+        'action_text' => 'Fijación Estado',
+        'cons_action' => 1,
+        'registration_date_iso' => '2026-11-13',
+        'action_date_iso' => '2026-11-13',
+    ]);
+    $autoMandamiento = groupProcessActionsPairingRow([
+        'process_action_id' => 'auto-3926',
+        'action' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+        'action_text' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+        'cons_action' => 2,
+        'registration_date_iso' => '2026-11-13',
+        'action_date_iso' => '2026-11-13',
+    ]);
+    $autoMedida = groupProcessActionsPairingRow([
+        'process_action_id' => 'auto-3927',
+        'action' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+        'action_text' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+        'cons_action' => 3,
+        'registration_date_iso' => '2026-11-13',
+        'action_date_iso' => '2026-11-13',
+    ]);
+
+    $rows = app(GroupProcessActionsService::class)
+        ->handleForConsolidado(collect([$autoMedida, $autoMandamiento, $fijacion]));
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows->every(fn (array $row): bool => ($row['is_merged'] ?? false) === true))->toBeTrue()
+        ->and($rows->pluck('linked_action_text')->implode(' | '))->toContain('Mandamiento')
+        ->and($rows->pluck('linked_action_text')->implode(' | '))->toContain('Medida Cautelar')
+        ->and($rows->contains('process_action_id', 'fij-1'))->toBeTrue()
+        ->and($rows->contains(fn (array $row): bool => ($row['process_action_id'] ?? null) === 'auto-3926'
+            || ($row['notified_action_id'] ?? null) === 'auto-3926'))->toBeTrue()
+        ->and($rows->contains(fn (array $row): bool => ($row['process_action_id'] ?? null) === 'auto-3927'
+            || ($row['notified_action_id'] ?? null) === 'auto-3927'))->toBeTrue();
+});
+
 it('pairs using spanish formatted dates from consolidado rows', function (): void {
     $fijacion = groupProcessActionsPairingRow([
         'process_action_id' => 'fij-es',

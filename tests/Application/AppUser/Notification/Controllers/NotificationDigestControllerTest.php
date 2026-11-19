@@ -208,6 +208,99 @@ it('does not collapse multiple actions of same process in digest details', funct
     expect(count($items))->toBe(2);
 });
 
+it('merges one fijacion with two same-day autos in actuaciones recientes consolidado', function (): void {
+    $process = Process::factory()->create(['process_number' => '76001400302820260129100']);
+    $process->organizations()->attach($this->organization->id, ['interest_date' => now()]);
+
+    $fijacion = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Fijación Estado',
+        'action_date' => '2026-11-13',
+        'registration_date' => '2026-11-13',
+        'cons_action' => 1,
+    ]);
+    $autoMandamiento = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+        'action_date' => '2026-11-13',
+        'registration_date' => '2026-11-13',
+        'cons_action' => 2,
+    ]);
+    $autoMedida = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+        'action_date' => '2026-11-13',
+        'registration_date' => '2026-11-13',
+        'cons_action' => 3,
+    ]);
+
+    $unmergedRows = [
+        [
+            'process_number' => $process->process_number,
+            'process_action_id' => $fijacion->id,
+            'action_text' => 'Fijación Estado',
+            'action_date' => '13/11/2026',
+            'registration_date' => '13/11/2026',
+            'annotation' => '---',
+        ],
+        [
+            'process_number' => $process->process_number,
+            'process_action_id' => $autoMandamiento->id,
+            'action_text' => 'Auto Libra Mandamiento de Pago (auto Interlocutorio N 3926)',
+            'action_date' => '13/11/2026',
+            'registration_date' => '13/11/2026',
+            'annotation' => '---',
+        ],
+        [
+            'process_number' => $process->process_number,
+            'process_action_id' => $autoMedida->id,
+            'action_text' => 'Auto Decreta Medida Cautelar (auto Interlocutorio N 3927)',
+            'action_date' => '13/11/2026',
+            'registration_date' => '13/11/2026',
+            'annotation' => '---',
+        ],
+    ];
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => $unmergedRows,
+        'created_at' => now(),
+    ]);
+
+    foreach ([$fijacion, $autoMandamiento, $autoMedida] as $action) {
+        DB::table('organization_notifications')->insert([
+            'id' => fake()->uuid(),
+            'organization_id' => $this->organization->id,
+            'notification_digest_id' => $digest->id,
+            'notifiable_id' => $action->id,
+            'notifiable_type' => ProcessAction::class,
+            'notification_type' => 'judicial_action_detected',
+            'is_viewed' => false,
+            'is_notified' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    $details = getJson('/api/app-user/notification-digests/'.$digest->id);
+    $details->assertOk();
+    $detailItems = $details->json('data.0.data');
+
+    expect($detailItems)->toHaveCount(2)
+        ->and(collect($detailItems)->every(fn (array $row): bool => ($row['is_merged'] ?? false) === true))->toBeTrue()
+        ->and(collect($detailItems)->pluck('linked_action_text')->implode(' | '))->toContain('Mandamiento')
+        ->and(collect($detailItems)->pluck('linked_action_text')->implode(' | '))->toContain('Medida Cautelar');
+
+    $list = getJson('/api/app-user/notification-digests');
+    $list->assertOk();
+    $listItems = $list->json('data.0.data');
+
+    expect($listItems)->toHaveCount(2)
+        ->and(collect($listItems)->every(fn (array $row): bool => ($row['is_merged'] ?? false) === true))->toBeTrue()
+        ->and(collect($listItems)->pluck('linked_action_text')->implode(' | '))->toContain('Mandamiento')
+        ->and(collect($listItems)->pluck('linked_action_text')->implode(' | '))->toContain('Medida Cautelar');
+});
+
 it('handles digest details when party names have leading empty comma segments', function (): void {
     $digest = NotificationDigest::factory()->create([
         'organization_id' => $this->organization->id,

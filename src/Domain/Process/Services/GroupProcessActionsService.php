@@ -51,6 +51,117 @@ class GroupProcessActionsService
     }
 
     /**
+     * Pairing plus consolidado rows: one Fijación+Auto line per same-day auto.
+     *
+     * Process detail uses {@see handle()} (badge on each auto). Actuaciones recientes
+     * and the email need {@see handleForConsolidado()} so leftover autos are not
+     * shown as unpaired.
+     */
+    public function handleForConsolidado(Collection $actions): Collection
+    {
+        return $this->expandFijacionesToOneRowPerAuto($this->handle($actions));
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $tagged
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function expandFijacionesToOneRowPerAuto(Collection $tagged): Collection
+    {
+        $claimedAutoIds = [];
+        $rows = collect();
+
+        foreach ($tagged as $item) {
+            $itemId = $item['process_action_id'] ?? $item['id'] ?? null;
+            $linkedAutos = $tagged
+                ->filter(fn (array $candidate): bool => $itemId !== null
+                    && ($candidate['fijacion_action_id'] ?? null) === $itemId)
+                ->values();
+
+            $alreadyMerged = ! empty($item['is_merged']);
+
+            if ($linkedAutos->isEmpty() && ! $alreadyMerged && isset($item['notified_action_id'])) {
+                $auto = $tagged->firstWhere('process_action_id', $item['notified_action_id']);
+                if (is_array($auto)) {
+                    $linkedAutos = collect([$auto]);
+                }
+            }
+
+            if ($alreadyMerged) {
+                $rows->push($item);
+                $notifiedId = $item['notified_action_id'] ?? null;
+                if (is_string($notifiedId) && $notifiedId !== '') {
+                    $claimedAutoIds[] = $notifiedId;
+                }
+
+                foreach ($linkedAutos as $auto) {
+                    $autoId = $auto['process_action_id'] ?? $auto['id'] ?? null;
+                    if ($autoId === $notifiedId) {
+                        continue;
+                    }
+                    if (is_string($autoId) && $autoId !== '') {
+                        $claimedAutoIds[] = $autoId;
+                    }
+                    $rows->push($this->mergeFijacionWithAuto($item, $auto, keepFijacionProcessActionId: false));
+                }
+
+                continue;
+            }
+
+            if ($linkedAutos->isEmpty()) {
+                $rows->push($item);
+
+                continue;
+            }
+
+            foreach ($linkedAutos as $index => $auto) {
+                $autoId = $auto['process_action_id'] ?? $auto['id'] ?? null;
+                if (is_string($autoId) && $autoId !== '') {
+                    $claimedAutoIds[] = $autoId;
+                }
+                $rows->push($this->mergeFijacionWithAuto($item, $auto, keepFijacionProcessActionId: $index === 0));
+            }
+        }
+
+        return $rows->reject(function (array $item) use ($claimedAutoIds): bool {
+            if (! empty($item['is_merged'])) {
+                return false;
+            }
+
+            $id = $item['process_action_id'] ?? $item['id'] ?? null;
+
+            return is_string($id) && in_array($id, $claimedAutoIds, true);
+        })->values();
+    }
+
+    /**
+     * @param  array<string, mixed>  $fijacion
+     * @param  array<string, mixed>  $auto
+     * @return array<string, mixed>
+     */
+    private function mergeFijacionWithAuto(array $fijacion, array $auto, bool $keepFijacionProcessActionId): array
+    {
+        $fijacionId = $fijacion['process_action_id'] ?? $fijacion['id'] ?? null;
+        $autoId = $auto['process_action_id'] ?? $auto['id'] ?? null;
+
+        $fijacion['is_merged'] = true;
+        $fijacion['linked_action_text'] = $auto['action_text'] ?? $auto['action'] ?? null;
+        $fijacion['linked_annotation'] = $auto['annotation'] ?? null;
+        $fijacion['notified_action_id'] = $autoId;
+        $fijacion['is_alert'] = ($fijacion['is_alert'] ?? false) || ($auto['is_alert'] ?? false);
+        $fijacion['matched_keywords'] = collect([$fijacion['matched_keywords'] ?? null, $auto['matched_keywords'] ?? null])
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
+        if (! $keepFijacionProcessActionId) {
+            $fijacion['process_action_id'] = $autoId ?? $fijacionId;
+        }
+
+        return $fijacion;
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>  $data
      */
     private function processPairing(array &$data, int $count, bool $highPriorityOnly): void
