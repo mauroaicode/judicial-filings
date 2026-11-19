@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
+use Src\Application\Shared\Process\Services\MergePairedActionDocumentsService;
 use Src\Application\Shared\Process\Services\ProcessActionFinderService;
 use Src\Application\Shared\Process\Services\ProcessActionPairingContextService;
 use Src\Domain\AppUser\Models\AppUser;
@@ -26,6 +27,7 @@ readonly class ProcessActionController
         private ProcessDetailService $processDetailService,
         private GroupProcessActionsService $groupProcessActionsService,
         private ProcessActionPairingContextService $pairingContextService,
+        private MergePairedActionDocumentsService $mergePairedActionDocumentsService,
     ) {}
 
     /**
@@ -86,6 +88,10 @@ readonly class ProcessActionController
 
         // Agrupar Fijaciones con sus Autos (con contexto de página siguiente)
         $groupedItems = $this->groupProcessActionsService->handle($transformedItems, $contextItems->isNotEmpty() ? $contextItems : null);
+        $groupedItems = $this->mergePairedActionDocumentsService->handle(
+            $groupedItems,
+            $contextItems->isNotEmpty() ? $contextItems : null,
+        );
 
         $paginatedActions->setCollection($groupedItems);
 

@@ -15,6 +15,7 @@ use Src\Application\Admin\Process\Services\ResolveProcessActionNotifiedConsolida
 use Src\Application\Admin\Process\Services\UpdateAdminProcessActionService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
+use Src\Application\Shared\Process\Services\MergePairedActionDocumentsService;
 use Src\Application\Shared\Process\Services\ProcessActionFinderService;
 use Src\Application\Shared\Process\Services\ProcessActionPairingContextService;
 use Src\Domain\Process\Models\AlertActionKeyword;
@@ -28,6 +29,7 @@ readonly class AdminProcessActionController
         private ProcessActionFinderService $processActionFinderService,
         private GroupProcessActionsService $groupProcessActionsService,
         private ProcessActionPairingContextService $pairingContextService,
+        private MergePairedActionDocumentsService $mergePairedActionDocumentsService,
         private UpdateAdminProcessActionService $updateAdminProcessActionService,
         private MarkProcessActionRemovedFromJudicialBranchService $markProcessActionRemovedFromJudicialBranchService,
         private ResolveProcessActionNotifiedConsolidadosService $resolveProcessActionNotifiedConsolidadosService,
@@ -90,6 +92,10 @@ readonly class AdminProcessActionController
 
         // Agrupar Fijaciones con sus Autos (con contexto de página siguiente)
         $groupedItems = $this->groupProcessActionsService->handle($transformedItems, $contextItems->isNotEmpty() ? $contextItems : null);
+        $groupedItems = $this->mergePairedActionDocumentsService->handle(
+            $groupedItems,
+            $contextItems->isNotEmpty() ? $contextItems : null,
+        );
 
         $paginatedActions->setCollection($groupedItems);
 
