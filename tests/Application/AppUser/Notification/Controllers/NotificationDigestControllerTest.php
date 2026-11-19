@@ -301,6 +301,71 @@ it('merges one fijacion with two same-day autos in actuaciones recientes consoli
         ->and(collect($listItems)->pluck('linked_action_text')->implode(' | '))->toContain('Medida Cautelar');
 });
 
+it('pairs a leftover auto in actuaciones recientes with a same-day fijacion already on the process', function (): void {
+    $process = Process::factory()->create(['process_number' => '76001310501220260006900']);
+    $process->organizations()->attach($this->organization->id, ['interest_date' => now()]);
+
+    $fijacion = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Fijación Estado',
+        'action_date' => '2026-11-18',
+        'registration_date' => '2026-11-18',
+        'cons_action' => 24,
+    ]);
+    $auto = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto Fija Fecha y Hora de Audiencia para el Dia 21 de Enero de 2026',
+        'action_date' => '2026-11-18',
+        'registration_date' => '2026-11-18',
+        'cons_action' => 25,
+    ]);
+
+    $digest = NotificationDigest::factory()->create([
+        'organization_id' => $this->organization->id,
+        'data' => [
+            [
+                'process_number' => $process->process_number,
+                'process_action_id' => $auto->id,
+                'action_text' => $auto->action,
+                'action_date' => '18/11/2026',
+                'registration_date' => '18 de noviembre de 2026',
+                'annotation' => '---',
+            ],
+        ],
+        'created_at' => now(),
+    ]);
+
+    DB::table('organization_notifications')->insert([
+        'id' => fake()->uuid(),
+        'organization_id' => $this->organization->id,
+        'notification_digest_id' => $digest->id,
+        'notifiable_id' => $auto->id,
+        'notifiable_type' => ProcessAction::class,
+        'notification_type' => 'judicial_action_detected',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $details = getJson('/api/app-user/notification-digests/'.$digest->id);
+    $details->assertOk();
+    $detailItems = $details->json('data.0.data');
+
+    expect($detailItems)->toHaveCount(1)
+        ->and($detailItems[0]['is_merged'])->toBeTrue()
+        ->and($detailItems[0]['linked_action_text'])->toContain('Auto Fija Fecha')
+        ->and($fijacion->action)->toContain('Fijación');
+
+    $list = getJson('/api/app-user/notification-digests');
+    $list->assertOk();
+    $listItems = $list->json('data.0.data');
+
+    expect($listItems)->toHaveCount(1)
+        ->and($listItems[0]['is_merged'])->toBeTrue()
+        ->and($listItems[0]['linked_action_text'])->toContain('Auto Fija Fecha');
+});
+
 it('handles digest details when party names have leading empty comma segments', function (): void {
     $digest = NotificationDigest::factory()->create([
         'organization_id' => $this->organization->id,

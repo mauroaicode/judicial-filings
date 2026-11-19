@@ -66,7 +66,10 @@ readonly class MergePairedActionDocumentsService
             }
 
             $id = $document['id'] ?? null;
-            $key = is_int($id) || is_string($id) ? (string) $id : md5(json_encode($document) ?: uniqid('', true));
+            $encoded = json_encode($document);
+            $key = is_int($id) || is_string($id)
+                ? (string) $id
+                : md5(is_string($encoded) ? $encoded : serialize($document));
 
             if (isset($seen[$key])) {
                 continue;

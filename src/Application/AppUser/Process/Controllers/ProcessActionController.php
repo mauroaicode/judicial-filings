@@ -8,6 +8,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Src\Application\AppUser\Process\Excel\ExportProcessActionsExcelService;
 use Src\Application\AppUser\Process\Services\ProcessDetailService;
 use Src\Application\Shared\Process\Data\ProcessActionFilterData;
 use Src\Application\Shared\Process\Resources\ProcessActionResource;
@@ -19,6 +20,7 @@ use Src\Domain\Process\Models\AlertActionKeyword;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Services\GroupProcessActionsService;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 readonly class ProcessActionController
 {
@@ -28,6 +30,7 @@ readonly class ProcessActionController
         private GroupProcessActionsService $groupProcessActionsService,
         private ProcessActionPairingContextService $pairingContextService,
         private MergePairedActionDocumentsService $mergePairedActionDocumentsService,
+        private ExportProcessActionsExcelService $exportProcessActionsExcelService,
     ) {}
 
     /**
@@ -67,6 +70,7 @@ readonly class ProcessActionController
 
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 
+        /** @var \Illuminate\Support\Collection<int, array<string, mixed>> $transformedItems */
         $transformedItems = $paginatedActions->getCollection()
             ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel(
                 $action,
@@ -80,6 +84,7 @@ readonly class ProcessActionController
             $contextActions->load(['media.organizations']);
         }
 
+        /** @var \Illuminate\Support\Collection<int, array<string, mixed>> $contextItems */
         $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel(
             $action,
             0,
@@ -93,9 +98,30 @@ readonly class ProcessActionController
             $contextItems->isNotEmpty() ? $contextItems : null,
         );
 
-        $paginatedActions->setCollection($groupedItems);
+        /** @var \Illuminate\Pagination\LengthAwarePaginator<int, array<string, mixed>> $paginatedPayload */
+        $paginatedPayload = $paginatedActions;
+        $paginatedPayload->setCollection($groupedItems);
 
-        return $paginatedActions;
+        return $paginatedPayload;
+    }
+
+    /**
+     * Download actuaciones of this process instance as Excel, honoring the same table filters.
+     */
+    public function export(Request $request, string $processId): BinaryFileResponse
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        $filters = ProcessActionFilterData::from($request->query());
+
+        return $this->exportProcessActionsExcelService->handle($processId, $organization->id, $filters);
     }
 
     /**

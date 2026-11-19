@@ -119,3 +119,51 @@ it('keeps a single fijacion+auto consolidado row keyed by the fijacion', functio
         ->and($rows->first()['notified_action_id'])->toBe($auto->id)
         ->and($rows->first()['linked_action_text'])->toContain('Auto Niega');
 });
+
+it('merges a leftover auto with the same-day fijacion even if that fijacion was not in the package', function (): void {
+    $organization = Organization::factory()->create();
+    $process = Process::factory()->create();
+    $process->organizations()->attach($organization->id, [
+        'interest_date' => now()->toDateString(),
+        'is_active' => true,
+    ]);
+
+    $regDate = now()->startOfDay();
+    $morphClass = (new ProcessAction)->getMorphClass();
+
+    ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Fijación Estado',
+        'registration_date' => $regDate,
+        'action_date' => $regDate,
+        'cons_action' => 24,
+    ]);
+    $auto = ProcessAction::factory()->create([
+        'process_id' => $process->id,
+        'action' => 'Auto Fija Fecha y Hora de Audiencia para el Dia 21 de Enero de 2026',
+        'registration_date' => $regDate,
+        'action_date' => $regDate,
+        'cons_action' => 25,
+    ]);
+
+    OrganizationNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'organization_id' => $organization->id,
+        'notifiable_id' => $auto->id,
+        'notifiable_type' => $morphClass,
+        'notification_type' => 'actuacion',
+        'is_viewed' => false,
+        'is_notified' => false,
+        'is_email_notified' => false,
+    ]);
+
+    $rows = app(BuildNotificationDigestRowsService::class)->handle(
+        OrganizationNotification::query()->where('organization_id', $organization->id)->with('notifiable.process')->get(),
+        $organization->id,
+    );
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows->first()['is_merged'])->toBeTrue()
+        ->and($rows->first()['notified_action_id'])->toBe($auto->id)
+        ->and($rows->first()['linked_action_text'])->toContain('Auto Fija Fecha');
+});

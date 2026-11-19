@@ -8,15 +8,15 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Src\Application\AppUser\Notification\Data\NotificationDigestFilterData;
 use Src\Application\AppUser\Notification\Resources\NotificationDigestResource;
+use Src\Application\Shared\Services\Notification\AssembleConsolidadoDigestRowsService;
 use Src\Domain\Notification\Models\NotificationDigest;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Models\ProcessAction;
-use Src\Domain\Process\Services\GroupProcessActionsService;
 
 class GetNotificationDigestDetailsService
 {
     public function __construct(
-        private readonly GroupProcessActionsService $groupProcessActionsService,
+        private readonly AssembleConsolidadoDigestRowsService $assembleConsolidadoDigestRowsService,
     ) {}
 
     public function handle(string $organizationId, string $digestId, NotificationDigestFilterData $filters): LengthAwarePaginator
@@ -28,7 +28,7 @@ class GetNotificationDigestDetailsService
         $items = NotificationDigestResource::filterRawItems($rawData, $filters);
         $items = $this->attachMissingProcessActionIds($digest, $items);
         $items = $this->removeDuplicates(collect($items))->values()->all();
-        $items = $this->groupProcessActionsService->handleForConsolidado(collect($items))->values()->all();
+        $items = $this->assembleConsolidadoDigestRowsService->handle(collect($items))->values()->all();
         $items = NotificationDigestResource::sortRawItems($items);
 
         $totalActions = count($items);

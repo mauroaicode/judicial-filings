@@ -12,7 +12,6 @@ use Src\Application\Shared\Helpers\StrParseHelper;
 use Src\Domain\Notification\Models\OrganizationNotification;
 use Src\Domain\Process\Models\ProcessAction;
 use Src\Domain\Process\Models\ProcessActionAlertHighlight;
-use Src\Domain\Process\Services\GroupProcessActionsService;
 
 /**
  * Builds consolidado table rows from pending (or collected) organization notifications.
@@ -22,7 +21,7 @@ use Src\Domain\Process\Services\GroupProcessActionsService;
 class BuildNotificationDigestRowsService
 {
     public function __construct(
-        private readonly GroupProcessActionsService $groupProcessActionsService,
+        private readonly AssembleConsolidadoDigestRowsService $assembleConsolidadoDigestRowsService,
     ) {}
 
     /**
@@ -33,7 +32,7 @@ class BuildNotificationDigestRowsService
     {
         $digestData = $this->prepareData($notifications, $organizationId);
 
-        return $this->groupProcessActionsService->handleForConsolidado($digestData);
+        return $this->assembleConsolidadoDigestRowsService->handle($digestData);
     }
 
     /**

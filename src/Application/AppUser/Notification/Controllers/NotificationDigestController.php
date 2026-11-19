@@ -12,11 +12,11 @@ use Src\Application\AppUser\Notification\Services\GetNotificationDigestDetailsSe
 use Src\Application\AppUser\Notification\Services\ListNotificationDigestHistoryService;
 use Src\Application\AppUser\Notification\Services\NotificationDigestFinderService;
 use Src\Application\AppUser\Notification\Services\RecordNotificationDigestViewService;
+use Src\Application\Shared\Services\Notification\AssembleConsolidadoDigestRowsService;
 use Src\Application\Shared\Services\Notification\ExportNotificationDigestPdfService;
 use Src\Domain\AppUser\Models\AppUser;
 use Src\Domain\Notification\Enums\NotificationDigestOpenedVia;
 use Src\Domain\Notification\Models\NotificationDigest;
-use Src\Domain\Process\Services\GroupProcessActionsService;
 use Symfony\Component\HttpFoundation\Response;
 
 readonly class NotificationDigestController
@@ -24,7 +24,7 @@ readonly class NotificationDigestController
     public function __construct(
         private NotificationDigestFinderService $notificationDigestFinderService,
         private ListNotificationDigestHistoryService $listNotificationDigestHistoryService,
-        private GroupProcessActionsService $groupProcessActionsService,
+        private AssembleConsolidadoDigestRowsService $assembleConsolidadoDigestRowsService,
         private GetNotificationDigestDetailsService $getNotificationDigestDetailsService,
         private ExportNotificationDigestPdfService $exportNotificationDigestPdfService,
         private RecordNotificationDigestViewService $recordNotificationDigestViewService,
@@ -135,7 +135,7 @@ readonly class NotificationDigestController
 
                 // 2. Agrupamos las actuaciones para vincular Fijaciones con Autos
                 if (isset($resource['data']) && count($resource['data']) > 0) {
-                    $resource['data'] = $this->groupProcessActionsService->handleForConsolidado(collect($resource['data']))->values()->all();
+                    $resource['data'] = $this->assembleConsolidadoDigestRowsService->handle(collect($resource['data']))->values()->all();
                 }
 
                 // 3. Ordenamos por registration_date descendente (más recientes primero)

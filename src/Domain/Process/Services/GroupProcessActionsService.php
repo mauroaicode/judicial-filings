@@ -57,9 +57,38 @@ class GroupProcessActionsService
      * and the email need {@see handleForConsolidado()} so leftover autos are not
      * shown as unpaired.
      */
-    public function handleForConsolidado(Collection $actions): Collection
+    public function handleForConsolidado(Collection $actions, ?Collection $context = null): Collection
     {
-        return $this->expandFijacionesToOneRowPerAuto($this->handle($actions));
+        $all = $context instanceof Collection && $context->isNotEmpty()
+            ? $actions->merge($context)->values()
+            : $actions;
+        $taggedAll = $this->handle($all);
+        $expanded = $this->expandFijacionesToOneRowPerAuto($taggedAll);
+
+        if (! $context instanceof Collection || $context->isEmpty()) {
+            return $expanded;
+        }
+
+        $primaryIds = $actions
+            ->map(fn (array $row): mixed => $row['process_action_id'] ?? $row['id'] ?? null)
+            ->filter(fn (mixed $id): bool => is_string($id) && $id !== '')
+            ->unique()
+            ->values()
+            ->all();
+
+        return $expanded
+            ->filter(function (array $row) use ($primaryIds): bool {
+                $id = $row['process_action_id'] ?? $row['id'] ?? null;
+                $notifiedId = $row['notified_action_id'] ?? null;
+
+                if (! empty($row['is_merged'])) {
+                    return (is_string($notifiedId) && in_array($notifiedId, $primaryIds, true))
+                        || (is_string($id) && in_array($id, $primaryIds, true));
+                }
+
+                return is_string($id) && in_array($id, $primaryIds, true);
+            })
+            ->values();
     }
 
     /**
@@ -99,9 +128,11 @@ class GroupProcessActionsService
                     if ($autoId === $notifiedId) {
                         continue;
                     }
+
                     if (is_string($autoId) && $autoId !== '') {
                         $claimedAutoIds[] = $autoId;
                     }
+
                     $rows->push($this->mergeFijacionWithAuto($item, $auto, keepFijacionProcessActionId: false));
                 }
 
@@ -119,6 +150,7 @@ class GroupProcessActionsService
                 if (is_string($autoId) && $autoId !== '') {
                     $claimedAutoIds[] = $autoId;
                 }
+
                 $rows->push($this->mergeFijacionWithAuto($item, $auto, keepFijacionProcessActionId: $index === 0));
             }
         }

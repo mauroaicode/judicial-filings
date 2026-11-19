@@ -177,6 +177,33 @@ it('expands one same-day fijacion and two autos into two consolidado rows', func
             || ($row['notified_action_id'] ?? null) === 'auto-3927'))->toBeTrue();
 });
 
+it('merges a leftover consolidado auto with a same-day fijacion only present in context', function (): void {
+    $auto = groupProcessActionsPairingRow([
+        'process_action_id' => 'auto-solo',
+        'action' => 'Auto Fija Fecha y Hora de Audiencia',
+        'action_text' => 'Auto Fija Fecha y Hora de Audiencia',
+        'cons_action' => 25,
+        'registration_date_iso' => '2026-11-18',
+        'action_date_iso' => '2026-11-18',
+    ]);
+    $fijacion = groupProcessActionsPairingRow([
+        'process_action_id' => 'fij-ayer',
+        'action' => 'Fijación Estado',
+        'action_text' => 'Fijación Estado',
+        'cons_action' => 24,
+        'registration_date_iso' => '2026-11-18',
+        'action_date_iso' => '2026-11-18',
+    ]);
+
+    $rows = app(GroupProcessActionsService::class)
+        ->handleForConsolidado(collect([$auto]), collect([$fijacion]));
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows->first()['is_merged'])->toBeTrue()
+        ->and($rows->first()['linked_action_text'])->toContain('Auto Fija Fecha')
+        ->and($rows->first()['notified_action_id'])->toBe('auto-solo');
+});
+
 it('pairs using spanish formatted dates from consolidado rows', function (): void {
     $fijacion = groupProcessActionsPairingRow([
         'process_action_id' => 'fij-es',

@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('processes/manual-registration-requests', [ManualRegistrationRequestController::class, 'store']);
 
     Route::get('processes/{id}', [ProcessController::class, 'show']);
+    Route::get('processes/{id}/export-pdf', [ProcessController::class, 'exportPdf'])->whereUuid('id');
     Route::delete('processes/{id}', [TrashOrganizationProcessesController::class, 'destroy'])->whereUuid('id');
     Route::patch('processes/{id}/status', [ProcessController::class, 'toggleStatus']);
     Route::get('processes/{id}/instances', [ProcessInstancesController::class, 'index']);

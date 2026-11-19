@@ -10,14 +10,14 @@ use Src\Application\Shared\Helpers\DateFormatHelper;
 use Src\Application\Shared\Helpers\ProcessNumberFormatHelper;
 use Src\Application\Shared\Mail\ConsolidatedDigestEmailPresenter;
 use Src\Application\Shared\Notification\NotificationDigestAccess;
+use Src\Application\Shared\Pdf\PdfLogoDataUri;
 use Src\Domain\Notification\Models\NotificationDigest;
-use Src\Domain\Process\Services\GroupProcessActionsService;
 use Symfony\Component\HttpFoundation\Response;
 
 class ExportNotificationDigestPdfService
 {
     public function __construct(
-        private readonly GroupProcessActionsService $groupProcessActionsService,
+        private readonly AssembleConsolidadoDigestRowsService $assembleConsolidadoDigestRowsService,
         private readonly ConsolidatedDigestEmailPresenter $digestEmailPresenter,
     ) {}
 
@@ -54,7 +54,7 @@ class ExportNotificationDigestPdfService
         $rows = is_array($resource['data'] ?? null) ? $resource['data'] : [];
 
         if ($rows !== []) {
-            $rows = $this->groupProcessActionsService->handleForConsolidado(collect($rows))->values()->all();
+            $rows = $this->assembleConsolidadoDigestRowsService->handle(collect($rows))->values()->all();
             $rows = $this->collapseClaimedAutos($rows);
             $rows = array_map($this->prepareRowForPdf(...), $rows);
         }
@@ -63,7 +63,7 @@ class ExportNotificationDigestPdfService
         $processesCount = collect($rows)->pluck('process_number')->filter()->unique()->count();
 
         return [
-            'logoDataUri' => $this->resolveLogoDataUri(),
+            'logoDataUri' => PdfLogoDataUri::resolve(),
             'organizationName' => $digest->organization->name ?? '—',
             'date' => $resource['date'] ?? DateFormatHelper::formatDate($digest->created_at),
             'time' => $resource['time'] ?? $digest->created_at->format('g:ia'),
@@ -179,27 +179,6 @@ class ExportNotificationDigestPdfService
                 return ! in_array($actionId, $claimedAutoIds, true);
             },
         ));
-    }
-
-    private function resolveLogoDataUri(): ?string
-    {
-        $path = public_path('images/logo-notijudicial-grande.png');
-
-        if (! is_file($path)) {
-            $path = public_path('images/logo-notijudicial.png');
-        }
-
-        if (! is_file($path)) {
-            return null;
-        }
-
-        $contents = file_get_contents($path);
-
-        if ($contents === false) {
-            return null;
-        }
-
-        return 'data:image/png;base64,'.base64_encode($contents);
     }
 
     private function buildFilename(NotificationDigest $digest, string $dateLabel): string

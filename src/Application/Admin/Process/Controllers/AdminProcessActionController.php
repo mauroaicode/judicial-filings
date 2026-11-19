@@ -68,6 +68,7 @@ readonly class AdminProcessActionController
 
         $offset = ($paginatedActions->currentPage() - 1) * $paginatedActions->perPage();
 
+        /** @var \Illuminate\Support\Collection<int, array<string, mixed>> $transformedItems */
         $transformedItems = $paginatedActions->getCollection()
             ->map(fn (ProcessAction $action, int $key): array => ProcessActionResource::fromModel(
                 $action,
@@ -83,6 +84,7 @@ readonly class AdminProcessActionController
             $contextActions->load(['media.organizations']);
         }
 
+        /** @var \Illuminate\Support\Collection<int, array<string, mixed>> $contextItems */
         $contextItems = $contextActions->map(fn (ProcessAction $action): array => ProcessActionResource::fromModel(
             $action,
             0,

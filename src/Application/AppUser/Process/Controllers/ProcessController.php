@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Src\Application\AppUser\Process\Data\StoreProcessData;
 use Src\Application\AppUser\Process\DTOs\RegisterProcessResult;
+use Src\Application\AppUser\Process\Pdf\ExportProcessPdfService;
 use Src\Application\AppUser\Process\Resources\ProcessResource;
 use Src\Application\AppUser\Process\Resources\ProcessSubjectResource;
 use Src\Application\AppUser\Process\Services\DispatchProcessRegistrationService;
@@ -30,6 +31,7 @@ use Src\Domain\Process\Enums\ProcessDataSourceSlug;
 use Src\Domain\Process\Models\Process;
 use Src\Domain\Process\Models\ProcessSubject;
 use Src\Domain\Process\Models\UnassignedProcessAction;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 readonly class ProcessController
@@ -43,6 +45,7 @@ readonly class ProcessController
         private RegisterProcessService $registerProcessService,
         private DispatchSamaiProcessRegistrationService $dispatchSamaiProcessRegistrationService,
         private RegisterSamaiProcessService $registerSamaiProcessService,
+        private ExportProcessPdfService $exportProcessPdfService,
     ) {}
 
     /**
@@ -117,6 +120,23 @@ readonly class ProcessController
             'subjects' => $subjects->values()->all(),
             'subjects_summary' => ProcessSubjectSummaryHelper::summarize($uniqueSubjects),
         ]);
+    }
+
+    /**
+     * Download a PDF snapshot of this process instance (info, subjects, tasks, timeline, actions).
+     */
+    public function exportPdf(string $id): Response
+    {
+        /** @var AppUser $appUser */
+        $appUser = auth()->user();
+
+        $organization = $appUser->organizations()->first();
+
+        if (! $organization) {
+            abort(422, __('process.user_has_no_organization'));
+        }
+
+        return $this->exportProcessPdfService->handle($id, $organization->id);
     }
 
     /**

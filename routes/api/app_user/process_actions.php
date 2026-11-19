@@ -5,6 +5,8 @@ use Src\Application\AppUser\Process\Controllers\ProcessActionController;
 use Src\Application\AppUser\Process\Controllers\ProcessActionDocumentController;
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('processes/{processId}/actions/export', [ProcessActionController::class, 'export'])
+        ->whereUuid('processId');
     Route::get('processes/{processId}/actions', [ProcessActionController::class, 'index']);
     Route::get('processes/{processId}/action-documents', [ProcessActionDocumentController::class, 'index'])
         ->whereUuid('processId');
